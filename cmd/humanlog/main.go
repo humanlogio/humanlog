@@ -90,6 +90,7 @@ func newApp() *cli.App {
 			opts.SetKeep(keep)
 		}
 
+		log.Print("reading stdin...")
 		if err := humanlog.Scanner(os.Stdin, os.Stdout, opts); err != nil {
 			log.Fatalf("scanning caught an error: %v", err)
 		}
