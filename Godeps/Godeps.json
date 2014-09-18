@@ -1,0 +1,22 @@
+{
+	"ImportPath": "github.internal.digitalocean.com/antoine/humanlog",
+	"GoVersion": "devel +a92a99ba40fb Wed Sep 17 16:52:01 2014 -0400",
+	"Packages": [
+		"./..."
+	],
+	"Deps": [
+		{
+			"ImportPath": "github.com/aybabtme/rgbterm",
+			"Rev": "9e3d038e1b8341ed7416c841a884cab4a3487941"
+		},
+		{
+			"ImportPath": "github.com/codegangsta/cli",
+			"Comment": "1.2.0-24-g7381bc4",
+			"Rev": "7381bc4e62942763475703c7edd405f1e42adf4f"
+		},
+		{
+			"ImportPath": "github.com/kr/logfmt",
+			"Rev": "b84e30acd515aadc4b783ad4ff83aff3299bdfe0"
+		}
+	]
+}
