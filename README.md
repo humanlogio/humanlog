@@ -2,6 +2,10 @@
 
 Read logs from `stdin` and prints them back to `stdout`, but prettier.
 
+# Using it
+
+[Grab a release](https://github.internal.digitalocean.com/antoine/humanlog/releases).
+
 # Example
 
 If you emit logs in `logfmt` or using the default logrus TextFormatter, you
