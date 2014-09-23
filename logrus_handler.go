@@ -81,7 +81,7 @@ func (h *LogrusHandler) Prettify(skipUnchanged bool) []byte {
 		msg = rgbterm.String(h.Message, 255, 255, 255)
 	}
 
-	lvl := strings.ToUpper(h.Level)[:4]
+	lvl := strings.ToUpper(h.Level)[:imin(4, len(h.Level))]
 	var level string
 	switch h.Level {
 	case "debug":
@@ -165,3 +165,10 @@ type byLongest []string
 func (s byLongest) Len() int           { return len(s) }
 func (s byLongest) Less(i, j int) bool { return len(s[i]) < len(s[j]) }
 func (s byLongest) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
+
+func imin(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
