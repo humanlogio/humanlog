@@ -1,9 +1,9 @@
 package main
 
 import (
+	"github.com/aybabtme/humanlog"
 	"github.com/aybabtme/rgbterm"
 	"github.com/codegangsta/cli"
-	"github.internal.digitalocean.com/antoine/humanlog"
 	"log"
 	"os"
 )
