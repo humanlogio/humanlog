@@ -1,6 +1,6 @@
 {
-	"ImportPath": "github.internal.digitalocean.com/antoine/humanlog",
-	"GoVersion": "devel +a92a99ba40fb Wed Sep 17 16:52:01 2014 -0400",
+	"ImportPath": "github.com/aybabtme/humanlog",
+	"GoVersion": "devel +d56326309b20 Thu Oct 02 11:37:06 2014 -0700",
 	"Packages": [
 		"./..."
 	],
@@ -16,7 +16,7 @@
 		},
 		{
 			"ImportPath": "github.com/kr/logfmt",
-			"Rev": "b84e30acd515aadc4b783ad4ff83aff3299bdfe0"
+			"Rev": "d08c20444daa49c1f4d4c171c81f36178e5f625d"
 		}
 	]
 }

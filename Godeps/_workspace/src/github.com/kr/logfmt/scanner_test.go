@@ -2,6 +2,7 @@ package logfmt
 
 import (
 	"reflect"
+	"strconv"
 	"testing"
 )
 
@@ -25,6 +26,14 @@ func TestScannerSimple(t *testing.T) {
 				{"d", ""},
 				{"x", "sf"},
 			},
+		},
+		{
+			`quotes=` + strconv.Quote(`outside double quotes "inside double quotes 'inside single quotes'"`),
+			[]T{{"quotes", `outside double quotes "inside double quotes 'inside single quotes'"`}},
+		},
+		{
+			`equals="UPDATE herp SET is_derp=0 WHERE herp_id=9000 AND derp_id=1"`,
+			[]T{{"equals", `UPDATE herp SET is_derp=0 WHERE herp_id=9000 AND derp_id=1`}},
 		},
 		{`x= `, []T{{"x", ""}}},
 		{`y=`, []T{{"y", ""}}},
