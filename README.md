@@ -6,8 +6,21 @@ Read logs from `stdin` and prints them back to `stdout`, but prettier.
 
 [Grab a release](https://github.com/aybabtme/humanlog/releases) or :
 
+## With Go installed
 ```bash
 $ go get -u github.com/aybabtme/humanlog/...
+```
+
+## On linux
+
+```bash
+$ wget -qO- https://github.com/aybabtme/humanlog/releases/download/0.1/humanlog_linux_amd64.tar.gz | tar xvz
+```
+
+## On OS X
+
+```bash
+$ wget -qO- https://github.com/aybabtme/humanlog/releases/download/0.1/humanlog_darwin_amd64.tar.gz | tar xvz
 ```
 
 # Example
