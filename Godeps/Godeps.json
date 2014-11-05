@@ -1,6 +1,6 @@
 {
 	"ImportPath": "github.com/aybabtme/humanlog",
-	"GoVersion": "devel +d56326309b20 Thu Oct 02 11:37:06 2014 -0700",
+	"GoVersion": "devel +bb82d18ac07a Thu Oct 30 13:20:43 2014 -0700",
 	"Packages": [
 		"./..."
 	],
