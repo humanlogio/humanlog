@@ -3,9 +3,8 @@ package humanlog
 import (
 	"bufio"
 	"io"
-	"log"
 
-	"github.com/kr/logfmt"
+	"github.com/aybabtme/humanlog/parser/logfmt"
 )
 
 var (
@@ -30,14 +29,7 @@ func Scanner(src io.Reader, dst io.Writer, opts *HandlerOptions) error {
 		lineData := in.Bytes()
 		switch {
 
-		case logrusEntry.CanHandle(lineData):
-			err := logfmt.Unmarshal(lineData, &logrusEntry)
-			if err != nil {
-				log.Printf("line %d: parsing logfmt, %v", line, err)
-				lastLogrus = false
-				dst.Write(lineData)
-				continue
-			}
+		case logrusEntry.CanHandle(lineData) && logfmt.Parse(lineData, true, true, logrusEntry.visit):
 			dst.Write(logrusEntry.Prettify(opts.SkipUnchanged && lastLogrus))
 			lastLogrus = true
 

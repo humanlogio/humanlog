@@ -50,17 +50,18 @@ func (h *LogrusHandler) CanHandle(d []byte) bool {
 }
 
 // HandleLogfmt sets the fields of the handler.
-func (h *LogrusHandler) HandleLogfmt(key, val []byte) error {
+func (h *LogrusHandler) visit(key, val []byte) bool {
 	switch {
 	case bytes.Equal(key, []byte("level")):
-		return h.setLevel(val)
+		h.setLevel(val)
 	case bytes.Equal(key, []byte("msg")):
-		return h.setMessage(val)
+		h.setMessage(val)
 	case bytes.Equal(key, []byte("time")):
-		return h.setTime(val)
+		h.setTime(val)
 	default:
-		return h.setField(key, val)
+		h.setField(key, val)
 	}
+	return true
 }
 
 // Prettify the output in a logrus like fashion.
@@ -110,19 +111,18 @@ func (h *LogrusHandler) Prettify(skipUnchanged bool) []byte {
 	return h.buf.Bytes()
 }
 
-func (h *LogrusHandler) setLevel(val []byte) error   { h.Level = string(val); return nil }
-func (h *LogrusHandler) setMessage(val []byte) error { h.Message = string(val); return nil }
-func (h *LogrusHandler) setTime(val []byte) (err error) {
-	h.Time, err = tryParseTime(string(val))
+func (h *LogrusHandler) setLevel(val []byte)   { h.Level = string(val) }
+func (h *LogrusHandler) setMessage(val []byte) { h.Message = string(val) }
+func (h *LogrusHandler) setTime(val []byte) (parsed bool) {
+	h.Time, parsed = tryParseTime(string(val))
 	return
 }
 
-func (h *LogrusHandler) setField(key, val []byte) error {
+func (h *LogrusHandler) setField(key, val []byte) {
 	if h.Fields == nil {
 		h.Fields = make(map[string]string)
 	}
 	h.Fields[string(key)] = string(val)
-	return nil
 }
 
 func (h *LogrusHandler) joinKVs(skipUnchanged bool, sep string) []string {

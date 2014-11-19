@@ -1,7 +1,6 @@
 package humanlog
 
 import (
-	"fmt"
 	"time"
 )
 
@@ -25,14 +24,14 @@ var formats = []string{
 }
 
 // tries to parse time using a couple of formats before giving up
-func tryParseTime(value string) (time.Time, error) {
+func tryParseTime(value string) (time.Time, bool) {
 	var t time.Time
 	var err error
 	for _, layout := range formats {
 		t, err = time.Parse(layout, value)
 		if err == nil {
-			return t, err
+			return t, true
 		}
 	}
-	return t, fmt.Errorf("couldn't find a format to parse a time.Time from %q", value)
+	return t, false
 }
