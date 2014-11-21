@@ -8,3 +8,5 @@ all:
 
 install:
 	@godep go install cmd/...
+
+.PHONY: release all install
