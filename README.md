@@ -25,10 +25,8 @@ wget -qO- https://github.com/aybabtme/humanlog/releases/download/0.1.4/humanlog_
 
 # Example
 
-If you emit logs in `logfmt` or using the default logrus TextFormatter, you
-will enjoy pretty logs when those entries are encountered by `humanlog`.
-Unrecognized lines are left unchanged.
-
+If you emit logs in JSON or in [`logfmt`](https://brandur.org/logfmt), you will enjoy pretty logs when those 
+entries are encountered by `humanlog`. Unrecognized lines are left unchanged.
 
 ```
 $ humanlog < /var/log/logfile.log
@@ -41,7 +39,6 @@ $ humanlog < /var/log/logfile.log
 How to help:
 
 * __support more log formats__: by submitting `human.Handler` implementations.
-* __following a file__: add support for following a file, alike to `tail -f=name`
 * __live querying__: add support for filtering in log output in real time.
 * __charting__: some key-values have semantics that could be charted in real time. For
 instance, durations, frequency of numeric values, etc. See the [l2met][] project.
@@ -56,7 +53,7 @@ USAGE:
    humanlog [global options] command [command options] [arguments...]
 
 VERSION:
-   0.0.0
+   0.1.4
 
 AUTHOR:
   Antoine Grondin - <antoine@digitalocean.com>
@@ -74,5 +71,4 @@ GLOBAL OPTIONS:
    --help, -h           show help
    --version, -v        print the version
 ```
-
 [l2met]: https://github.com/ryandotsmith/l2met
