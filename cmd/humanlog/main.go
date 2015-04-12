@@ -1,11 +1,12 @@
 package main
 
 import (
+	"log"
+	"os"
+
 	"github.com/aybabtme/humanlog"
 	"github.com/aybabtme/rgbterm"
 	"github.com/codegangsta/cli"
-	"log"
-	"os"
 )
 
 func fatalf(c *cli.Context, format string, args ...interface{}) {
@@ -17,7 +18,7 @@ func fatalf(c *cli.Context, format string, args ...interface{}) {
 func main() {
 	app := newApp()
 
-	prefix := rgbterm.String(app.Name+"> ", 99, 99, 99)
+	prefix := rgbterm.FgString(app.Name+"> ", 99, 99, 99)
 
 	log.SetFlags(0)
 	log.SetPrefix(prefix)

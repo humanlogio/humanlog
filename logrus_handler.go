@@ -3,11 +3,12 @@ package humanlog
 import (
 	"bytes"
 	"fmt"
-	"github.com/aybabtme/rgbterm"
 	"sort"
 	"strings"
 	"text/tabwriter"
 	"time"
+
+	"github.com/aybabtme/rgbterm"
 )
 
 // LogrusHandler can handle logs emmited by logrus.TextFormatter loggers.
@@ -77,30 +78,30 @@ func (h *LogrusHandler) Prettify(skipUnchanged bool) []byte {
 
 	var msg string
 	if h.Message == "" {
-		msg = rgbterm.String("<no msg>", 190, 190, 190)
+		msg = rgbterm.FgString("<no msg>", 190, 190, 190)
 	} else {
-		msg = rgbterm.String(h.Message, 255, 255, 255)
+		msg = rgbterm.FgString(h.Message, 255, 255, 255)
 	}
 
 	lvl := strings.ToUpper(h.Level)[:imin(4, len(h.Level))]
 	var level string
 	switch h.Level {
 	case "debug":
-		level = rgbterm.String(lvl, 221, 28, 119)
+		level = rgbterm.FgString(lvl, 221, 28, 119)
 	case "info":
-		level = rgbterm.String(lvl, 20, 172, 190)
+		level = rgbterm.FgString(lvl, 20, 172, 190)
 	case "warn", "warning":
-		level = rgbterm.String(lvl, 255, 245, 32)
+		level = rgbterm.FgString(lvl, 255, 245, 32)
 	case "error":
-		level = rgbterm.String(lvl, 255, 0, 0)
+		level = rgbterm.FgString(lvl, 255, 0, 0)
 	case "fatal", "panic":
 		level = rgbterm.BgString(lvl, 255, 0, 0)
 	default:
-		level = rgbterm.String(lvl, 221, 28, 119)
+		level = rgbterm.FgString(lvl, 221, 28, 119)
 	}
 
 	_, _ = fmt.Fprintf(h.out, "%s |%s| %s\t %s",
-		rgbterm.String(h.Time.Format(time.Stamp), 99, 99, 99),
+		rgbterm.FgString(h.Time.Format(time.Stamp), 99, 99, 99),
 		level,
 		msg,
 		strings.Join(h.joinKVs(skipUnchanged, "="), "\t "),
@@ -139,7 +140,7 @@ func (h *LogrusHandler) joinKVs(skipUnchanged bool, sep string) []string {
 			}
 		}
 
-		kstr := rgbterm.String(k, h.Opts.KeyRGB.R, h.Opts.KeyRGB.G, h.Opts.KeyRGB.B)
+		kstr := rgbterm.FgString(k, h.Opts.KeyRGB.R, h.Opts.KeyRGB.G, h.Opts.KeyRGB.B)
 
 		var vstr string
 		if h.Opts.Truncates && len(v) > h.Opts.TruncateLength {
@@ -147,7 +148,7 @@ func (h *LogrusHandler) joinKVs(skipUnchanged bool, sep string) []string {
 		} else {
 			vstr = v
 		}
-		vstr = rgbterm.String(vstr, h.Opts.ValRGB.R, h.Opts.ValRGB.G, h.Opts.ValRGB.B)
+		vstr = rgbterm.FgString(vstr, h.Opts.ValRGB.R, h.Opts.ValRGB.G, h.Opts.ValRGB.B)
 		kv = append(kv, kstr+sep+vstr)
 	}
 
