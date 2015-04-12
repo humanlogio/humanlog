@@ -73,6 +73,9 @@ func (h *JSONHandler) UnmarshalJSON(data []byte) error {
 	}
 	h.Level, _ = raw["level"].(string)
 	h.Message, _ = raw["msg"].(string)
+	delete(raw, "time")
+	delete(raw, "level")
+	delete(raw, "msg")
 
 	if h.Fields == nil {
 		h.Fields = make(map[string]string)
@@ -130,10 +133,6 @@ func (h *JSONHandler) Prettify(skipUnchanged bool) []byte {
 	_ = h.out.Flush()
 
 	return h.buf.Bytes()
-}
-
-func (h *JSONHandler) setField(key, val string) {
-
 }
 
 func (h *JSONHandler) joinKVs(skipUnchanged bool, sep string) []string {
