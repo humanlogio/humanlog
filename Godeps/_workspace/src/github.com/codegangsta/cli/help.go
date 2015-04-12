@@ -1,11 +1,6 @@
 package cli
 
-import (
-	"fmt"
-	"os"
-	"text/tabwriter"
-	"text/template"
-)
+import "fmt"
 
 // The text template for the Default help topic.
 // cli.go uses text/template to render templates. You can
@@ -17,14 +12,13 @@ USAGE:
    {{.Name}} {{if .Flags}}[global options] {{end}}command{{if .Flags}} [command options]{{end}} [arguments...]
 
 VERSION:
-   {{.Version}}{{if or .Author .Email}}
+   {{.Version}}
 
-AUTHOR:{{if .Author}}
-  {{.Author}}{{if .Email}} - <{{.Email}}>{{end}}{{else}}
-  {{.Email}}{{end}}{{end}}
-
+AUTHOR(S): 
+   {{range .Authors}}{{ . }}
+   {{end}}
 COMMANDS:
-   {{range .Commands}}{{.Name}}{{with .ShortName}}, {{.}}{{end}}{{ "\t" }}{{.Usage}}
+   {{range .Commands}}{{join .Names ", "}}{{ "\t" }}{{.Usage}}
    {{end}}{{if .Flags}}
 GLOBAL OPTIONS:
    {{range .Flags}}{{.}}
@@ -58,7 +52,7 @@ USAGE:
    {{.Name}} command{{if .Flags}} [command options]{{end}} [arguments...]
 
 COMMANDS:
-   {{range .Commands}}{{.Name}}{{with .ShortName}}, {{.}}{{end}}{{ "\t" }}{{.Usage}}
+   {{range .Commands}}{{join .Names ", "}}{{ "\t" }}{{.Usage}}
    {{end}}{{if .Flags}}
 OPTIONS:
    {{range .Flags}}{{.}}
@@ -66,9 +60,9 @@ OPTIONS:
 `
 
 var helpCommand = Command{
-	Name:      "help",
-	ShortName: "h",
-	Usage:     "Shows a list of commands or help for one command",
+	Name:    "help",
+	Aliases: []string{"h"},
+	Usage:   "Shows a list of commands or help for one command",
 	Action: func(c *Context) {
 		args := c.Args()
 		if args.Present() {
@@ -80,9 +74,9 @@ var helpCommand = Command{
 }
 
 var helpSubcommand = Command{
-	Name:      "help",
-	ShortName: "h",
-	Usage:     "Shows a list of commands or help for one command",
+	Name:    "help",
+	Aliases: []string{"h"},
+	Usage:   "Shows a list of commands or help for one command",
 	Action: func(c *Context) {
 		args := c.Args()
 		if args.Present() {
@@ -94,7 +88,9 @@ var helpSubcommand = Command{
 }
 
 // Prints help for the App
-var HelpPrinter = printHelp
+type helpPrinter func(templ string, data interface{})
+
+var HelpPrinter helpPrinter = nil
 
 // Prints version for the App
 var VersionPrinter = printVersion
@@ -106,15 +102,20 @@ func ShowAppHelp(c *Context) {
 // Prints the list of subcommands as the default app completion method
 func DefaultAppComplete(c *Context) {
 	for _, command := range c.App.Commands {
-		fmt.Println(command.Name)
-		if command.ShortName != "" {
-			fmt.Println(command.ShortName)
+		for _, name := range command.Names() {
+			fmt.Fprintln(c.App.Writer, name)
 		}
 	}
 }
 
 // Prints help for the given command
 func ShowCommandHelp(c *Context, command string) {
+	// show the subcommand help for a command with subcommands
+	if command == "" {
+		HelpPrinter(SubcommandHelpTemplate, c.App)
+		return
+	}
+
 	for _, c := range c.App.Commands {
 		if c.HasName(command) {
 			HelpPrinter(CommandHelpTemplate, c)
@@ -125,13 +126,13 @@ func ShowCommandHelp(c *Context, command string) {
 	if c.App.CommandNotFound != nil {
 		c.App.CommandNotFound(c, command)
 	} else {
-		fmt.Printf("No help topic for '%v'\n", command)
+		fmt.Fprintf(c.App.Writer, "No help topic for '%v'\n", command)
 	}
 }
 
 // Prints help for the given subcommand
 func ShowSubcommandHelp(c *Context) {
-	HelpPrinter(SubcommandHelpTemplate, c.App)
+	ShowCommandHelp(c, c.Command.Name)
 }
 
 // Prints the version number of the App
@@ -140,7 +141,7 @@ func ShowVersion(c *Context) {
 }
 
 func printVersion(c *Context) {
-	fmt.Printf("%v version %v\n", c.App.Name, c.App.Version)
+	fmt.Fprintf(c.App.Writer, "%v version %v\n", c.App.Name, c.App.Version)
 }
 
 // Prints the lists of commands within a given context
@@ -157,16 +158,6 @@ func ShowCommandCompletions(ctx *Context, command string) {
 	if c != nil && c.BashComplete != nil {
 		c.BashComplete(ctx)
 	}
-}
-
-func printHelp(templ string, data interface{}) {
-	w := tabwriter.NewWriter(os.Stdout, 0, 8, 1, '\t', 0)
-	t := template.Must(template.New("help").Parse(templ))
-	err := t.Execute(w, data)
-	if err != nil {
-		panic(err)
-	}
-	w.Flush()
 }
 
 func checkVersion(c *Context) bool {
@@ -206,7 +197,7 @@ func checkSubcommandHelp(c *Context) bool {
 }
 
 func checkCompletions(c *Context) bool {
-	if c.GlobalBool(BashCompletionFlag.Name) && c.App.EnableBashCompletion {
+	if (c.GlobalBool(BashCompletionFlag.Name) || c.Bool(BashCompletionFlag.Name)) && c.App.EnableBashCompletion {
 		ShowCompletions(c)
 		return true
 	}

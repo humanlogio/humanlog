@@ -24,6 +24,8 @@
 package rgbterm
 
 var (
+	before   = []byte("\033[")
+	after    = []byte("m")
 	reset    = []byte("\033[0;00m")
 	fgcolors = fgTermRGB[16:232]
 	bgcolors = bgTermRGB[16:232]
@@ -33,8 +35,16 @@ var (
 // the closest the RGB color.
 //
 // This is simply a helper for Bytes.
-func String(in string, r, g, b uint8) string {
-	return string(Bytes([]byte(in), r, g, b))
+func String(in string, fr, fg, fb, br, bg, bb uint8) string {
+	return string(Bytes([]byte(in), fr, fg, fb, br, bg, bb))
+}
+
+// FgString colorizes the foreground of the input with the terminal color
+// that matches the closest the RGB color.
+//
+// This is simply a helper for Bytes.
+func FgString(in string, r, g, b uint8) string {
+	return string(FgBytes([]byte(in), r, g, b))
 }
 
 // BgString colorizes the background of the input with the terminal color
@@ -47,29 +57,45 @@ func BgString(in string, r, g, b uint8) string {
 
 // Bytes colorizes the input with the terminal color that matches
 // the closest the RGB color.
-func Bytes(in []byte, r, g, b uint8) []byte {
-	return append(append(rgb(r, g, b, true), in...), reset...)
+func Bytes(in []byte, fr, fg, fb, br, bg, bb uint8) []byte {
+	return colorize(rgb(fr, fg, fb, br, bg, bb), in)
+}
+
+// Bytes colorizes the foreground with the terminal color that matches
+// the closest the RGB color.
+func FgBytes(in []byte, r, g, b uint8) []byte {
+	return colorize(color(r, g, b, true), in)
 }
 
 // BgBytes colorizes the background of the input with the terminal color
 // that matches the closest the RGB color.
 func BgBytes(in []byte, r, g, b uint8) []byte {
-	return append(append(rgb(r, g, b, false), in...), reset...)
+	return colorize(color(r, g, b, false), in)
 }
 
 // Byte colorizes the input with the terminal color that matches
 // the closest the RGB color.
-func Byte(in byte, r, g, b uint8) []byte {
-	return append(append(rgb(r, g, b, true), in), reset...)
+func FgByte(in byte, r, g, b uint8) []byte {
+	return colorize(color(r, g, b, true), []byte{in})
 }
 
 // BgByte colorizes the background of the input with the terminal color
 // that matches the closest the RGB color.
 func BgByte(in byte, r, g, b uint8) []byte {
-	return append(append(rgb(r, g, b, false), in), reset...)
+	return colorize(color(r, g, b, false), []byte{in})
 }
 
-func rgb(r, g, b uint8, foreground bool) []byte {
+func colorize(color, in []byte) []byte {
+	return append(append(append(append(before, color...), after...), in...), reset...)
+}
+
+func rgb(fr, fg, fb, br, bg, bb uint8) []byte {
+	fore := append(color(fr, fg, fb, true), byte(';'))
+	back := color(br, bg, bb, false)
+	return append(fore, back...)
+}
+
+func color(r, g, b uint8, foreground bool) []byte {
 	// if all colors are equal, it might be in the grayscale range
 	if r == g && g == b {
 		color, ok := grayscale(r, foreground)

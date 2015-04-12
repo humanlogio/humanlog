@@ -1,22 +1,22 @@
 {
 	"ImportPath": "github.com/aybabtme/humanlog",
-	"GoVersion": "devel +bb82d18ac07a Thu Oct 30 13:20:43 2014 -0700",
+	"GoVersion": "go1.4.2",
 	"Packages": [
 		"./..."
 	],
 	"Deps": [
 		{
 			"ImportPath": "github.com/aybabtme/rgbterm",
-			"Rev": "9e3d038e1b8341ed7416c841a884cab4a3487941"
+			"Rev": "c07e2f009ed2311e9c35bca12ec00b38ccd48283"
 		},
 		{
 			"ImportPath": "github.com/codegangsta/cli",
-			"Comment": "1.2.0-24-g7381bc4",
-			"Rev": "7381bc4e62942763475703c7edd405f1e42adf4f"
+			"Comment": "1.2.0-95-g9b2bd2b",
+			"Rev": "9b2bd2b3489748d4d0a204fa4eb2ee9e89e0ebc6"
 		},
 		{
 			"ImportPath": "github.com/kr/logfmt",
-			"Rev": "d08c20444daa49c1f4d4c171c81f36178e5f625d"
+			"Rev": "b84e30acd515aadc4b783ad4ff83aff3299bdfe0"
 		}
 	]
 }
