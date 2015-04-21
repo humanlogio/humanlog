@@ -34,7 +34,9 @@ func (h *JSONHandler) clear() {
 	h.Message = ""
 	h.last = h.Fields
 	h.Fields = make(map[string]string)
-	h.buf.Reset()
+	if h.buf != nil {
+		h.buf.Reset()
+	}
 }
 
 // TryHandle tells if this line was handled by this handler.
