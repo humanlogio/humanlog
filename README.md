@@ -14,18 +14,18 @@ $ go get -u github.com/aybabtme/humanlog/...
 ## On linux
 
 ```bash
-wget -qO- https://github.com/aybabtme/humanlog/releases/download/0.1.4/humanlog_linux_amd64.tar.gz | tar xvz
+wget -qO- https://github.com/aybabtme/humanlog/releases/download/0.1.5/humanlog_linux_amd64.tar.gz | tar xvz
 ```
 
 ## On OS X
 
 ```bash
-wget -qO- https://github.com/aybabtme/humanlog/releases/download/0.1.4/humanlog_darwin_amd64.tar.gz | tar xvz
+wget -qO- https://github.com/aybabtme/humanlog/releases/download/0.1.5/humanlog_darwin_amd64.tar.gz | tar xvz
 ```
 
 # Example
 
-If you emit logs in JSON or in [`logfmt`](https://brandur.org/logfmt), you will enjoy pretty logs when those 
+If you emit logs in JSON or in [`logfmt`](https://brandur.org/logfmt), you will enjoy pretty logs when those
 entries are encountered by `humanlog`. Unrecognized lines are left unchanged.
 
 ```
@@ -53,7 +53,7 @@ USAGE:
    humanlog [global options] command [command options] [arguments...]
 
 VERSION:
-   0.1.4
+   0.1.5
 
 AUTHOR:
   Antoine Grondin - <antoine@digitalocean.com>
