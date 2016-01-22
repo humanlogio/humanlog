@@ -41,13 +41,7 @@ func (h *JSONHandler) clear() {
 
 // TryHandle tells if this line was handled by this handler.
 func (h *JSONHandler) TryHandle(d []byte) bool {
-	if !bytes.Contains(d, []byte(`"level":"`)) {
-		return false
-	}
 	if !bytes.Contains(d, []byte(`"time":"`)) {
-		return false
-	}
-	if !bytes.Contains(d, []byte(`"msg":"`)) {
 		return false
 	}
 	err := h.UnmarshalJSON(d)
@@ -73,11 +67,20 @@ func (h *JSONHandler) UnmarshalJSON(data []byte) error {
 			return fmt.Errorf("field time is not a known timestamp: %v", timeStr)
 		}
 	}
-	h.Level, _ = raw["level"].(string)
-	h.Message, _ = raw["msg"].(string)
 	delete(raw, "time")
-	delete(raw, "level")
+	h.Message, _ = raw["msg"].(string)
 	delete(raw, "msg")
+
+	h.Level, ok = raw["level"].(string)
+	if !ok {
+		h.Level, ok = raw["lvl"].(string)
+		delete(raw, "lvl")
+		if !ok {
+			h.Level = "???"
+		}
+	} else {
+		delete(raw, "level")
+	}
 
 	if h.Fields == nil {
 		h.Fields = make(map[string]string)

@@ -2,6 +2,7 @@ package humanlog
 
 import (
 	"bufio"
+	"bytes"
 	"io"
 
 	"github.com/aybabtme/humanlog/parser/logfmt"
@@ -29,6 +30,10 @@ func Scanner(src io.Reader, dst io.Writer, opts *HandlerOptions) error {
 	for in.Scan() {
 		line++
 		lineData := in.Bytes()
+
+		// remove that pesky syslog crap
+		lineData = bytes.TrimPrefix(lineData, []byte("@cee: "))
+
 		switch {
 
 		case jsonEntry.TryHandle(lineData):
