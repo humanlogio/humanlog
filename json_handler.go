@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 	"text/tabwriter"
@@ -87,7 +88,19 @@ func (h *JSONHandler) UnmarshalJSON(data []byte) error {
 	}
 
 	for key, val := range raw {
-		h.Fields[key] = fmt.Sprintf("%v", val)
+		switch v := val.(type) {
+		case float64:
+			if v-math.Floor(v) < 0.000001 && v < 1e9 {
+				// looks like an integer that's not too large
+				h.Fields[key] = fmt.Sprintf("%d", int(v))
+			} else {
+				h.Fields[key] = fmt.Sprintf("%g", v)
+			}
+		case string:
+			h.Fields[key] = fmt.Sprintf("%q", v)
+		default:
+			h.Fields[key] = fmt.Sprintf("%v", v)
+		}
 	}
 
 	return nil
