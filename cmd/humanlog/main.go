@@ -70,7 +70,7 @@ func newApp() *cli.App {
 	app.Author = "Antoine Grondin"
 	app.Email = "antoine@digitalocean.com"
 	app.Name = "humanlog"
-	app.Version = "0.1.6"
+	app.Version = "0.1.7"
 	app.Usage = "reads structured logs from stdin, makes them pretty on stdout!"
 
 	app.Flags = []cli.Flag{skipFlag, keepFlag, sortLongest, skipUnchanged, truncates, truncateLength}

@@ -1,6 +1,6 @@
 {
 	"ImportPath": "github.com/aybabtme/humanlog",
-	"GoVersion": "go1.4.2",
+	"GoVersion": "go1.6",
 	"Packages": [
 		"./..."
 	],
@@ -11,8 +11,8 @@
 		},
 		{
 			"ImportPath": "github.com/codegangsta/cli",
-			"Comment": "1.2.0-95-g9b2bd2b",
-			"Rev": "9b2bd2b3489748d4d0a204fa4eb2ee9e89e0ebc6"
+			"Comment": "1.2.0-217-g5db7419",
+			"Rev": "5db74198dee1cfe60cf06a611d03a420361baad6"
 		},
 		{
 			"ImportPath": "github.com/kr/logfmt",
