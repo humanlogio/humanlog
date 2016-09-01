@@ -135,7 +135,7 @@ func (h *LogrusHandler) joinKVs(skipUnchanged bool, sep string) []string {
 		}
 
 		if skipUnchanged {
-			if lastV, ok := h.last[k]; ok && lastV == v {
+			if lastV, ok := h.last[k]; ok && lastV == v && !h.Opts.shouldShowUnchanged(k) {
 				continue
 			}
 		}

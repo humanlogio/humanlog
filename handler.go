@@ -35,26 +35,32 @@ type HandlerOptions struct {
 	ValRGB         RGB
 }
 
-func (h *HandlerOptions) setup() {
-	h.Skip = make(map[string]struct{})
-	h.Keep = make(map[string]struct{})
-}
-
 func (h *HandlerOptions) shouldShowKey(key string) bool {
 	if len(h.Keep) != 0 {
-		_, keep := h.Keep[key]
-		return keep
+		if _, keep := h.Keep[key]; keep {
+			return true
+		}
 	}
 	if len(h.Skip) != 0 {
-		_, skip := h.Skip[key]
-		return !skip
+		if _, skip := h.Skip[key]; skip {
+			return false
+		}
 	}
 	return true
 }
 
+func (h *HandlerOptions) shouldShowUnchanged(key string) bool {
+	if len(h.Keep) != 0 {
+		if _, keep := h.Keep[key]; keep {
+			return true
+		}
+	}
+	return false
+}
+
 func (h *HandlerOptions) SetSkip(skip []string) {
-	if len(h.Keep) != 0 || h.Skip == nil {
-		h.setup()
+	if h.Skip == nil {
+		h.Skip = make(map[string]struct{})
 	}
 	for _, key := range skip {
 		h.Skip[key] = struct{}{}
@@ -62,8 +68,8 @@ func (h *HandlerOptions) SetSkip(skip []string) {
 }
 
 func (h *HandlerOptions) SetKeep(keep []string) {
-	if len(h.Skip) != 0 || h.Keep == nil {
-		h.setup()
+	if h.Keep == nil {
+		h.Keep = make(map[string]struct{})
 	}
 	for _, key := range keep {
 		h.Keep[key] = struct{}{}
