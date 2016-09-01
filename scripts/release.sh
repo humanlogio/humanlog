@@ -23,13 +23,13 @@ set -u -e
 rm -rf /tmp/humanlog_build/
 
 mkdir -p /tmp/humanlog_build/linux
-GOOS=linux godep go build -ldflags "-X main.version=$VERSION" -o /tmp/humanlog_build/linux/humanlog ../
+GOOS=linux godep go build -ldflags "-X main.version=$VERSION" -o /tmp/humanlog_build/linux/humanlog ../cmd/humanlog
 pushd /tmp/humanlog_build/linux/
 tar cvzf /tmp/humanlog_build/humanlog_linux.tar.gz humanlog
 popd
 
 mkdir -p /tmp/humanlog_build/darwin
-GOOS=darwin godep go build -ldflags "-X main.version=$VERSION" -o /tmp/humanlog_build/darwin/humanlog ../
+GOOS=darwin godep go build -ldflags "-X main.version=$VERSION" -o /tmp/humanlog_build/darwin/humanlog ../cmd/humanlog
 pushd /tmp/humanlog_build/darwin/
 tar cvzf /tmp/humanlog_build/humanlog_darwin.tar.gz humanlog
 popd
