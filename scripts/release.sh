@@ -35,6 +35,8 @@ tar cvzf /tmp/humanlog_build/humanlog_darwin.tar.gz humanlog
 popd
 
 temple file < README.tmpl.md > ../README.md -var "version=$VERSION"
+
+
 git add ../README.md
 git commit -m 'release bump'
 
