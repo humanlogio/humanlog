@@ -38,7 +38,7 @@ func (h *LogrusHandler) clear() {
 
 // CanHandle tells if this line can be handled by this handler.
 func (h *LogrusHandler) CanHandle(d []byte) bool {
-	if !bytes.Contains(d, []byte(`level="`)) {
+	if !bytes.Contains(d, []byte(`level=`)) {
 		return false
 	}
 	if !bytes.Contains(d, []byte(`time="`)) {
