@@ -1,0 +1,10 @@
+hash: df9c300933df54fe4aff3c2863494355591670544d736ab01dfa985c8dd75461
+updated: 2016-11-28T20:03:50.955841912-05:00
+imports:
+- name: github.com/aybabtme/rgbterm
+  version: c9a1bdb3761d262af7109d6463977046dafde36e
+- name: github.com/kr/logfmt
+  version: b84e30acd515aadc4b783ad4ff83aff3299bdfe0
+- name: github.com/urfave/cli
+  version: 55f715e28c46073d0e217e2ce8eb46b0b45e3db6
+testImports: []

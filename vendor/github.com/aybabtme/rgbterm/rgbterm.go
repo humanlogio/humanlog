@@ -18,6 +18,13 @@
 //
 //	fmt.Println("Oh!", coloredWord, "hello!")
 //
+// Alternately, use ColorOut or one of the Interpret functions to output
+// a string with color escape codes:
+//
+//  fmt.Fprintln(rgbterm.ColorOut, "Let's print some {#ff0000}red{} and {#00ff00}green{} text")
+//  fmt.Fprintln(rgbterm.ColorOut, "Let's print some {#8080ff}blue,")
+//  fmt.Fprintln(rgbterm.ColorOut, "blue, blue{} text.")
+//
 // The RGB <-> HSL helpers were shamelessly taken from gorilla color, BSD 2 clauses
 // licensed:
 //    https://code.google.com/p/gorilla/source/browse/?r=ef489f63418265a7249b1d53bdc358b09a4a2ea0#hg%2Fcolor

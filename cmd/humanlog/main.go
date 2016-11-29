@@ -6,7 +6,7 @@ import (
 
 	"github.com/aybabtme/humanlog"
 	"github.com/aybabtme/rgbterm"
-	"github.com/codegangsta/cli"
+	"github.com/urfave/cli"
 )
 
 var version = "devel"
