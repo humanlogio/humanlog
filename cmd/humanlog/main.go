@@ -77,7 +77,7 @@ func newApp() *cli.App {
 
 	app.Flags = []cli.Flag{skipFlag, keepFlag, sortLongest, skipUnchanged, truncates, truncateLength}
 
-	app.Action = func(c *cli.Context) {
+	app.Action = func(c *cli.Context) error {
 
 		opts := humanlog.DefaultOptions
 		opts.SortLongest = c.BoolT(sortLongest.Name)
@@ -98,6 +98,7 @@ func newApp() *cli.App {
 		if err := humanlog.Scanner(os.Stdin, os.Stdout, opts); err != nil {
 			log.Fatalf("scanning caught an error: %v", err)
 		}
+		return nil
 	}
 	return app
 }
