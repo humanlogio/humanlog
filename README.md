@@ -14,13 +14,13 @@ $ go get -u github.com/aybabtme/humanlog/...
 ## On linux
 
 ```bash
-wget -qO- https://github.com/aybabtme/humanlog/releases/download/0.1.8/humanlog_linux.tar.gz | tar xvz
+wget -qO- https://github.com/aybabtme/humanlog/releases/download/0.1.9/humanlog_linux.tar.gz | tar xvz
 ```
 
 ## On OS X
 
 ```bash
-wget -qO- https://github.com/aybabtme/humanlog/releases/download/0.1.8/humanlog_darwin.tar.gz | tar xvz
+wget -qO- https://github.com/aybabtme/humanlog/releases/download/0.1.9/humanlog_darwin.tar.gz | tar xvz
 ```
 
 # Example
@@ -53,7 +53,7 @@ USAGE:
    humanlog [global options] command [command options] [arguments...]
 
 VERSION:
-   0.1.8
+   0.1.9
 
 AUTHOR:
   Antoine Grondin - <antoine@digitalocean.com>
