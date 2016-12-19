@@ -57,6 +57,11 @@ func newApp() *cli.App {
 		Usage: "skip keys that have the same value than the previous entry",
 	}
 
+	showUnchanged := cli.BoolFlag{
+		Name:  "show-unchanged",
+		Usage: "show keys that have the same value than the previous entry (equivalent to --skip-unchanged=false)",
+	}
+
 	truncates := cli.BoolFlag{
 		Name:  "truncate",
 		Usage: "truncates values that are longer than --truncate-length",
@@ -75,13 +80,16 @@ func newApp() *cli.App {
 	app.Version = version
 	app.Usage = "reads structured logs from stdin, makes them pretty on stdout!"
 
-	app.Flags = []cli.Flag{skipFlag, keepFlag, sortLongest, skipUnchanged, truncates, truncateLength}
+	app.Flags = []cli.Flag{skipFlag, keepFlag, sortLongest, skipUnchanged, showUnchanged, truncates, truncateLength}
 
 	app.Action = func(c *cli.Context) error {
 
 		opts := humanlog.DefaultOptions
 		opts.SortLongest = c.BoolT(sortLongest.Name)
 		opts.SkipUnchanged = c.BoolT(skipUnchanged.Name)
+		if opts.SkipUnchanged {
+			opts.SkipUnchanged = !c.Bool(showUnchanged.Name)
+		}
 		opts.Truncates = c.BoolT(truncates.Name)
 		opts.TruncateLength = c.Int(truncateLength.Name)
 
