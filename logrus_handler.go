@@ -79,6 +79,8 @@ func (h *LogrusHandler) Prettify(skipUnchanged bool) []byte {
 	var msg string
 	if h.Message == "" {
 		msg = rgbterm.FgString("<no msg>", 190, 190, 190)
+	} else if h.Opts.LightBg {
+		msg = rgbterm.FgString(h.Message, 0, 0, 0)
 	} else {
 		msg = rgbterm.FgString(h.Message, 255, 255, 255)
 	}

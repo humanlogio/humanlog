@@ -15,6 +15,7 @@ var DefaultOptions = &HandlerOptions{
 	SortLongest:    true,
 	SkipUnchanged:  true,
 	Truncates:      true,
+	LightBg:        false,
 	TruncateLength: 15,
 	KeyRGB:         RGB{1, 108, 89},
 	ValRGB:         RGB{125, 125, 125},
@@ -30,6 +31,7 @@ type HandlerOptions struct {
 	SortLongest    bool
 	SkipUnchanged  bool
 	Truncates      bool
+	LightBg        bool
 	TruncateLength int
 	KeyRGB         RGB
 	ValRGB         RGB
