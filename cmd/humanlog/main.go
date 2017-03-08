@@ -68,6 +68,11 @@ func newApp() *cli.App {
 		Value: humanlog.DefaultOptions.TruncateLength,
 	}
 
+	lightBg := cli.BoolFlag{
+		Name:  "light-bg",
+		Usage: "use black as the base foreground color (for terminals with light backgrounds)",
+	}
+
 	app := cli.NewApp()
 	app.Author = "Antoine Grondin"
 	app.Email = "antoine@digitalocean.com"
@@ -75,7 +80,7 @@ func newApp() *cli.App {
 	app.Version = version
 	app.Usage = "reads structured logs from stdin, makes them pretty on stdout!"
 
-	app.Flags = []cli.Flag{skipFlag, keepFlag, sortLongest, skipUnchanged, truncates, truncateLength}
+	app.Flags = []cli.Flag{skipFlag, keepFlag, sortLongest, skipUnchanged, truncates, truncateLength, lightBg}
 
 	app.Action = func(c *cli.Context) error {
 
@@ -84,6 +89,7 @@ func newApp() *cli.App {
 		opts.SkipUnchanged = c.BoolT(skipUnchanged.Name)
 		opts.Truncates = c.BoolT(truncates.Name)
 		opts.TruncateLength = c.Int(truncateLength.Name)
+		opts.LightBg = c.BoolT(lightBg.Name)
 
 		switch {
 		case c.IsSet(skipFlag.Name) && c.IsSet(keepFlag.Name):
