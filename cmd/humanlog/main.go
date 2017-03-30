@@ -23,6 +23,7 @@ func main() {
 
 	prefix := rgbterm.FgString(app.Name+"> ", 99, 99, 99)
 
+	log.SetOutput(colorable.NewColorableStdout())
 	log.SetFlags(0)
 	log.SetPrefix(prefix)
 	err := app.Run(os.Args)
