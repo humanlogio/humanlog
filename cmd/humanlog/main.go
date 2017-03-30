@@ -6,6 +6,7 @@ import (
 
 	"github.com/aybabtme/humanlog"
 	"github.com/aybabtme/rgbterm"
+	"github.com/mattn/go-colorable"
 	"github.com/urfave/cli"
 )
 
@@ -101,7 +102,7 @@ func newApp() *cli.App {
 		}
 
 		log.Print("reading stdin...")
-		if err := humanlog.Scanner(os.Stdin, os.Stdout, opts); err != nil {
+		if err := humanlog.Scanner(os.Stdin, colorable.NewColorableStdout(), opts); err != nil {
 			log.Fatalf("scanning caught an error: %v", err)
 		}
 		return nil
