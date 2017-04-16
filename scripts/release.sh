@@ -7,7 +7,6 @@ usage() {
     exit 1
 }
 
-GITHUB_TOKEN=$1
 if [ "$GITHUB_TOKEN" = "" ]; then
     echo "Need to specify a GITHUB_TOKEN!"
     usage
