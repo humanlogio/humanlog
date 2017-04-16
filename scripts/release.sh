@@ -1,48 +1,33 @@
 #!/usr/bin/env bash
 
+basedir=$(git rev-parse --show-toplevel)
+
 usage() {
-    echo "USAGE: ./release.sh [version] [msg...]"
+    echo "USAGE: release.sh [version] [msg...]"
     exit 1
 }
 
-REVISION=$(git rev-parse HEAD)
-GIT_TAG=$(git name-rev --tags --name-only $REVISION)
-if [ "$GIT_TAG" = "" ]; then
-    GIT_TAG="devel"
-fi
-
-
 VERSION=$1
 if [ "$VERSION" = "" ]; then
-    echo "Need to specify a version! Perhaps '$GIT_TAG'?"
+    echo "Need to specify a version!"
     usage
 fi
 
-set -u -e
+shift
+MSG=$@
+if [ "$MSG" = "" ]; then
+    echo "Need to specify a message!"
+    usage
+fi
 
-rm -rf /tmp/humanlog_build/
+set -e -u -x
 
-mkdir -p /tmp/humanlog_build/linux
-GOOS=linux go build -ldflags "-X main.version=$VERSION" -o /tmp/humanlog_build/linux/humanlog ../cmd/humanlog
-pushd /tmp/humanlog_build/linux/
-tar cvzf /tmp/humanlog_build/humanlog_linux.tar.gz humanlog
-popd
+temple file < $basedir/scripts/README.tmpl.md > $basedir/README.md -var "version=$VERSION"
 
-mkdir -p /tmp/humanlog_build/darwin
-GOOS=darwin go build -ldflags "-X main.version=$VERSION" -o /tmp/humanlog_build/darwin/humanlog ../cmd/humanlog
-pushd /tmp/humanlog_build/darwin/
-tar cvzf /tmp/humanlog_build/humanlog_darwin.tar.gz humanlog
-popd
+git add $basedir/README.md
+git commit -m "$MSG"
+git tag -a $VERSION -m "$MSG"
 
-temple file < README.tmpl.md > ../README.md -var "version=$VERSION"
-
-
-git add ../README.md
-git commit -m 'release bump'
-
-hub release create \
-    -a /tmp/humanlog_build/humanlog_linux.tar.gz \
-    -a /tmp/humanlog_build/humanlog_darwin.tar.gz \
-    $VERSION
+goreleaser --config $basedir/goreleaser.yaml
 
 git push origin master

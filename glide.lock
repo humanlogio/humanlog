@@ -1,10 +1,18 @@
 hash: df9c300933df54fe4aff3c2863494355591670544d736ab01dfa985c8dd75461
-updated: 2016-11-28T20:03:50.955841912-05:00
+updated: 2017-04-17T03:10:59.362486811+09:00
 imports:
 - name: github.com/aybabtme/rgbterm
   version: c9a1bdb3761d262af7109d6463977046dafde36e
 - name: github.com/kr/logfmt
   version: b84e30acd515aadc4b783ad4ff83aff3299bdfe0
+- name: github.com/mattn/go-colorable
+  version: ded68f7a9561c023e790de24279db7ebf473ea80
+- name: github.com/mattn/go-isatty
+  version: fc9e8d8ef48496124e79ae0df75490096eccf6fe
 - name: github.com/urfave/cli
-  version: 55f715e28c46073d0e217e2ce8eb46b0b45e3db6
+  version: 8ba6f23b6e36d03666a14bd9421f5e3efcb59aca
+- name: golang.org/x/sys
+  version: 8f0908ab3b2457e2e15403d3697c9ef5cb4b57a9
+  subpackages:
+  - unix
 testImports: []
