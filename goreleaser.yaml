@@ -13,3 +13,7 @@ brew:
   github:
     owner: aybabtme
     name: homebrew-tap
+
+fpm:
+  formats:
+    - deb

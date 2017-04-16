@@ -7,6 +7,8 @@ usage() {
     exit 1
 }
 
+command -v goreleaser >/dev/null 2>&1 || { echo "Required: goreleaser. Install it https://github.com/goreleaser/goreleaser.  Aborting." >&2; exit 1; }
+
 if [ "$GITHUB_TOKEN" = "" ]; then
     echo "Need to specify a GITHUB_TOKEN!"
     usage

@@ -20,7 +20,8 @@ wget -qO- https://github.com/aybabtme/humanlog/releases/download/{{.version}}/hu
 ## On OS X
 
 ```bash
-wget -qO- https://github.com/aybabtme/humanlog/releases/download/{{.version}}/humanlog_darwin.tar.gz | tar xvz
+brew tap aybabtme/homebrew-tap
+brew install humanlog
 ```
 
 # Example
