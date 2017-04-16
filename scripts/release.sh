@@ -7,26 +7,32 @@ usage() {
     exit 1
 }
 
-VERSION=$1
-if [ "$VERSION" = "" ]; then
+GITHUB_TOKEN=$1
+if [ "$GITHUB_TOKEN" = "" ]; then
+    echo "Need to specify a GITHUB_TOKEN!"
+    usage
+fi
+
+version=$1
+if [ "$version" = "" ]; then
     echo "Need to specify a version!"
     usage
 fi
 
 shift
-MSG=$@
-if [ "$MSG" = "" ]; then
+msg=$@
+if [ "$msg" = "" ]; then
     echo "Need to specify a message!"
     usage
 fi
 
 set -e -u -x
 
-temple file < $basedir/scripts/README.tmpl.md > $basedir/README.md -var "version=$VERSION"
+temple file < $basedir/scripts/README.tmpl.md > $basedir/README.md -var "version=$version"
 
 git add $basedir/README.md
-git commit -m "$MSG"
-git tag -a $VERSION -m "$MSG"
+git commit -m "$msg"
+git tag -a $version -m "$msg"
 
 goreleaser --config $basedir/goreleaser.yaml
 
