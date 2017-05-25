@@ -42,7 +42,7 @@ func (h *JSONHandler) clear() {
 
 // TryHandle tells if this line was handled by this handler.
 func (h *JSONHandler) TryHandle(d []byte) bool {
-	if !bytes.Contains(d, []byte(`"time":`)) {
+	if !bytes.Contains(d, []byte(`"time":`)) && !bytes.Contains(d, []byte(`"ts":`)) {
 		return false
 	}
 	err := h.UnmarshalJSON(d)
@@ -63,12 +63,25 @@ func (h *JSONHandler) UnmarshalJSON(data []byte) error {
 
 	timeStr, ok := raw["time"].(string)
 	if ok {
+		delete(raw, "time")
+	} else {
+		timeStr, ok = raw["ts"].(string)
+		if ok {
+			delete(raw, "ts")
+		}
+	}
+	if ok {
 		h.Time, ok = tryParseTime(timeStr)
 		if !ok {
 			return fmt.Errorf("field time is not a known timestamp: %v", timeStr)
 		}
+	} else if i, iOk := raw["ts"].(int64); iOk {
+		h.Time = time.Unix(i, 0)
+		delete(raw, "ts")
+	} else if f, fOk := raw["ts"].(float64); fOk {
+		h.Time = time.Unix(int64(f), int64((f-float64(int64(f)))*1000000000))
+		delete(raw, "ts")
 	}
-	delete(raw, "time")
 	h.Message, _ = raw["msg"].(string)
 	delete(raw, "msg")
 
