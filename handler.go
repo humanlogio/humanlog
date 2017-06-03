@@ -1,6 +1,8 @@
 package humanlog
 
 import (
+	"time"
+
 	"github.com/kr/logfmt"
 )
 
@@ -19,6 +21,7 @@ var DefaultOptions = &HandlerOptions{
 	TruncateLength: 15,
 	KeyRGB:         RGB{1, 108, 89},
 	ValRGB:         RGB{125, 125, 125},
+	TimeFormat:     time.Stamp,
 }
 
 type RGB struct{ R, G, B uint8 }
@@ -35,6 +38,7 @@ type HandlerOptions struct {
 	TruncateLength int
 	KeyRGB         RGB
 	ValRGB         RGB
+	TimeFormat     string
 }
 
 func (h *HandlerOptions) shouldShowKey(key string) bool {

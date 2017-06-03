@@ -75,6 +75,12 @@ func newApp() *cli.App {
 		Usage: "use black as the base foreground color (for terminals with light backgrounds)",
 	}
 
+	timeFormat := cli.StringFlag{
+		Name:  "time-format",
+		Usage: "output time format, see https://golang.org/pkg/time/ for details",
+		Value: humanlog.DefaultOptions.TimeFormat,
+	}
+
 	app := cli.NewApp()
 	app.Author = "Antoine Grondin"
 	app.Email = "antoine@digitalocean.com"
@@ -82,7 +88,7 @@ func newApp() *cli.App {
 	app.Version = version
 	app.Usage = "reads structured logs from stdin, makes them pretty on stdout!"
 
-	app.Flags = []cli.Flag{skipFlag, keepFlag, sortLongest, skipUnchanged, truncates, truncateLength, lightBg}
+	app.Flags = []cli.Flag{skipFlag, keepFlag, sortLongest, skipUnchanged, truncates, truncateLength, lightBg, timeFormat}
 
 	app.Action = func(c *cli.Context) error {
 
@@ -92,6 +98,7 @@ func newApp() *cli.App {
 		opts.Truncates = c.BoolT(truncates.Name)
 		opts.TruncateLength = c.Int(truncateLength.Name)
 		opts.LightBg = c.BoolT(lightBg.Name)
+		opts.TimeFormat = c.String(timeFormat.Name)
 
 		switch {
 		case c.IsSet(skipFlag.Name) && c.IsSet(keepFlag.Name):
