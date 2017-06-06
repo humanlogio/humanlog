@@ -1,0 +1,12 @@
+language: go
+go:
+  - master
+  - tip
+install:
+  - mkdir $GOPATH/bin
+  - wget -qO- https://github.com/aybabtme/untilitworks/releases/download/0.2/untilitworks_linux.tar.gz | tar xvz
+  - curl https://glide.sh/get > install_glide.sh
+  - chmod +x install_glide.sh
+  - ./untilitworks ./install_glide.sh
+script:
+  - go test -cover -v $(glide nv)
