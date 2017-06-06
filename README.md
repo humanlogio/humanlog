@@ -1,4 +1,4 @@
-# humanlog
+# humanlog [![Build Status](https://travis-ci.org/aybabtme/humanlog.svg?branch=master)](https://travis-ci.org/aybabtme/humanlog)
 
 Read logs from `stdin` and prints them back to `stdout`, but prettier.
 
