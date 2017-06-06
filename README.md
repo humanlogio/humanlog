@@ -1,4 +1,4 @@
-# humanlog [![Build Status](https://travis-ci.org/aybabtme/humanlog.svg?branch=master)](https://travis-ci.org/aybabtme/humanlog)
+# humanlog
 
 Read logs from `stdin` and prints them back to `stdout`, but prettier.
 
@@ -14,7 +14,7 @@ $ go get -u github.com/aybabtme/humanlog/...
 ## On linux
 
 ```bash
-wget -qO- https://github.com/aybabtme/humanlog/releases/download/0.1.15/humanlog_Linux_x86_64.tar.gz | tar xvz
+wget -qO- https://github.com/aybabtme/humanlog/releases/download/0.1.16/humanlog_Linux_x86_64.tar.gz | tar xvz
 ```
 
 ## On OS X
@@ -54,7 +54,7 @@ USAGE:
    humanlog [global options] command [command options] [arguments...]
 
 VERSION:
-   0.1.15
+   0.1.16
 
 AUTHOR:
   Antoine Grondin - <antoine@digitalocean.com>
