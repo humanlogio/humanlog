@@ -157,7 +157,7 @@ func (h *JSONHandler) Prettify(skipUnchanged bool) []byte {
 	}
 
 	_, _ = fmt.Fprintf(h.out, "%s |%s| %s\t %s",
-		rgbterm.FgString(h.Time.Format(time.Stamp), 99, 99, 99),
+		rgbterm.FgString(h.Time.Format(h.Opts.TimeFormat), 99, 99, 99),
 		level,
 		msg,
 		strings.Join(h.joinKVs(skipUnchanged, "="), "\t "),
