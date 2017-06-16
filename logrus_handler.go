@@ -55,9 +55,15 @@ func (h *LogrusHandler) visit(key, val []byte) bool {
 	switch {
 	case bytes.Equal(key, []byte("level")):
 		h.setLevel(val)
+	case bytes.Equal(key, []byte("lvl")):
+		h.setLevel(val)
 	case bytes.Equal(key, []byte("msg")):
 		h.setMessage(val)
+	case bytes.Equal(key, []byte("message")):
+		h.setMessage(val)
 	case bytes.Equal(key, []byte("time")):
+		h.setTime(val)
+	case bytes.Equal(key, []byte("ts")):
 		h.setTime(val)
 	default:
 		h.setField(key, val)
