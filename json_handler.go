@@ -82,8 +82,11 @@ func (h *JSONHandler) UnmarshalJSON(data []byte) error {
 		h.Time = time.Unix(int64(f), int64((f-float64(int64(f)))*1000000000))
 		delete(raw, "ts")
 	}
-	h.Message, _ = raw["msg"].(string)
-	delete(raw, "msg")
+	if h.Message, ok = raw["msg"].(string); ok {
+		delete(raw, "msg")
+	} else if h.Message, ok = raw["message"].(string); ok {
+		delete(raw, "message")
+	}
 
 	h.Level, ok = raw["level"].(string)
 	if !ok {
