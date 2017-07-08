@@ -14,14 +14,15 @@ type Handler interface {
 }
 
 var DefaultOptions = &HandlerOptions{
-	SortLongest:    true,
-	SkipUnchanged:  true,
-	Truncates:      true,
-	LightBg:        false,
-	TruncateLength: 15,
-	KeyRGB:         RGB{1, 108, 89},
-	ValRGB:         RGB{125, 125, 125},
-	TimeFormat:     time.Stamp,
+	SortLongest:      true,
+	SkipUnchanged:    true,
+	Truncates:        true,
+	LightBg:          false,
+	TruncateLength:   15,
+	KeyRGB:           RGB{1, 108, 89},
+	ValRGB:           RGB{125, 125, 125},
+	TimeFormat:       time.Stamp,
+	IgnoreInterrupts: false,
 }
 
 type RGB struct{ R, G, B uint8 }
@@ -29,16 +30,17 @@ type RGB struct{ R, G, B uint8 }
 func (r *RGB) tuple() (uint8, uint8, uint8) { return r.R, r.G, r.B }
 
 type HandlerOptions struct {
-	Skip           map[string]struct{}
-	Keep           map[string]struct{}
-	SortLongest    bool
-	SkipUnchanged  bool
-	Truncates      bool
-	LightBg        bool
-	TruncateLength int
-	KeyRGB         RGB
-	ValRGB         RGB
-	TimeFormat     string
+	Skip             map[string]struct{}
+	Keep             map[string]struct{}
+	SortLongest      bool
+	SkipUnchanged    bool
+	Truncates        bool
+	LightBg          bool
+	TruncateLength   int
+	KeyRGB           RGB
+	ValRGB           RGB
+	TimeFormat       string
+	IgnoreInterrupts bool
 }
 
 func (h *HandlerOptions) shouldShowKey(key string) bool {

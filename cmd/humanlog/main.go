@@ -3,6 +3,8 @@ package main
 import (
 	"log"
 	"os"
+	"os/signal"
+	"strings"
 
 	"github.com/aybabtme/humanlog"
 	"github.com/aybabtme/rgbterm"
@@ -81,6 +83,11 @@ func newApp() *cli.App {
 		Value: humanlog.DefaultOptions.TimeFormat,
 	}
 
+	ignoreInterrupts := cli.BoolFlag{
+		Name:  "ignore-interrupts, i",
+		Usage: "ignore interrupts",
+	}
+
 	app := cli.NewApp()
 	app.Author = "Antoine Grondin"
 	app.Email = "antoine@digitalocean.com"
@@ -88,7 +95,7 @@ func newApp() *cli.App {
 	app.Version = version
 	app.Usage = "reads structured logs from stdin, makes them pretty on stdout!"
 
-	app.Flags = []cli.Flag{skipFlag, keepFlag, sortLongest, skipUnchanged, truncates, truncateLength, lightBg, timeFormat}
+	app.Flags = []cli.Flag{skipFlag, keepFlag, sortLongest, skipUnchanged, truncates, truncateLength, lightBg, timeFormat, ignoreInterrupts}
 
 	app.Action = func(c *cli.Context) error {
 
@@ -99,6 +106,7 @@ func newApp() *cli.App {
 		opts.TruncateLength = c.Int(truncateLength.Name)
 		opts.LightBg = c.BoolT(lightBg.Name)
 		opts.TimeFormat = c.String(timeFormat.Name)
+		opts.IgnoreInterrupts = c.BoolT(ignoreInterrupts.Name)
 
 		switch {
 		case c.IsSet(skipFlag.Name) && c.IsSet(keepFlag.Name):
@@ -107,6 +115,10 @@ func newApp() *cli.App {
 			opts.SetSkip(skip)
 		case c.IsSet(keepFlag.Name):
 			opts.SetKeep(keep)
+		}
+
+		if c.IsSet(strings.Split(ignoreInterrupts.Name, ",")[0]) {
+			signal.Ignore(os.Interrupt)
 		}
 
 		log.Print("reading stdin...")
