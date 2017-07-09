@@ -106,7 +106,6 @@ func newApp() *cli.App {
 		opts.TruncateLength = c.Int(truncateLength.Name)
 		opts.LightBg = c.BoolT(lightBg.Name)
 		opts.TimeFormat = c.String(timeFormat.Name)
-		opts.IgnoreInterrupts = c.BoolT(ignoreInterrupts.Name)
 
 		switch {
 		case c.IsSet(skipFlag.Name) && c.IsSet(keepFlag.Name):
