@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -123,7 +124,12 @@ func (h *LogrusHandler) Prettify(skipUnchanged bool) []byte {
 func (h *LogrusHandler) setLevel(val []byte)   { h.Level = string(val) }
 func (h *LogrusHandler) setMessage(val []byte) { h.Message = string(val) }
 func (h *LogrusHandler) setTime(val []byte) (parsed bool) {
-	h.Time, parsed = tryParseTime(string(val))
+	valStr := string(val)
+	if valFloat, err := strconv.ParseFloat(valStr, 64); err == nil {
+		h.Time, parsed = tryParseTime(valFloat)
+	} else {
+		h.Time, parsed = tryParseTime(string(val))
+	}
 	return
 }
 

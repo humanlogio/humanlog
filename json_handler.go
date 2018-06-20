@@ -61,26 +61,20 @@ func (h *JSONHandler) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	timeStr, ok := raw["time"].(string)
+	time, ok := raw["time"]
 	if ok {
 		delete(raw, "time")
 	} else {
-		timeStr, ok = raw["ts"].(string)
+		time, ok = raw["ts"]
 		if ok {
 			delete(raw, "ts")
 		}
 	}
 	if ok {
-		h.Time, ok = tryParseTime(timeStr)
+		h.Time, ok = tryParseTime(time)
 		if !ok {
-			return fmt.Errorf("field time is not a known timestamp: %v", timeStr)
+			return fmt.Errorf("field time is not a known timestamp: %v", time)
 		}
-	} else if i, iOk := raw["ts"].(int64); iOk {
-		h.Time = time.Unix(i, 0)
-		delete(raw, "ts")
-	} else if f, fOk := raw["ts"].(float64); fOk {
-		h.Time = time.Unix(int64(f), int64((f-float64(int64(f)))*1000000000))
-		delete(raw, "ts")
 	}
 	if h.Message, ok = raw["msg"].(string); ok {
 		delete(raw, "msg")
