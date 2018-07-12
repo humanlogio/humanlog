@@ -11,11 +11,12 @@ A world in 256 colors.
 
 ```go
 // pick a color
-r,g,b := 252, 255, 43
+var r, g, b uint8
+r, g, b = 252, 255, 43
 // choose a word
 word := "=)"
 // colorize it!
-coloredWord := rgbterm.String(word, r,g,b)
+coloredWord := rgbterm.FgString(word, r, g, b)
 // print it!
 fmt.Println("Oh!", coloredWord, "hello!")
 ```

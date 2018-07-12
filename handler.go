@@ -3,6 +3,7 @@ package humanlog
 import (
 	"time"
 
+	"github.com/fatih/color"
 	"github.com/kr/logfmt"
 )
 
@@ -19,14 +20,21 @@ var DefaultOptions = &HandlerOptions{
 	Truncates:      true,
 	LightBg:        false,
 	TruncateLength: 15,
-	KeyRGB:         RGB{1, 108, 89},
-	ValRGB:         RGB{125, 125, 125},
 	TimeFormat:     time.Stamp,
+
+	KeyColor:          color.New(color.FgGreen),
+	ValColor:          color.New(color.FgHiWhite),
+	TimeColor:         color.New(color.FgBlack),
+	MsgColor:          color.New(color.FgBlack),
+	MsgAbsentColor:    color.New(color.FgWhite),
+	DebugLevelColor:   color.New(color.FgMagenta),
+	InfoLevelColor:    color.New(color.FgCyan),
+	WarnLevelColor:    color.New(color.FgYellow),
+	ErrorLevelColor:   color.New(color.FgRed),
+	PanicLevelColor:   color.New(color.BgRed),
+	FatalLevelColor:   color.New(color.BgHiRed, color.FgHiWhite),
+	UnknownLevelColor: color.New(color.FgMagenta),
 }
-
-type RGB struct{ R, G, B uint8 }
-
-func (r *RGB) tuple() (uint8, uint8, uint8) { return r.R, r.G, r.B }
 
 type HandlerOptions struct {
 	Skip           map[string]struct{}
@@ -36,9 +44,20 @@ type HandlerOptions struct {
 	Truncates      bool
 	LightBg        bool
 	TruncateLength int
-	KeyRGB         RGB
-	ValRGB         RGB
 	TimeFormat     string
+
+	KeyColor          *color.Color
+	ValColor          *color.Color
+	TimeColor         *color.Color
+	MsgColor          *color.Color
+	MsgAbsentColor    *color.Color
+	DebugLevelColor   *color.Color
+	InfoLevelColor    *color.Color
+	WarnLevelColor    *color.Color
+	ErrorLevelColor   *color.Color
+	PanicLevelColor   *color.Color
+	FatalLevelColor   *color.Color
+	UnknownLevelColor *color.Color
 }
 
 func (h *HandlerOptions) shouldShowKey(key string) bool {

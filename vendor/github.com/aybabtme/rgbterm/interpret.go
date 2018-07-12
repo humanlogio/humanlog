@@ -20,14 +20,22 @@ var MaxEscapeCodeLen uint = 15
 
 // interpret reads from r and writes to w. While reading any color escape codes detected
 // are replaced by the result of calling subst with the escape code.
-func interpret(r io.ByteReader, w io.Writer, subst func(s string) []byte) error {
+func interpret(r io.ByteReader, w io.Writer, subst func(s string) []byte) (err error) {
 	inEscape := false
 	escape := &bytes.Buffer{}
+	out := bufio.NewWriter(w)
+	defer func() {
+		if err == nil {
+			err = out.Flush()
+		}
+	}()
 
 	for {
-		c, err := r.ReadByte()
+		var c byte
+		c, err = r.ReadByte()
 		if err != nil {
-			// EOF
+			// EOF. Don't consider this a failure of interpret()
+			err = nil
 			break
 		}
 
@@ -35,19 +43,19 @@ func interpret(r io.ByteReader, w io.Writer, subst func(s string) []byte) error 
 			if rune(c) == '{' && escape.Len() == 0 {
 				// False alarm: this was the sequence {{ which means the user wanted to
 				// output {.
-				_, err = w.Write([]byte("{"))
+				_, err = out.Write([]byte("{"))
 				escape.Reset()
 				inEscape = false
 			} else if rune(c) == '}' {
-				_, err = w.Write(subst(escape.String()))
+				_, err = out.Write(subst(escape.String()))
 				escape.Reset()
 				inEscape = false
 			} else {
 				escape.WriteByte(c)
 				if MaxEscapeCodeLen > 0 && uint(escape.Len()) > MaxEscapeCodeLen {
 					// Escape code too long
-					w.Write([]byte("{"))
-					_, err = w.Write(escape.Bytes())
+					out.Write([]byte("{"))
+					_, err = out.Write(escape.Bytes())
 					inEscape = false
 				}
 			}
@@ -55,17 +63,17 @@ func interpret(r io.ByteReader, w io.Writer, subst func(s string) []byte) error 
 			if rune(c) == '{' {
 				inEscape = true
 			} else {
-				_, err = w.Write([]byte{c})
+				_, err = out.Write([]byte{c})
 			}
 		}
 
 		if err != nil {
 			// Write error occurred
-			return err
+			return
 		}
 	}
 
-	return nil
+	return
 }
 
 // colorRegex matches color escape codes

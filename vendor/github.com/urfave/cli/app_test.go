@@ -258,6 +258,44 @@ func ExampleApp_Run_bashComplete() {
 	// h
 }
 
+func ExampleApp_Run_zshComplete() {
+	// set args for examples sake
+	os.Args = []string{"greet", "--generate-bash-completion"}
+	os.Setenv("_CLI_ZSH_AUTOCOMPLETE_HACK", "1")
+
+	app := NewApp()
+	app.Name = "greet"
+	app.EnableBashCompletion = true
+	app.Commands = []Command{
+		{
+			Name:        "describeit",
+			Aliases:     []string{"d"},
+			Usage:       "use it to see a description",
+			Description: "This is how we describe describeit the function",
+			Action: func(c *Context) error {
+				fmt.Printf("i like to describe things")
+				return nil
+			},
+		}, {
+			Name:        "next",
+			Usage:       "next example",
+			Description: "more stuff to see when generating bash completion",
+			Action: func(c *Context) error {
+				fmt.Printf("the next example")
+				return nil
+			},
+		},
+	}
+
+	app.Run(os.Args)
+	// Output:
+	// describeit:use it to see a description
+	// d:use it to see a description
+	// next:next example
+	// help:Shows a list of commands or help for one command
+	// h:Shows a list of commands or help for one command
+}
+
 func TestApp_Run(t *testing.T) {
 	s := ""
 
@@ -326,6 +364,39 @@ func TestApp_CommandWithArgBeforeFlags(t *testing.T) {
 	app.Run([]string{"", "cmd", "my-arg", "--option", "my-option"})
 
 	expect(t, parsedOption, "my-option")
+	expect(t, firstArg, "my-arg")
+}
+
+func TestApp_CommandWithArgBeforeBoolFlags(t *testing.T) {
+	var parsedOption, parsedSecondOption, firstArg string
+	var parsedBool, parsedSecondBool bool
+
+	app := NewApp()
+	command := Command{
+		Name: "cmd",
+		Flags: []Flag{
+			StringFlag{Name: "option", Value: "", Usage: "some option"},
+			StringFlag{Name: "secondOption", Value: "", Usage: "another option"},
+			BoolFlag{Name: "boolflag", Usage: "some bool"},
+			BoolFlag{Name: "b", Usage: "another bool"},
+		},
+		Action: func(c *Context) error {
+			parsedOption = c.String("option")
+			parsedSecondOption = c.String("secondOption")
+			parsedBool = c.Bool("boolflag")
+			parsedSecondBool = c.Bool("b")
+			firstArg = c.Args().First()
+			return nil
+		},
+	}
+	app.Commands = []Command{command}
+
+	app.Run([]string{"", "cmd", "my-arg", "--boolflag", "--option", "my-option", "-b", "--secondOption", "fancy-option"})
+
+	expect(t, parsedOption, "my-option")
+	expect(t, parsedSecondOption, "fancy-option")
+	expect(t, parsedBool, true)
+	expect(t, parsedSecondBool, true)
 	expect(t, firstArg, "my-arg")
 }
 
@@ -497,7 +568,6 @@ func TestApp_Float64Flag(t *testing.T) {
 }
 
 func TestApp_ParseSliceFlags(t *testing.T) {
-	var parsedOption, firstArg string
 	var parsedIntSlice []int
 	var parsedStringSlice []string
 
@@ -511,8 +581,6 @@ func TestApp_ParseSliceFlags(t *testing.T) {
 		Action: func(c *Context) error {
 			parsedIntSlice = c.IntSlice("p")
 			parsedStringSlice = c.StringSlice("ip")
-			parsedOption = c.String("option")
-			firstArg = c.Args().First()
 			return nil
 		},
 	}
@@ -1520,6 +1588,63 @@ func TestApp_OnUsageError_WithWrongFlagValue_ForSubcommand(t *testing.T) {
 	}
 }
 
+// A custom flag that conforms to the relevant interfaces, but has none of the
+// fields that the other flag types do.
+type customBoolFlag struct {
+	Nombre string
+}
+
+// Don't use the normal FlagStringer
+func (c *customBoolFlag) String() string {
+	return "***" + c.Nombre + "***"
+}
+
+func (c *customBoolFlag) GetName() string {
+	return c.Nombre
+}
+
+func (c *customBoolFlag) Apply(set *flag.FlagSet) {
+	set.String(c.Nombre, c.Nombre, "")
+}
+
+func TestCustomFlagsUnused(t *testing.T) {
+	app := NewApp()
+	app.Flags = []Flag{&customBoolFlag{"custom"}}
+
+	err := app.Run([]string{"foo"})
+	if err != nil {
+		t.Errorf("Run returned unexpected error: %v", err)
+	}
+}
+
+func TestCustomFlagsUsed(t *testing.T) {
+	app := NewApp()
+	app.Flags = []Flag{&customBoolFlag{"custom"}}
+
+	err := app.Run([]string{"foo", "--custom=bar"})
+	if err != nil {
+		t.Errorf("Run returned unexpected error: %v", err)
+	}
+}
+
+func TestCustomHelpVersionFlags(t *testing.T) {
+	app := NewApp()
+
+	// Be sure to reset the global flags
+	defer func(helpFlag Flag, versionFlag Flag) {
+		HelpFlag = helpFlag
+		VersionFlag = versionFlag
+	}(HelpFlag, VersionFlag)
+
+	HelpFlag = &customBoolFlag{"help-custom"}
+	VersionFlag = &customBoolFlag{"version-custom"}
+
+	err := app.Run([]string{"foo", "--help-custom=bar"})
+	if err != nil {
+		t.Errorf("Run returned unexpected error: %v", err)
+	}
+}
+
 func TestHandleAction_WithNonFuncAction(t *testing.T) {
 	app := NewApp()
 	app.Action = 42
@@ -1604,6 +1729,42 @@ func TestHandleAction_WithInvalidFuncReturnSignature(t *testing.T) {
 	}
 }
 
+func TestHandleExitCoder_Default(t *testing.T) {
+	app := NewApp()
+	fs, err := flagSet(app.Name, app.Flags)
+	if err != nil {
+		t.Errorf("error creating FlagSet: %s", err)
+	}
+
+	ctx := NewContext(app, fs, nil)
+	app.handleExitCoder(ctx, NewExitError("Default Behavior Error", 42))
+
+	output := fakeErrWriter.String()
+	if !strings.Contains(output, "Default") {
+		t.Fatalf("Expected Default Behavior from Error Handler but got: %s", output)
+	}
+}
+
+func TestHandleExitCoder_Custom(t *testing.T) {
+	app := NewApp()
+	fs, err := flagSet(app.Name, app.Flags)
+	if err != nil {
+		t.Errorf("error creating FlagSet: %s", err)
+	}
+
+	app.ExitErrHandler = func(_ *Context, _ error) {
+		fmt.Fprintln(ErrWriter, "I'm a Custom error handler, I print what I want!")
+	}
+
+	ctx := NewContext(app, fs, nil)
+	app.handleExitCoder(ctx, NewExitError("Default Behavior Error", 42))
+
+	output := fakeErrWriter.String()
+	if !strings.Contains(output, "Custom") {
+		t.Fatalf("Expected Custom Behavior from Error Handler but got: %s", output)
+	}
+}
+
 func TestHandleAction_WithUnknownPanic(t *testing.T) {
 	defer func() { refute(t, recover(), nil) }()
 
@@ -1642,7 +1803,7 @@ func TestShellCompletionForIncompleteFlags(t *testing.T) {
 
 		for _, flag := range ctx.App.Flags {
 			for _, name := range strings.Split(flag.GetName(), ",") {
-				if name == BashCompletionFlag.Name {
+				if name == BashCompletionFlag.GetName() {
 					continue
 				}
 
@@ -1659,7 +1820,7 @@ func TestShellCompletionForIncompleteFlags(t *testing.T) {
 	app.Action = func(ctx *Context) error {
 		return fmt.Errorf("should not get here")
 	}
-	err := app.Run([]string{"", "--test-completion", "--" + BashCompletionFlag.Name})
+	err := app.Run([]string{"", "--test-completion", "--" + BashCompletionFlag.GetName()})
 	if err != nil {
 		t.Errorf("app should not return an error: %s", err)
 	}
