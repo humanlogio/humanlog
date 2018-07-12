@@ -22,7 +22,12 @@ func TestInterpretNoEscapes(t *testing.T) {
 		return nil
 	}
 
-	interpret(input, output, subst)
+	err := interpret(input, output, subst)
+
+	if err != nil {
+		t.FailNow()
+	}
+
 	if cnt != 0 {
 		t.FailNow()
 	}
@@ -44,7 +49,12 @@ func TestInterpretOutputBrace(t *testing.T) {
 		return []byte{}
 	}
 
-	interpret(input, output, subst)
+	err := interpret(input, output, subst)
+
+	if err != nil {
+		t.FailNow()
+	}
+
 	if cnt != 0 {
 		t.FailNow()
 	}
@@ -66,7 +76,11 @@ func TestInterpretEmptyReplace(t *testing.T) {
 		return []byte{}
 	}
 
-	interpret(input, output, subst)
+	err := interpret(input, output, subst)
+	if err != nil {
+		return
+	}
+
 	if cnt != 1 {
 		t.FailNow()
 	}
@@ -91,7 +105,12 @@ func TestInterpretNilReplace(t *testing.T) {
 		return nil
 	}
 
-	interpret(input, output, subst)
+	err := interpret(input, output, subst)
+
+	if err != nil {
+		return
+	}
+
 	if cnt != 1 {
 		t.FailNow()
 	}
@@ -116,7 +135,12 @@ func TestInterpretSomeReplaces(t *testing.T) {
 		return []byte("more")
 	}
 
-	interpret(input, output, subst)
+	err := interpret(input, output, subst)
+
+	if err != nil {
+		return
+	}
+
 	if cnt != 2 {
 		t.FailNow()
 	}
@@ -137,7 +161,12 @@ func TestInterpretReplaceTooLong(t *testing.T) {
 		return []byte{}
 	}
 
-	interpret(input, output, subst)
+	err := interpret(input, output, subst)
+
+	if err != nil {
+		return
+	}
+
 	if cnt != 0 {
 		t.Log("Count is", cnt)
 		t.FailNow()

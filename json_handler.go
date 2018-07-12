@@ -9,8 +9,6 @@ import (
 	"strings"
 	"text/tabwriter"
 	"time"
-
-	"github.com/aybabtme/rgbterm"
 )
 
 // JSONHandler can handle logs emmited by logrus.TextFormatter loggers.
@@ -129,32 +127,30 @@ func (h *JSONHandler) Prettify(skipUnchanged bool) []byte {
 
 	var msg string
 	if h.Message == "" {
-		msg = rgbterm.FgString("<no msg>", 190, 190, 190)
-	} else if h.Opts.LightBg {
-		msg = rgbterm.FgString(h.Message, 0, 0, 0)
+		msg = h.Opts.MsgAbsentColor.Sprint("<no msg>")
 	} else {
-		msg = rgbterm.FgString(h.Message, 255, 255, 255)
+		msg = h.Opts.MsgColor.Sprint(h.Message)
 	}
 
 	lvl := strings.ToUpper(h.Level)[:imin(4, len(h.Level))]
 	var level string
 	switch h.Level {
 	case "debug":
-		level = rgbterm.FgString(lvl, 221, 28, 119)
+		level = h.Opts.DebugLevelColor.Sprint(lvl)
 	case "info":
-		level = rgbterm.FgString(lvl, 20, 172, 190)
+		level = h.Opts.InfoLevelColor.Sprint(lvl)
 	case "warn", "warning":
-		level = rgbterm.FgString(lvl, 255, 245, 32)
+		level = h.Opts.WarnLevelColor.Sprint(lvl)
 	case "error":
-		level = rgbterm.FgString(lvl, 255, 0, 0)
+		level = h.Opts.ErrorLevelColor.Sprint(lvl)
 	case "fatal", "panic":
-		level = rgbterm.BgString(lvl, 255, 0, 0)
+		level = h.Opts.FatalLevelColor.Sprint(lvl)
 	default:
-		level = rgbterm.FgString(lvl, 221, 28, 119)
+		level = h.Opts.UnknownLevelColor.Sprint(lvl)
 	}
 
 	_, _ = fmt.Fprintf(h.out, "%s |%s| %s\t %s",
-		rgbterm.FgString(h.Time.Format(h.Opts.TimeFormat), 99, 99, 99),
+		h.Opts.TimeColor.Sprint(h.Time.Format(h.Opts.TimeFormat)),
 		level,
 		msg,
 		strings.Join(h.joinKVs(skipUnchanged, "="), "\t "),
@@ -178,8 +174,7 @@ func (h *JSONHandler) joinKVs(skipUnchanged bool, sep string) []string {
 				continue
 			}
 		}
-
-		kstr := rgbterm.FgString(k, h.Opts.KeyRGB.R, h.Opts.KeyRGB.G, h.Opts.KeyRGB.B)
+		kstr := h.Opts.KeyColor.Sprint(k)
 
 		var vstr string
 		if h.Opts.Truncates && len(v) > h.Opts.TruncateLength {
@@ -187,7 +182,7 @@ func (h *JSONHandler) joinKVs(skipUnchanged bool, sep string) []string {
 		} else {
 			vstr = v
 		}
-		vstr = rgbterm.FgString(vstr, h.Opts.ValRGB.R, h.Opts.ValRGB.G, h.Opts.ValRGB.B)
+		vstr = h.Opts.ValColor.Sprint(vstr)
 		kv = append(kv, kstr+sep+vstr)
 	}
 
