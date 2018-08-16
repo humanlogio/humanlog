@@ -8,6 +8,8 @@ import (
 	"strings"
 	"text/tabwriter"
 	"time"
+
+	"github.com/fatih/color"
 )
 
 // LogrusHandler can handle logs emmited by logrus.TextFormatter loggers.
@@ -81,11 +83,23 @@ func (h *LogrusHandler) Prettify(skipUnchanged bool) []byte {
 		h.out = tabwriter.NewWriter(h.buf, 0, 1, 0, '\t', 0)
 	}
 
+	var (
+		msgColor       *color.Color
+		msgAbsentColor *color.Color
+	)
+	if h.Opts.LightBg {
+		msgColor = h.Opts.MsgLightBgColor
+		msgAbsentColor = h.Opts.MsgAbsentLightBgColor
+	} else {
+		msgColor = h.Opts.MsgDarkBgColor
+		msgAbsentColor = h.Opts.MsgAbsentDarkBgColor
+	}
+
 	var msg string
 	if h.Message == "" {
-		msg = h.Opts.MsgAbsentColor.Sprint("<no msg>")
+		msg = msgAbsentColor.Sprint("<no msg>")
 	} else {
-		msg = h.Opts.MsgColor.Sprint(h.Message)
+		msg = msgColor.Sprint(h.Message)
 	}
 
 	lvl := strings.ToUpper(h.Level)[:imin(4, len(h.Level))]
@@ -105,8 +119,14 @@ func (h *LogrusHandler) Prettify(skipUnchanged bool) []byte {
 		level = h.Opts.UnknownLevelColor.Sprint(lvl)
 	}
 
+	var timeColor *color.Color
+	if h.Opts.LightBg {
+		timeColor = h.Opts.TimeLightBgColor
+	} else {
+		timeColor = h.Opts.TimeDarkBgColor
+	}
 	_, _ = fmt.Fprintf(h.out, "%s |%s| %s\t %s",
-		h.Opts.TimeColor.Sprint(h.Time.Format(h.Opts.TimeFormat)),
+		timeColor.Sprint(h.Time.Format(h.Opts.TimeFormat)),
 		level,
 		msg,
 		strings.Join(h.joinKVs(skipUnchanged, "="), "\t "),
