@@ -39,13 +39,13 @@ func (h *LogrusHandler) clear() {
 
 // CanHandle tells if this line can be handled by this handler.
 func (h *LogrusHandler) CanHandle(d []byte) bool {
-	if !bytes.Contains(d, []byte(`level=`)) {
+	if !(bytes.Contains(d, []byte(`level=`)) || bytes.Contains(d, []byte(`lvl=`))) {
 		return false
 	}
-	if !bytes.Contains(d, []byte(`time="`)) {
+	if !(bytes.Contains(d, []byte(`time=`)) || bytes.Contains(d, []byte(`ts=`))) {
 		return false
 	}
-	if !bytes.Contains(d, []byte(`msg="`)) {
+	if !(bytes.Contains(d, []byte(`message=`)) || bytes.Contains(d, []byte(`msg=`))) {
 		return false
 	}
 	return true
