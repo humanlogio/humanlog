@@ -29,6 +29,9 @@ type JSONHandler struct {
 	last map[string]string
 }
 
+// supportedTimeFields enumerates supported timestamp field names
+var supportedTimeFields = []string{"time", "ts", "@timestamp"}
+
 func (h *JSONHandler) clear() {
 	h.Level = ""
 	h.Time = time.Time{}
@@ -42,9 +45,19 @@ func (h *JSONHandler) clear() {
 
 // TryHandle tells if this line was handled by this handler.
 func (h *JSONHandler) TryHandle(d []byte) bool {
-	if !bytes.Contains(d, []byte(`"time":`)) && !bytes.Contains(d, []byte(`"ts":`)) {
+	var ok bool
+
+	for _, field := range supportedTimeFields {
+		ok = bytes.Contains(d, []byte(`"`+field+`":`))
+		if ok {
+			break
+		}
+	}
+
+	if !ok {
 		return false
 	}
+
 	err := h.UnmarshalJSON(d)
 	if err != nil {
 		h.clear()
@@ -61,21 +74,24 @@ func (h *JSONHandler) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	time, ok := raw["time"]
-	if ok {
-		delete(raw, "time")
-	} else {
-		time, ok = raw["ts"]
+	var time interface{}
+	var ok bool
+
+	for _, field := range supportedTimeFields {
+		time, ok = raw[field]
 		if ok {
-			delete(raw, "ts")
+			delete(raw, field)
+			break
 		}
 	}
+
 	if ok {
 		h.Time, ok = tryParseTime(time)
 		if !ok {
 			return fmt.Errorf("field time is not a known timestamp: %v", time)
 		}
 	}
+
 	if h.Message, ok = raw["msg"].(string); ok {
 		delete(raw, "msg")
 	} else if h.Message, ok = raw["message"].(string); ok {
@@ -87,10 +103,15 @@ func (h *JSONHandler) UnmarshalJSON(data []byte) error {
 		h.Level, ok = raw["lvl"].(string)
 		delete(raw, "lvl")
 		if !ok {
-			h.Level = "???"
+			// bunyan uses numerical log levels
+			level, ok := raw["level"].(float64)
+			if ok {
+				h.Level = convertBunyanLogLevel(level)
+				delete(raw, "level")
+			} else {
+				h.Level = "???"
+			}
 		}
-	} else {
-		delete(raw, "level")
 	}
 
 	if h.Fields == nil {
@@ -215,4 +236,25 @@ func (h *JSONHandler) joinKVs(skipUnchanged bool, sep string) []string {
 	}
 
 	return kv
+}
+
+// convertBunyanLogLevel returns a human readable log level given a numerical bunyan level
+// https://github.com/trentm/node-bunyan#levels
+func convertBunyanLogLevel(level float64) string {
+	switch level {
+	case 10:
+		return "trace"
+	case 20:
+		return "debug"
+	case 30:
+		return "info"
+	case 40:
+		return "warn"
+	case 50:
+		return "error"
+	case 60:
+		return "fatal"
+	default:
+		return "???"
+	}
 }
