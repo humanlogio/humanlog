@@ -60,19 +60,6 @@ func (h *JSONHandler) clear() {
 
 // TryHandle tells if this line was handled by this handler.
 func (h *JSONHandler) TryHandle(d []byte) bool {
-	var ok bool
-
-	for _, field := range supportedTimeFields {
-		ok = bytes.Contains(d, []byte(field))
-		if ok {
-			break
-		}
-	}
-
-	if !ok {
-		return false
-	}
-
 	if !h.UnmarshalJSON(d) {
 		h.clear()
 		return false

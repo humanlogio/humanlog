@@ -42,20 +42,7 @@ func (h *LogfmtHandler) clear() {
 
 // CanHandle tells if this line can be handled by this handler.
 func (h *LogfmtHandler) TryHandle(d []byte) bool {
-	var ok bool
-	for _, field := range supportedTimeFields {
-		ok = bytes.Contains(d, []byte(field))
-		if ok {
-			break
-		}
-	}
-
-	if !ok {
-		return false
-	}
-
-	err := h.UnmarshalLogfmt(d)
-	if err != nil {
+	if !h.UnmarshalLogfmt(d) {
 		h.clear()
 		return false
 	}
@@ -63,8 +50,7 @@ func (h *LogfmtHandler) TryHandle(d []byte) bool {
 }
 
 // HandleLogfmt sets the fields of the handler.
-func (h *LogfmtHandler) UnmarshalLogfmt(data []byte) error {
-
+func (h *LogfmtHandler) UnmarshalLogfmt(data []byte) bool {
 	dec := logfmt.NewDecoder(bytes.NewReader(data))
 	for dec.ScanRecord() {
 	next_kv:
@@ -113,7 +99,7 @@ func (h *LogfmtHandler) UnmarshalLogfmt(data []byte) error {
 			h.setField(key, val)
 		}
 	}
-	return dec.Err()
+	return dec.Err() == nil
 }
 
 // Prettify the output in a logrus like fashion.
