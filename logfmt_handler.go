@@ -10,10 +10,11 @@ import (
 	"time"
 
 	"github.com/fatih/color"
+	"github.com/go-logfmt/logfmt"
 )
 
-// LogrusHandler can handle logs emmited by logrus.TextFormatter loggers.
-type LogrusHandler struct {
+// LogfmtHandler can handle logs emmited by logrus.TextFormatter loggers.
+type LogfmtHandler struct {
 	buf     *bytes.Buffer
 	out     *tabwriter.Writer
 	truncKV int
@@ -28,52 +29,95 @@ type LogrusHandler struct {
 	last map[string]string
 }
 
-func (h *LogrusHandler) clear() {
+func (h *LogfmtHandler) clear() {
 	h.Level = ""
 	h.Time = time.Time{}
 	h.Message = ""
 	h.last = h.Fields
 	h.Fields = make(map[string]string)
-	h.buf.Reset()
+	if h.buf != nil {
+		h.buf.Reset()
+	}
 }
 
 // CanHandle tells if this line can be handled by this handler.
-func (h *LogrusHandler) CanHandle(d []byte) bool {
-	if !(bytes.Contains(d, []byte(`level=`)) || bytes.Contains(d, []byte(`lvl=`))) {
+func (h *LogfmtHandler) TryHandle(d []byte) bool {
+	var ok bool
+	for _, field := range supportedTimeFields {
+		ok = bytes.Contains(d, []byte(field))
+		if ok {
+			break
+		}
+	}
+
+	if !ok {
 		return false
 	}
-	if !(bytes.Contains(d, []byte(`time=`)) || bytes.Contains(d, []byte(`ts=`))) {
-		return false
-	}
-	if !(bytes.Contains(d, []byte(`message=`)) || bytes.Contains(d, []byte(`msg=`))) {
+
+	err := h.UnmarshalLogfmt(d)
+	if err != nil {
+		h.clear()
 		return false
 	}
 	return true
 }
 
 // HandleLogfmt sets the fields of the handler.
-func (h *LogrusHandler) visit(key, val []byte) bool {
-	switch {
-	case bytes.Equal(key, []byte("level")):
-		h.setLevel(val)
-	case bytes.Equal(key, []byte("lvl")):
-		h.setLevel(val)
-	case bytes.Equal(key, []byte("msg")):
-		h.setMessage(val)
-	case bytes.Equal(key, []byte("message")):
-		h.setMessage(val)
-	case bytes.Equal(key, []byte("time")):
-		h.setTime(val)
-	case bytes.Equal(key, []byte("ts")):
-		h.setTime(val)
-	default:
-		h.setField(key, val)
+func (h *LogfmtHandler) UnmarshalLogfmt(data []byte) error {
+
+	dec := logfmt.NewDecoder(bytes.NewReader(data))
+	for dec.ScanRecord() {
+	next_kv:
+		for dec.ScanKeyval() {
+			key := dec.Key()
+			val := dec.Value()
+			if h.Time.IsZero() {
+				foundTime := checkEachUntilFound(supportedLevelFields, func(field string) bool {
+					time, ok := tryParseTime(string(val))
+					if ok {
+						h.Time = time
+					}
+					return ok
+				})
+				if foundTime {
+					continue next_kv
+				}
+			}
+
+			if len(h.Message) == 0 {
+				foundMessage := checkEachUntilFound(supportedMessageFields, func(field string) bool {
+					if !bytes.Equal(key, []byte(field)) {
+						return false
+					}
+					h.Message = string(val)
+					return true
+				})
+				if foundMessage {
+					continue next_kv
+				}
+			}
+
+			if len(h.Level) == 0 {
+				foundLevel := checkEachUntilFound(supportedLevelFields, func(field string) bool {
+					if !bytes.Equal(key, []byte(field)) {
+						return false
+					}
+					h.Level = string(val)
+					return true
+				})
+				if foundLevel {
+					continue next_kv
+				}
+			}
+
+			h.setField(key, val)
+		}
 	}
-	return true
+	return dec.Err()
 }
 
 // Prettify the output in a logrus like fashion.
-func (h *LogrusHandler) Prettify(skipUnchanged bool) []byte {
+func (h *LogfmtHandler) Prettify(skipUnchanged bool) []byte {
 	defer h.clear()
 	if h.out == nil {
 		if h.Opts == nil {
@@ -137,9 +181,9 @@ func (h *LogrusHandler) Prettify(skipUnchanged bool) []byte {
 	return h.buf.Bytes()
 }
 
-func (h *LogrusHandler) setLevel(val []byte)   { h.Level = string(val) }
-func (h *LogrusHandler) setMessage(val []byte) { h.Message = string(val) }
-func (h *LogrusHandler) setTime(val []byte) (parsed bool) {
+func (h *LogfmtHandler) setLevel(val []byte)   { h.Level = string(val) }
+func (h *LogfmtHandler) setMessage(val []byte) { h.Message = string(val) }
+func (h *LogfmtHandler) setTime(val []byte) (parsed bool) {
 	valStr := string(val)
 	if valFloat, err := strconv.ParseFloat(valStr, 64); err == nil {
 		h.Time, parsed = tryParseTime(valFloat)
@@ -149,14 +193,14 @@ func (h *LogrusHandler) setTime(val []byte) (parsed bool) {
 	return
 }
 
-func (h *LogrusHandler) setField(key, val []byte) {
+func (h *LogfmtHandler) setField(key, val []byte) {
 	if h.Fields == nil {
 		h.Fields = make(map[string]string)
 	}
 	h.Fields[string(key)] = string(val)
 }
 
-func (h *LogrusHandler) joinKVs(skipUnchanged bool, sep string) []string {
+func (h *LogfmtHandler) joinKVs(skipUnchanged bool, sep string) []string {
 
 	kv := make([]string, 0, len(h.Fields))
 	for k, v := range h.Fields {
