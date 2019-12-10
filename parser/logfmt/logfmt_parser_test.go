@@ -2,6 +2,7 @@ package logfmt
 
 import (
 	"bytes"
+	"fmt"
 	"log"
 	"reflect"
 	"sort"
@@ -34,6 +35,19 @@ func TestScanKeyValue(t *testing.T) {
 			input: "hello=bye",
 			want: []kv{
 				{key: []byte("hello"), val: []byte("bye")},
+			},
+		},
+		{
+			input: "hello=",
+			want: []kv{
+				{key: []byte("hello"), val: nil},
+			},
+		},
+		{
+			input: "hello= allo=more crap",
+			want: []kv{
+				{key: []byte("hello"), val: nil},
+				{key: []byte("allo"), val: []byte("more crap")},
 			},
 		},
 		{
@@ -141,18 +155,20 @@ func TestScanKeyValue(t *testing.T) {
 	}
 
 	for n, tt := range tests {
-		t.Logf("test #%d", n)
-		var got byKeyName
-		if !Parse([]byte(tt.input), tt.allowEmptyKey, tt.keepGarbage, (&got).visit) {
-			t.Fatalf("should have been able to parse: %q", tt.input)
-		}
-		sort.Sort(byKeyName(tt.want))
-		sort.Sort(got)
-		if !reflect.DeepEqual(tt.want, []kv(got)) {
-			t.Logf("want=%v", tt.want)
-			t.Logf(" got=%v", got)
-			t.Fatalf("different KVs for %q", tt.input)
-		}
+		name := fmt.Sprintf("%d", n)
+		t.Run(name, func(t *testing.T) {
+			var got byKeyName
+			if !Parse([]byte(tt.input), tt.allowEmptyKey, tt.keepGarbage, (&got).visit) {
+				t.Fatalf("should have been able to parse: %q", tt.input)
+			}
+			sort.Sort(byKeyName(tt.want))
+			sort.Sort(got)
+			if !reflect.DeepEqual(tt.want, []kv(got)) {
+				t.Logf("want=%v", tt.want)
+				t.Logf(" got=%v", got)
+				t.Fatalf("different KVs for %q", tt.input)
+			}
+		})
 	}
 }
 
