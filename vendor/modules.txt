@@ -2,6 +2,8 @@
 github.com/aybabtme/rgbterm
 # github.com/fatih/color v1.7.1-0.20180516100307-2d684516a886
 github.com/fatih/color
+# github.com/go-logfmt/logfmt v0.4.0
+github.com/go-logfmt/logfmt
 # github.com/kr/logfmt v0.0.0-20140226030751-b84e30acd515
 github.com/kr/logfmt
 # github.com/mattn/go-colorable v0.1.0

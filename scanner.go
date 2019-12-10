@@ -4,8 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"io"
-
-	"github.com/aybabtme/humanlog/parser/logfmt"
 )
 
 var (
@@ -21,10 +19,10 @@ func Scanner(src io.Reader, dst io.Writer, opts *HandlerOptions) error {
 
 	var line uint64
 
-	var lastLogrus bool
+	var lastLogfmt bool
 	var lastJSON bool
 
-	logrusEntry := LogrusHandler{Opts: opts}
+	logfmtEntry := LogfmtHandler{Opts: opts}
 	jsonEntry := JSONHandler{Opts: opts}
 
 	for in.Scan() {
@@ -40,12 +38,12 @@ func Scanner(src io.Reader, dst io.Writer, opts *HandlerOptions) error {
 			dst.Write(jsonEntry.Prettify(opts.SkipUnchanged && lastJSON))
 			lastJSON = true
 
-		case logrusEntry.CanHandle(lineData) && logfmt.Parse(lineData, true, true, logrusEntry.visit):
-			dst.Write(logrusEntry.Prettify(opts.SkipUnchanged && lastLogrus))
-			lastLogrus = true
+		case logfmtEntry.TryHandle(lineData):
+			dst.Write(logfmtEntry.Prettify(opts.SkipUnchanged && lastLogfmt))
+			lastLogfmt = true
 
 		default:
-			lastLogrus = false
+			lastLogfmt = false
 			lastJSON = false
 			dst.Write(lineData)
 		}

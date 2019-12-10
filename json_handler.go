@@ -29,8 +29,23 @@ type JSONHandler struct {
 	last map[string]string
 }
 
+func checkEachUntilFound(fieldList []string, found func(string) bool) bool {
+	for _, field := range fieldList {
+		if found(field) {
+			return true
+		}
+	}
+	return false
+}
+
 // supportedTimeFields enumerates supported timestamp field names
 var supportedTimeFields = []string{"time", "ts", "@timestamp"}
+
+// supportedMessageFields enumarates supported Message field names
+var supportedMessageFields = []string{"message", "msg"}
+
+// supportedLevelFields enumarates supported level field names
+var supportedLevelFields = []string{"level", "lvl"}
 
 func (h *JSONHandler) clear() {
 	h.Level = ""
@@ -45,21 +60,7 @@ func (h *JSONHandler) clear() {
 
 // TryHandle tells if this line was handled by this handler.
 func (h *JSONHandler) TryHandle(d []byte) bool {
-	var ok bool
-
-	for _, field := range supportedTimeFields {
-		ok = bytes.Contains(d, []byte(`"`+field+`":`))
-		if ok {
-			break
-		}
-	}
-
-	if !ok {
-		return false
-	}
-
-	err := h.UnmarshalJSON(d)
-	if err != nil {
+	if !h.UnmarshalJSON(d) {
 		h.clear()
 		return false
 	}
@@ -67,52 +68,46 @@ func (h *JSONHandler) TryHandle(d []byte) bool {
 }
 
 // UnmarshalJSON sets the fields of the handler.
-func (h *JSONHandler) UnmarshalJSON(data []byte) error {
+func (h *JSONHandler) UnmarshalJSON(data []byte) bool {
 	raw := make(map[string]interface{})
 	err := json.Unmarshal(data, &raw)
 	if err != nil {
-		return err
+		return false
 	}
 
-	var time interface{}
-	var ok bool
-
-	for _, field := range supportedTimeFields {
-		time, ok = raw[field]
+	checkEachUntilFound(supportedLevelFields, func(field string) bool {
+		time, ok := tryParseTime(raw[field])
 		if ok {
+			h.Time = time
 			delete(raw, field)
-			break
 		}
-	}
+		return ok
+	})
 
-	if ok {
-		h.Time, ok = tryParseTime(time)
+	checkEachUntilFound(supportedMessageFields, func(field string) bool {
+		msg, ok := raw[field].(string)
+		if ok {
+			h.Message = msg
+			delete(raw, field)
+		}
+		return ok
+	})
+
+	checkEachUntilFound(supportedLevelFields, func(field string) bool {
+		lvl, ok := raw[field]
 		if !ok {
-			return fmt.Errorf("field time is not a known timestamp: %v", time)
+			return false
 		}
-	}
-
-	if h.Message, ok = raw["msg"].(string); ok {
-		delete(raw, "msg")
-	} else if h.Message, ok = raw["message"].(string); ok {
-		delete(raw, "message")
-	}
-
-	h.Level, ok = raw["level"].(string)
-	if !ok {
-		h.Level, ok = raw["lvl"].(string)
-		delete(raw, "lvl")
-		if !ok {
-			// bunyan uses numerical log levels
-			level, ok := raw["level"].(float64)
-			if ok {
-				h.Level = convertBunyanLogLevel(level)
-				delete(raw, "level")
-			} else {
-				h.Level = "???"
-			}
+		if strLvl, ok := lvl.(string); ok {
+			h.Level = strLvl
+		} else if flLvl, ok := lvl.(float64); ok {
+			h.Level = convertBunyanLogLevel(flLvl)
+		} else {
+			h.Level = "???"
 		}
-	}
+		delete(raw, field)
+		return true
+	})
 
 	if h.Fields == nil {
 		h.Fields = make(map[string]string)
@@ -134,7 +129,7 @@ func (h *JSONHandler) UnmarshalJSON(data []byte) error {
 		}
 	}
 
-	return nil
+	return true
 }
 
 // Prettify the output in a logrus like fashion.
