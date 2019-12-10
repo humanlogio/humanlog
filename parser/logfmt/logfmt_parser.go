@@ -35,7 +35,9 @@ func scanAllKeyValue(data []byte, allowEmptyKey, keepGarbage bool, eachPair Visi
 			}
 		}
 
-		if data[valStart] == '"' {
+		if valStart == valEnd {
+			more = eachPair(data[keyStart:keyEnd], nil)
+		} else if data[valStart] == '"' {
 			more = eachPair(data[keyStart:keyEnd], data[valStart+1:valEnd-1])
 		} else {
 			more = eachPair(data[keyStart:keyEnd], data[valStart:valEnd])
