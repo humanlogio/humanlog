@@ -37,6 +37,12 @@ func TestScanKeyValue(t *testing.T) {
 			},
 		},
 		{
+			input: "hello=",
+			want: []kv{
+				{key: []byte("hello"), val: nil},
+			},
+		},
+		{
 			input: "hello=bye crap crap",
 			want: []kv{
 				{key: []byte("hello"), val: []byte("bye crap crap")},
