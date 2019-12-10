@@ -42,6 +42,10 @@ func (h *LogfmtHandler) clear() {
 
 // CanHandle tells if this line can be handled by this handler.
 func (h *LogfmtHandler) TryHandle(d []byte) bool {
+	if !bytes.ContainsRune(d, '=') {
+		return false
+	}
+
 	if !h.UnmarshalLogfmt(d) {
 		h.clear()
 		return false
