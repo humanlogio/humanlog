@@ -1,5 +1,0 @@
-package: github.com/aybabtme/humanlog
-import:
-- package: github.com/aybabtme/rgbterm
-- package: github.com/kr/logfmt
-- package: github.com/urfave/cli
