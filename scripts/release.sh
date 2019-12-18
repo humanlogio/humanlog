@@ -35,6 +35,6 @@ git add $basedir/README.md
 git commit -m "$msg"
 git tag -a $version -m "$msg"
 
-goreleaser --config $basedir/goreleaser.yaml
+goreleaser --rm-dist --config $basedir/goreleaser.yaml
 
 git push origin master
