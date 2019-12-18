@@ -75,7 +75,7 @@ func (h *JSONHandler) UnmarshalJSON(data []byte) bool {
 		return false
 	}
 
-	checkEachUntilFound(supportedLevelFields, func(field string) bool {
+	checkEachUntilFound(supportedTimeFields, func(field string) bool {
 		time, ok := tryParseTime(raw[field])
 		if ok {
 			h.Time = time

@@ -62,7 +62,7 @@ func (h *LogfmtHandler) UnmarshalLogfmt(data []byte) bool {
 			key := dec.Key()
 			val := dec.Value()
 			if h.Time.IsZero() {
-				foundTime := checkEachUntilFound(supportedLevelFields, func(field string) bool {
+				foundTime := checkEachUntilFound(supportedTimeFields, func(field string) bool {
 					time, ok := tryParseTime(string(val))
 					if ok {
 						h.Time = time
