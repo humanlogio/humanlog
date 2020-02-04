@@ -39,13 +39,13 @@ func checkEachUntilFound(fieldList []string, found func(string) bool) bool {
 }
 
 // supportedTimeFields enumerates supported timestamp field names
-var supportedTimeFields = []string{"time", "ts", "@timestamp"}
+var supportedTimeFields = []string{"time", "ts", "@timestamp", "timestamp"}
 
 // supportedMessageFields enumarates supported Message field names
 var supportedMessageFields = []string{"message", "msg"}
 
 // supportedLevelFields enumarates supported level field names
-var supportedLevelFields = []string{"level", "lvl"}
+var supportedLevelFields = []string{"level", "lvl", "loglevel"}
 
 func (h *JSONHandler) clear() {
 	h.Level = ""
