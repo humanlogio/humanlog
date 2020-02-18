@@ -42,6 +42,14 @@ func Scanner(src io.Reader, dst io.Writer, opts *HandlerOptions) error {
 			dst.Write(logfmtEntry.Prettify(opts.SkipUnchanged && lastLogfmt))
 			lastLogfmt = true
 
+		case tryDockerComposePrefix(lineData, &jsonEntry):
+			dst.Write(jsonEntry.Prettify(opts.SkipUnchanged && lastJSON))
+			lastJSON = true
+
+		case tryDockerComposePrefix(lineData, &logfmtEntry):
+			dst.Write(logfmtEntry.Prettify(opts.SkipUnchanged && lastLogfmt))
+			lastLogfmt = true
+
 		default:
 			lastLogfmt = false
 			lastJSON = false

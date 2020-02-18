@@ -131,6 +131,12 @@ func (h *JSONHandler) UnmarshalJSON(data []byte) bool {
 
 	return true
 }
+func (h *JSONHandler) setField(key, val []byte) {
+	if h.Fields == nil {
+		h.Fields = make(map[string]string)
+	}
+	h.Fields[string(key)] = string(val)
+}
 
 // Prettify the output in a logrus like fashion.
 func (h *JSONHandler) Prettify(skipUnchanged bool) []byte {
