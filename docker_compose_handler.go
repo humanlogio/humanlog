@@ -5,7 +5,7 @@ import (
 )
 
 // dcLogsPrefixRe parses out a prefix like 'web_1 | ' from docker-compose
-var dcLogsPrefixRe = regexp.MustCompile("^(?:\x1b\\[\\d+m)?([a-zA-Z0-9._-]+)\\s+\\|(?:\x1b\\[0m)? (.*)$")
+var dcLogsPrefixRe = regexp.MustCompile("^(?:\x1b\\[\\d+m)?(?P<service_name>[a-zA-Z0-9._-]+)\\s+\\|(?:\x1b\\[0m)? (?P<rest_of_line>.*)$")
 
 type handler interface {
 	TryHandle([]byte) bool
