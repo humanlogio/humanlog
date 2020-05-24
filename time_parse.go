@@ -6,6 +6,7 @@ import (
 
 var formats = []string{
 	"2006-01-02 15:04:05.999999999 -0700 MST",
+	"2006-01-02 15:04:05",
 	time.RFC3339,
 	time.RFC3339Nano,
 	time.RFC822,
@@ -16,7 +17,7 @@ var formats = []string{
 	time.UnixDate,
 	time.RubyDate,
 	time.ANSIC,
-	time.Kitchen,
+        time.Kitchen,
 	time.Stamp,
 	time.StampMilli,
 	time.StampMicro,
