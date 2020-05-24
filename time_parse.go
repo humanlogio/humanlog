@@ -17,7 +17,7 @@ var formats = []string{
 	time.UnixDate,
 	time.RubyDate,
 	time.ANSIC,
-        time.Kitchen,
+	time.Kitchen,
 	time.Stamp,
 	time.StampMilli,
 	time.StampMicro,
