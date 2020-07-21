@@ -45,7 +45,7 @@ var supportedTimeFields = []string{"time", "ts", "@timestamp", "timestamp"}
 var supportedMessageFields = []string{"message", "msg"}
 
 // supportedLevelFields enumarates supported level field names
-var supportedLevelFields = []string{"level", "lvl", "loglevel"}
+var supportedLevelFields = []string{"level", "lvl", "loglevel", "severity"}
 
 func (h *JSONHandler) clear() {
 	h.Level = ""
