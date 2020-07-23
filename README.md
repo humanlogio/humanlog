@@ -14,7 +14,7 @@ $ go get -u github.com/aybabtme/humanlog/...
 ## On linux
 
 ```bash
-wget -qO- https://github.com/aybabtme/humanlog/releases/download/v0.4.1/humanlog_v0.4.1_linux_amd64.tar.gz | tar xvz
+wget -qO- https://github.com/aybabtme/humanlog/releases/download/0.4.1/humanlog_0.4.1_linux_amd64.tar.gz | tar xvz
 ```
 
 ## On OS X
@@ -54,7 +54,7 @@ USAGE:
    humanlog [global options] command [command options] [arguments...]
 
 VERSION:
-   v0.4.1
+   0.4.1
 
 AUTHOR:
   Antoine Grondin - <antoine@digitalocean.com>
