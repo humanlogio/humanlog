@@ -12,7 +12,7 @@ import (
 	"github.com/urfave/cli"
 )
 
-var version = "devel"
+var Version = "devel"
 
 func fatalf(c *cli.Context, format string, args ...interface{}) {
 	log.Printf(format, args...)
@@ -90,9 +90,9 @@ func newApp() *cli.App {
 
 	app := cli.NewApp()
 	app.Author = "Antoine Grondin"
-	app.Email = "antoine@digitalocean.com"
+	app.Email = "antoinegrondin@gmail.com"
 	app.Name = "humanlog"
-	app.Version = version
+	app.Version = Version
 	app.Usage = "reads structured logs from stdin, makes them pretty on stdout!"
 
 	app.Flags = []cli.Flag{skipFlag, keepFlag, sortLongest, skipUnchanged, truncates, truncateLength, lightBg, timeFormat, ignoreInterrupts}
