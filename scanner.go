@@ -50,6 +50,10 @@ func Scanner(src io.Reader, dst io.Writer, opts *HandlerOptions) error {
 			dst.Write(logfmtEntry.Prettify(opts.SkipUnchanged && lastLogfmt))
 			lastLogfmt = true
 
+		case tryZapDevPrefix(lineData, &jsonEntry):
+			dst.Write(jsonEntry.Prettify(opts.SkipUnchanged && lastJSON))
+			lastJSON = true
+
 		default:
 			lastLogfmt = false
 			lastJSON = false
