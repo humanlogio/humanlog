@@ -16,6 +16,12 @@ import (
 //    scanner loop will never capture them
 var zapDevLogsPrefixRe = regexp.MustCompile("^(?P<timestamp>\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}-\\d{4})\\s+(?P<level>\\w{4,5})\\s+(?P<location>\\S+)\\s+(?P<message>[^{]+?)\\s+(?P<jsonbody>{.+})$")
 
+// Zap Development Logs when run in Docker-Compose are nearly identical to before
+// Fields are tab separated instead of whitespace
+// Timestamp is now in ...
+// Everything else remains the same
+var zapDevDCLogsPrefixRe = regexp.MustCompile("^(?P<timestamp>\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z)\t(?P<level>\\w{4,5})\t(?P<location>\\S+)\t(?P<message>[^{]+?)\t(?P<jsonbody>{.+})$")
+
 // This is not obviously an RFC-compliant format and is not a constant in the
 // time package which is worrisome but this pattern does work.
 const someRFC = "2006-01-02T15:04:05.000-0700"
