@@ -10,8 +10,8 @@ var (
 	eol = [...]byte{'\n'}
 )
 
-// Scanner reads logfmt'd lines from src and prettify them onto dst.
-// If the lines aren't logfmt, it will simply write them out with no
+// Scanner reads JSON-structured lines from src and prettify them onto dst. If
+// the lines aren't JSON-structured, it will simply write them out with no
 // prettification.
 func Scanner(src io.Reader, dst io.Writer, opts *HandlerOptions) error {
 	in := bufio.NewScanner(src)
