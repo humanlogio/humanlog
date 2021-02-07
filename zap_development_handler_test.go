@@ -117,6 +117,108 @@ func Test_zapDevLogsPrefixRe(t *testing.T) {
 	}
 }
 
+func Test_tryZapDevPrefix(t *testing.T) {
+	tests := []struct {
+		name      string
+		logLine   []byte
+		wantMatch bool
+
+		wantLevel    string
+		wantLocation string
+		wantMessage  string
+
+		wantExtraContext string
+	}{
+		{
+			name: "no match",
+
+			logLine: []byte("that's no good"),
+
+			wantMatch: false,
+		},
+		{
+			name: "debug message",
+
+			logLine: logLinesByLevel["DEBUG"],
+
+			wantMatch:    true,
+			wantLevel:    "debug",
+			wantLocation: "zapper/zapper.go:18",
+			wantMessage:  "some message 1",
+		},
+		{
+			name: "error message with caller info",
+
+			logLine: logLinesByLevel["ERROR"],
+
+			wantMatch:    true,
+			wantLevel:    "error",
+			wantLocation: "zapper/zapper.go:18",
+			wantMessage:  "some message 2",
+		},
+		{
+			name: "fatal message with caller info and exit status",
+
+			logLine: logLinesByLevel["FATAL"],
+
+			wantMatch: true,
+
+			wantLevel:    "fatal",
+			wantLocation: "zapper/zapper.go:18",
+			wantMessage:  "some message 5",
+		},
+		{
+			name: "info message",
+
+			logLine: logLinesByLevel["INFO"],
+
+			wantMatch:    true,
+			wantLevel:    "info",
+			wantLocation: "zapper/zapper.go:18",
+			wantMessage:  "some message 3",
+		},
+		{
+
+			name: "warning message with caller info",
+
+			logLine: logLinesByLevel["WARN"],
+
+			wantMatch:    true,
+			wantLevel:    "warn",
+			wantLocation: "zapper/zapper.go:18",
+			wantMessage:  "some message 4",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			h := &JSONHandler{}
+			m := tryZapDevPrefix(test.logLine, h)
+
+			if m != test.wantMatch {
+				t.Error("expected the prefix to match, it did not")
+			}
+			// Short circuit - if we want failure don't assert against the handler
+			if !test.wantMatch {
+				return
+			}
+
+			if reflect.DeepEqual(time.Time{}, h.Time) {
+				t.Errorf("want a parsed time, got empty time; want != got")
+			}
+			if h.Level != test.wantLevel {
+				t.Errorf("want %q, got %q; want != got", test.wantLevel, h.Level)
+			}
+			if h.Message != test.wantMessage {
+				t.Errorf("want %q, got %q; want != got", test.wantMessage, h.Message)
+			}
+			if h.Fields["caller"] != test.wantLocation {
+				t.Errorf("want %q, got %q; want != got", test.wantLocation, h.Fields["caller"])
+			}
+		})
+	}
+}
+
 var dcLogLinesByLevel = map[string][]byte{
 	"DEBUG": []byte("2021-02-06T22:55:22.004Z\tDEBUG\tzapper/zapper.go:17\tsome message 1\t{\"rand_index\": 1}"),
 	"ERROR": []byte("2021-02-06T22:55:22.008Z\tERROR\tzapper/zapper.go:17\tsome message 2\t{\"rand_index\": 2}"),
@@ -229,7 +331,7 @@ func Test_zapDCDevLogsPrefixRe(t *testing.T) {
 	}
 }
 
-func Test_tryZapDevPrefix(t *testing.T) {
+func Test_tryZapDevDCPrefix(t *testing.T) {
 	tests := []struct {
 		name      string
 		logLine   []byte
@@ -251,53 +353,53 @@ func Test_tryZapDevPrefix(t *testing.T) {
 		{
 			name: "debug message",
 
-			logLine: logLinesByLevel["DEBUG"],
+			logLine: dcLogLinesByLevel["DEBUG"],
 
 			wantMatch:    true,
 			wantLevel:    "debug",
-			wantLocation: "zapper/zapper.go:18",
+			wantLocation: "zapper/zapper.go:17",
 			wantMessage:  "some message 1",
 		},
 		{
 			name: "error message with caller info",
 
-			logLine: logLinesByLevel["ERROR"],
+			logLine: dcLogLinesByLevel["ERROR"],
 
 			wantMatch:    true,
 			wantLevel:    "error",
-			wantLocation: "zapper/zapper.go:18",
+			wantLocation: "zapper/zapper.go:17",
 			wantMessage:  "some message 2",
 		},
 		{
 			name: "fatal message with caller info and exit status",
 
-			logLine: logLinesByLevel["FATAL"],
+			logLine: dcLogLinesByLevel["FATAL"],
 
 			wantMatch: true,
 
 			wantLevel:    "fatal",
-			wantLocation: "zapper/zapper.go:18",
+			wantLocation: "zapper/zapper.go:17",
 			wantMessage:  "some message 5",
 		},
 		{
 			name: "info message",
 
-			logLine: logLinesByLevel["INFO"],
+			logLine: dcLogLinesByLevel["INFO"],
 
 			wantMatch:    true,
 			wantLevel:    "info",
-			wantLocation: "zapper/zapper.go:18",
+			wantLocation: "zapper/zapper.go:17",
 			wantMessage:  "some message 3",
 		},
 		{
 
 			name: "warning message with caller info",
 
-			logLine: logLinesByLevel["WARN"],
+			logLine: dcLogLinesByLevel["WARN"],
 
 			wantMatch:    true,
 			wantLevel:    "warn",
-			wantLocation: "zapper/zapper.go:18",
+			wantLocation: "zapper/zapper.go:17",
 			wantMessage:  "some message 4",
 		},
 	}
@@ -305,7 +407,7 @@ func Test_tryZapDevPrefix(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			h := &JSONHandler{}
-			m := tryZapDevPrefix(test.logLine, h)
+			m := tryZapDevDCPrefix(test.logLine, h)
 
 			if m != test.wantMatch {
 				t.Error("expected the prefix to match, it did not")
@@ -329,5 +431,4 @@ func Test_tryZapDevPrefix(t *testing.T) {
 			}
 		})
 	}
-
 }

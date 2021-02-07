@@ -19,10 +19,20 @@ type handler interface {
 }
 
 func tryDockerComposePrefix(d []byte, nextHandler handler) bool {
-	if matches := dcLogsPrefixRe.FindSubmatch(d); matches != nil {
+	matches := dcLogsPrefixRe.FindSubmatch(d)
+	if matches != nil {
 		if nextHandler.TryHandle(matches[2]) {
 			nextHandler.setField([]byte(`service`), matches[1])
 			return true
+		}
+		// The Zap Development handler is only built for `JSONHandler`s so
+		// short-circuit calls for LogFmtHandlers
+		switch h := nextHandler.(type) {
+		case *JSONHandler:
+			if tryZapDevDCPrefix(matches[2], h) {
+				h.setField([]byte(`service`), matches[1])
+				return true
+			}
 		}
 	}
 	return false
