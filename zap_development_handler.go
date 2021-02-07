@@ -43,3 +43,25 @@ func tryZapDevPrefix(d []byte, handler *JSONHandler) bool {
 	}
 	return false
 }
+
+// This is not obviously an RFC-compliant format and is not a constant in the
+// time package which is worrisome but this pattern does work.
+const someOtherRFC = "2006-01-02T15:04:05.000Z"
+
+func tryZapDevDCPrefix(d []byte, handler *JSONHandler) bool {
+	if matches := zapDevDCLogsPrefixRe.FindSubmatch(d); matches != nil {
+		if handler.TryHandle(matches[5]) {
+			t, err := time.Parse(someOtherRFC, string(matches[1]))
+			if err != nil {
+				return false
+			}
+			handler.Time = t
+
+			handler.Level = strings.ToLower(string(matches[2]))
+			handler.setField([]byte("caller"), matches[3])
+			handler.Message = string(matches[4])
+			return true
+		}
+	}
+	return false
+}
