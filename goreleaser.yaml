@@ -1,7 +1,7 @@
 build:
   main: ./cmd/humanlog/main.go
   binary: humanlog
-  ldflags: 
+  ldflags:
     - -s -w -X main.build={{.Version}}
   goos:
     - windows
@@ -11,7 +11,7 @@ build:
     - amd64
 
 brews:
-  - github:
+  - tap:
       owner: aybabtme
       name: homebrew-tap
 
