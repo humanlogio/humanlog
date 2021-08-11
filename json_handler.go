@@ -13,7 +13,7 @@ import (
 	"github.com/fatih/color"
 )
 
-// JSONHandler can handle logs emmited by logrus.TextFormatter loggers.
+// JSONHandler can handle logs emitted by logrus.TextFormatter loggers.
 type JSONHandler struct {
 	buf     *bytes.Buffer
 	out     *tabwriter.Writer
@@ -29,6 +29,35 @@ type JSONHandler struct {
 	last map[string]string
 }
 
+// searchJSON searches a document for a key using the found func to determine if the value is accepted.
+// kvs is the deserialized json document.
+// fieldList is a list of field names that should be searched. Sub-documents can be searched by using the dot (.). For example, to search {"data"{"message": "<this field>"}} the item would be data.message
+func searchJSON(kvs map[string]interface{}, fieldList []string, found func(key string, value interface{}) bool) bool {
+	for _, field := range fieldList {
+		splits := strings.SplitN(field, ".", 2)
+		if len(splits) > 1 {
+			name, fieldKey := splits[0], splits[1]
+			val, ok := kvs[name]
+			if !ok {
+				// the key does not exist in the document
+				continue
+			}
+			if m, ok := val.(map[string]interface{}); ok {
+				// its value is JSON and was unmarshaled to map[string]interface{} so search the sub document
+				return searchJSON(m, []string{fieldKey}, found)
+			}
+		} else {
+			// this is not a sub-document search, so search the root
+			for k, v := range kvs {
+				if field == k && found(k, v) {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
 func checkEachUntilFound(fieldList []string, found func(string) bool) bool {
 	for _, field := range fieldList {
 		if found(field) {
@@ -37,15 +66,6 @@ func checkEachUntilFound(fieldList []string, found func(string) bool) bool {
 	}
 	return false
 }
-
-// supportedTimeFields enumerates supported timestamp field names
-var supportedTimeFields = []string{"time", "ts", "@timestamp", "timestamp"}
-
-// supportedMessageFields enumarates supported Message field names
-var supportedMessageFields = []string{"message", "msg"}
-
-// supportedLevelFields enumarates supported level field names
-var supportedLevelFields = []string{"level", "lvl", "loglevel", "severity"}
 
 func (h *JSONHandler) clear() {
 	h.Level = ""
@@ -67,6 +87,28 @@ func (h *JSONHandler) TryHandle(d []byte) bool {
 	return true
 }
 
+func deleteJSONKey(key string, jsonData map[string]interface{}) {
+	if _, ok := jsonData[key]; ok {
+		// found the key at the root
+		delete(jsonData, key)
+		return
+	}
+
+	splits := strings.SplitN(key, ".", 2)
+	if len(splits) < 2 {
+		// invalid selector
+		return
+	}
+	k, v := splits[0], splits[1]
+	ifce, ok := jsonData[k]
+	if !ok {
+		return // the key doesn't exist
+	}
+	if m, ok := ifce.(map[string]interface{}); ok {
+		deleteJSONKey(v, m)
+	}
+}
+
 // UnmarshalJSON sets the fields of the handler.
 func (h *JSONHandler) UnmarshalJSON(data []byte) bool {
 	raw := make(map[string]interface{})
@@ -75,37 +117,38 @@ func (h *JSONHandler) UnmarshalJSON(data []byte) bool {
 		return false
 	}
 
-	checkEachUntilFound(supportedTimeFields, func(field string) bool {
-		time, ok := tryParseTime(raw[field])
+	if h.Opts == nil {
+		h.Opts = DefaultOptions
+	}
+
+	searchJSON(raw, h.Opts.TimeFields, func(field string, value interface{}) bool {
+		var ok bool
+		h.Time, ok = tryParseTime(value)
 		if ok {
-			h.Time = time
-			delete(raw, field)
+			deleteJSONKey(field, raw)
 		}
 		return ok
 	})
 
-	checkEachUntilFound(supportedMessageFields, func(field string) bool {
-		msg, ok := raw[field].(string)
+	searchJSON(raw, h.Opts.MessageFields, func(field string, value interface{}) bool {
+		var ok bool
+		h.Message, ok = value.(string)
 		if ok {
-			h.Message = msg
-			delete(raw, field)
+			deleteJSONKey(field, raw)
 		}
 		return ok
 	})
 
-	checkEachUntilFound(supportedLevelFields, func(field string) bool {
-		lvl, ok := raw[field]
-		if !ok {
-			return false
-		}
-		if strLvl, ok := lvl.(string); ok {
+	searchJSON(raw, h.Opts.LevelFields, func(field string, value interface{}) bool {
+		if strLvl, ok := value.(string); ok {
 			h.Level = strLvl
-		} else if flLvl, ok := lvl.(float64); ok {
+			deleteJSONKey(field, raw)
+		} else if flLvl, ok := value.(float64); ok {
 			h.Level = convertBunyanLogLevel(flLvl)
+			deleteJSONKey(field, raw)
 		} else {
 			h.Level = "???"
 		}
-		delete(raw, field)
 		return true
 	})
 

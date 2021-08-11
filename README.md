@@ -57,19 +57,25 @@ VERSION:
    0.5.0
 
 AUTHOR:
-  Antoine Grondin - <antoine@digitalocean.com>
+   Antoine Grondin - <antoine@digitalocean.com>
 
 COMMANDS:
    help, h  Shows a list of commands or help for one command
 
 GLOBAL OPTIONS:
-   --skip '--skip option --skip option'   keys to skip when parsing a log entry
-   --keep '--keep option --keep option'   keys to keep when parsing a log entry
-   --sort-longest       sort by longest key after having sorted lexicographically
-   --skip-unchanged        skip keys that have the same value than the previous entry
-   --truncate           truncates values that are longer than --truncate-length
-   --truncate-length '15'     truncate values that are longer than this length
-   --help, -h           show help
-   --version, -v        print the version
+   --skip value                      keys to skip when parsing a log entry
+   --keep value                      keys to keep when parsing a log entry
+   --sort-longest                    sort by longest key after having sorted lexicographically
+   --skip-unchanged                  skip keys that have the same value than the previous entry
+   --truncate                        truncates values that are longer than --truncate-length
+   --truncate-length value           truncate values that are longer than this length (default: 15)
+   --light-bg                        use black as the base foreground color (for terminals with light backgrounds)
+   --time-format value               output time format, see https://golang.org/pkg/time/ for details (default: "Jan _2 15:04:05")
+   --ignore-interrupts, -i           ignore interrupts
+   --message-fields value, -m value  Custom JSON fields to search for the log message. (i.e. mssge, data.body.message) (default: "data.message") [$HUMANLOG_MESSAGE_FIELDS]
+   --time-fields value, -t value     Custom JSON fields to search for the log time. (i.e. logtime, data.body.datetime) [$HUMANLOG_TIME_FIELDS]
+   --level-fields value, -l value    Custom JSON fields to search for the log level. (i.e. somelevel, data.level) [$HUMANLOG_LEVEL_FIELDS]
+   --help, -h                        show help
+   --version, -v                     print the version
 ```
 [l2met]: https://github.com/ryandotsmith/l2met
