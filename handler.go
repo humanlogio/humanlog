@@ -22,6 +22,10 @@ var DefaultOptions = &HandlerOptions{
 	TruncateLength: 15,
 	TimeFormat:     time.Stamp,
 
+	TimeFields:    []string{"time", "ts", "@timestamp", "timestamp"},
+	MessageFields: []string{"message", "msg"},
+	LevelFields:   []string{"level", "lvl", "loglevel", "severity"},
+
 	KeyColor:              color.New(color.FgGreen),
 	ValColor:              color.New(color.FgHiWhite),
 	TimeLightBgColor:      color.New(color.FgBlack),
@@ -40,8 +44,13 @@ var DefaultOptions = &HandlerOptions{
 }
 
 type HandlerOptions struct {
-	Skip           map[string]struct{}
-	Keep           map[string]struct{}
+	Skip map[string]struct{}
+	Keep map[string]struct{}
+
+	TimeFields    []string
+	MessageFields []string
+	LevelFields   []string
+
 	SortLongest    bool
 	SkipUnchanged  bool
 	Truncates      bool

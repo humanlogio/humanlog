@@ -88,6 +88,30 @@ func newApp() *cli.App {
 		Usage: "ignore interrupts",
 	}
 
+	messageFields := cli.StringSlice{}
+	messageFieldsFlag := cli.StringSliceFlag{
+		Name:   "message-fields, m",
+		Usage:  "Custom JSON fields to search for the log message. (i.e. mssge, data.body.message)",
+		EnvVar: "HUMANLOG_MESSAGE_FIELDS",
+		Value:  &messageFields,
+	}
+
+	timeFields := cli.StringSlice{}
+	timeFieldsFlag := cli.StringSliceFlag{
+		Name:   "time-fields, t",
+		Usage:  "Custom JSON fields to search for the log time. (i.e. logtime, data.body.datetime)",
+		EnvVar: "HUMANLOG_TIME_FIELDS",
+		Value:  &timeFields,
+	}
+
+	levelFields := cli.StringSlice{}
+	levelFieldsFlag := cli.StringSliceFlag{
+		Name:   "level-fields, l",
+		Usage:  "Custom JSON fields to search for the log level. (i.e. somelevel, data.level)",
+		EnvVar: "HUMANLOG_LEVEL_FIELDS",
+		Value:  &levelFields,
+	}
+
 	app := cli.NewApp()
 	app.Author = "Antoine Grondin"
 	app.Email = "antoinegrondin@gmail.com"
@@ -95,7 +119,7 @@ func newApp() *cli.App {
 	app.Version = Version
 	app.Usage = "reads structured logs from stdin, makes them pretty on stdout!"
 
-	app.Flags = []cli.Flag{skipFlag, keepFlag, sortLongest, skipUnchanged, truncates, truncateLength, lightBg, timeFormat, ignoreInterrupts}
+	app.Flags = []cli.Flag{skipFlag, keepFlag, sortLongest, skipUnchanged, truncates, truncateLength, lightBg, timeFormat, ignoreInterrupts, messageFieldsFlag, timeFieldsFlag, levelFieldsFlag}
 
 	app.Action = func(c *cli.Context) error {
 
@@ -114,6 +138,18 @@ func newApp() *cli.App {
 			opts.SetSkip(skip)
 		case c.IsSet(keepFlag.Name):
 			opts.SetKeep(keep)
+		}
+
+		if c.IsSet(strings.Split(messageFieldsFlag.Name, ",")[0]) {
+			opts.MessageFields = messageFields
+		}
+
+		if c.IsSet(strings.Split(timeFieldsFlag.Name, ",")[0]) {
+			opts.TimeFields = timeFields
+		}
+
+		if c.IsSet(strings.Split(levelFieldsFlag.Name, ",")[0]) {
+			opts.LevelFields = levelFields
 		}
 
 		if c.IsSet(strings.Split(ignoreInterrupts.Name, ",")[0]) {
