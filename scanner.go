@@ -31,6 +31,7 @@ func Scanner(src io.Reader, dst io.Writer, opts *HandlerOptions) error {
 
 		// remove that pesky syslog crap
 		lineData = bytes.TrimPrefix(lineData, []byte("@cee: "))
+		lineData = bytes.TrimPrefix(lineData, []byte("@cee:"))
 
 		switch {
 
