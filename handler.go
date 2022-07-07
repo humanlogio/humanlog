@@ -1,6 +1,8 @@
 package humanlog
 
 import (
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/fatih/color"
@@ -18,6 +20,7 @@ var DefaultOptions = &HandlerOptions{
 	SortLongest:    true,
 	SkipUnchanged:  true,
 	Truncates:      true,
+	ColorFlag:      ColorModeAuto,
 	LightBg:        false,
 	TruncateLength: 15,
 	TimeFormat:     time.Stamp,
@@ -43,6 +46,39 @@ var DefaultOptions = &HandlerOptions{
 	UnknownLevelColor:     color.New(color.FgMagenta),
 }
 
+type ColorMode int
+
+const (
+	ColorModeOff ColorMode = iota
+	ColorModeOn
+	ColorModeAuto
+)
+
+func GrokColorMode(colorMode string) (ColorMode, error) {
+	switch strings.ToLower(colorMode) {
+	case "on", "always", "force", "true", "yes", "1":
+		return ColorModeOn, nil
+	case "off", "never", "false", "no", "0":
+		return ColorModeOff, nil
+	case "auto", "tty", "maybe", "":
+		return ColorModeAuto, nil
+	default:
+		return ColorModeAuto, fmt.Errorf("'%s' is not a color mode (try 'on', 'off' or 'auto')", colorMode)
+	}
+}
+
+func (colorMode ColorMode) Apply() {
+	switch colorMode {
+	case ColorModeOff:
+		color.NoColor = true
+	case ColorModeOn:
+		color.NoColor = false
+	default:
+		// 'Auto' default is applied as a global variable initializer function, so nothing
+		// to do here.
+	}
+}
+
 type HandlerOptions struct {
 	Skip map[string]struct{}
 	Keep map[string]struct{}
@@ -55,6 +91,7 @@ type HandlerOptions struct {
 	SkipUnchanged  bool
 	Truncates      bool
 	LightBg        bool
+	ColorFlag      ColorMode
 	TruncateLength int
 	TimeFormat     string
 

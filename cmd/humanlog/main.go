@@ -72,6 +72,12 @@ func newApp() *cli.App {
 		Value: humanlog.DefaultOptions.TruncateLength,
 	}
 
+	colorFlag := cli.StringFlag{
+		Name:  "color",
+		Usage: "specify color mode: auto, on/force, off",
+		Value: "auto",
+	}
+
 	lightBg := cli.BoolFlag{
 		Name:  "light-bg",
 		Usage: "use black as the base foreground color (for terminals with light backgrounds)",
@@ -119,7 +125,7 @@ func newApp() *cli.App {
 	app.Version = Version
 	app.Usage = "reads structured logs from stdin, makes them pretty on stdout!"
 
-	app.Flags = []cli.Flag{skipFlag, keepFlag, sortLongest, skipUnchanged, truncates, truncateLength, lightBg, timeFormat, ignoreInterrupts, messageFieldsFlag, timeFieldsFlag, levelFieldsFlag}
+	app.Flags = []cli.Flag{skipFlag, keepFlag, sortLongest, skipUnchanged, truncates, truncateLength, colorFlag, lightBg, timeFormat, ignoreInterrupts, messageFieldsFlag, timeFieldsFlag, levelFieldsFlag}
 
 	app.Action = func(c *cli.Context) error {
 
@@ -130,6 +136,10 @@ func newApp() *cli.App {
 		opts.TruncateLength = c.Int(truncateLength.Name)
 		opts.LightBg = c.BoolT(lightBg.Name)
 		opts.TimeFormat = c.String(timeFormat.Name)
+		var err error
+		if opts.ColorFlag, err = humanlog.GrokColorMode(c.String(colorFlag.Name)); err != nil {
+			fatalf(c, "bad --%s value: %s", colorFlag.Name, err.Error())
+		}
 
 		switch {
 		case c.IsSet(skipFlag.Name) && c.IsSet(keepFlag.Name):
@@ -155,6 +165,8 @@ func newApp() *cli.App {
 		if c.IsSet(strings.Split(ignoreInterrupts.Name, ",")[0]) {
 			signal.Ignore(os.Interrupt)
 		}
+
+		opts.ColorFlag.Apply()
 
 		log.Print("reading stdin...")
 		if err := humanlog.Scanner(os.Stdin, colorable.NewColorableStdout(), opts); err != nil {
