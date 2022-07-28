@@ -57,7 +57,7 @@ VERSION:
    {{.version}}
 
 AUTHOR:
-  Antoine Grondin - <antoine@digitalocean.com>
+  Antoine Grondin - <antoinegrondin@gmail.com>
 
 COMMANDS:
    help, h  Shows a list of commands or help for one command
