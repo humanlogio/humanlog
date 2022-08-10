@@ -1,3 +1,4 @@
 time=2022-08-10T03:03:24.259999353Z level=INFO msg="Started Worker" Namespace=runtime TaskQueue=runtimed
 time=2022-08-10T03:05:19.289159884Z level=ERROR msg="processing job" error="worker error from receive: twirp error internal: failed to do request: Post \"http://localhost:18081/twirp/aqueduct.api.v1.JobQueueService/Receive\": context deadline exceeded (Client.Timeout exceeded while awaiting headers)"
+time=2022-08-10T03:06:20.422461071Z level=DEBUG msg="inbound request" twirp_svc=ManagementsAPI twirp_method=GetEnableStatus twirp_req=*managements.GetEnableStatusRequest
 {"level":"info","ts":"2022-08-10T03:03:18.312Z","msg":"temporal-sys-tq-scanner-workflow workflow successfully started","service":"worker","logging-call-at":"scanner.go:202"}
