@@ -1,0 +1,2 @@
+time=2022-08-10T03:03:24.259999353Z level=INFO msg="Started Worker" Namespace=runtime TaskQueue=runtimed
+{"level":"info","ts":"2022-08-10T03:03:18.312Z","msg":"temporal-sys-tq-scanner-workflow workflow successfully started","service":"worker","logging-call-at":"scanner.go:202"}
