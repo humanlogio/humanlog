@@ -61,6 +61,9 @@ func TestHarness(t *testing.T) {
 				}
 			}
 			mismatches := len(ranges.ranges)
+			if mismatches == 0 {
+				return
+			}
 			t.Errorf("total of %d ranges mismatch", mismatches)
 			if len(ranges.ranges) > 10 {
 				mismatches = 10
