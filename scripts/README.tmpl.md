@@ -4,17 +4,17 @@ Read logs from `stdin` and prints them back to `stdout`, but prettier.
 
 # Using it
 
-[Grab a release](https://github.com/aybabtme/humanlog/releases) or :
+[Grab a release](https://github.com/humanlogio/humanlog/releases) or :
 
 ## With Go installed
 ```bash
-$ go get -u github.com/aybabtme/humanlog/...
+$ go get -u github.com/humanlogio/humanlog/...
 ```
 
 ## On linux
 
 ```bash
-wget -qO- https://github.com/aybabtme/humanlog/releases/download/{{.version}}/humanlog_{{.version}}_linux_amd64.tar.gz | tar xvz
+wget -qO- https://github.com/humanlogio/humanlog/releases/download/{{.version}}/humanlog_{{.version}}_linux_amd64.tar.gz | tar xvz
 ```
 
 ## On OS X
@@ -33,7 +33,7 @@ entries are encountered by `humanlog`. Unrecognized lines are left unchanged.
 $ humanlog < /var/log/logfile.log
 ```
 
-![2__fish___users_antoine_gocode_src_github_com_aybabtme_humanlog__fish_](https://cloud.githubusercontent.com/assets/1189716/4328545/f2330bb4-3f86-11e4-8242-4f49f6ae9efc.png)
+![2__fish___users_antoine_gocode_src_github_com_humanlogio_humanlog__fish_](https://cloud.githubusercontent.com/assets/1189716/4328545/f2330bb4-3f86-11e4-8242-4f49f6ae9efc.png)
 
 # Contributing
 
