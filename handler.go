@@ -1,11 +1,8 @@
 package humanlog
 
 import (
-	"fmt"
-	"strings"
 	"time"
 
-	"github.com/fatih/color"
 	"github.com/kr/logfmt"
 )
 
@@ -29,87 +26,28 @@ var DefaultOptions = &HandlerOptions{
 	MessageFields: []string{"message", "msg"},
 	LevelFields:   []string{"level", "lvl", "loglevel", "severity"},
 
-	KeyColor:              color.New(color.FgGreen),
-	ValColor:              color.New(color.FgHiWhite),
-	TimeLightBgColor:      color.New(color.FgBlack),
-	TimeDarkBgColor:       color.New(color.FgWhite),
-	MsgLightBgColor:       color.New(color.FgBlack),
-	MsgAbsentLightBgColor: color.New(color.FgHiBlack),
-	MsgDarkBgColor:        color.New(color.FgHiWhite),
-	MsgAbsentDarkBgColor:  color.New(color.FgWhite),
-	DebugLevelColor:       color.New(color.FgMagenta),
-	InfoLevelColor:        color.New(color.FgCyan),
-	WarnLevelColor:        color.New(color.FgYellow),
-	ErrorLevelColor:       color.New(color.FgRed),
-	PanicLevelColor:       color.New(color.BgRed),
-	FatalLevelColor:       color.New(color.BgHiRed, color.FgHiWhite),
-	UnknownLevelColor:     color.New(color.FgMagenta),
-}
-
-type ColorMode int
-
-const (
-	ColorModeOff ColorMode = iota
-	ColorModeOn
-	ColorModeAuto
-)
-
-func GrokColorMode(colorMode string) (ColorMode, error) {
-	switch strings.ToLower(colorMode) {
-	case "on", "always", "force", "true", "yes", "1":
-		return ColorModeOn, nil
-	case "off", "never", "false", "no", "0":
-		return ColorModeOff, nil
-	case "auto", "tty", "maybe", "":
-		return ColorModeAuto, nil
-	default:
-		return ColorModeAuto, fmt.Errorf("'%s' is not a color mode (try 'on', 'off' or 'auto')", colorMode)
-	}
-}
-
-func (colorMode ColorMode) Apply() {
-	switch colorMode {
-	case ColorModeOff:
-		color.NoColor = true
-	case ColorModeOn:
-		color.NoColor = false
-	default:
-		// 'Auto' default is applied as a global variable initializer function, so nothing
-		// to do here.
-	}
+	palette: DefaultPalette,
 }
 
 type HandlerOptions struct {
-	Skip map[string]struct{}
-	Keep map[string]struct{}
+	Skip map[string]struct{} `json:"skip"`
+	Keep map[string]struct{} `json:"keep"`
 
-	TimeFields    []string
-	MessageFields []string
-	LevelFields   []string
+	TimeFields    []string `json:"time_fields"`
+	MessageFields []string `json:"message_fields"`
+	LevelFields   []string `json:"level_fields"`
 
-	SortLongest    bool
-	SkipUnchanged  bool
-	Truncates      bool
-	LightBg        bool
-	ColorFlag      ColorMode
-	TruncateLength int
-	TimeFormat     string
+	SortLongest    bool      `json:"sort_longest"`
+	SkipUnchanged  bool      `json:"skip_unchanged"`
+	Truncates      bool      `json:"truncates"`
+	LightBg        bool      `json:"light_bg"`
+	ColorFlag      ColorMode `json:"color_mode"`
+	TruncateLength int       `json:"truncate_length"`
+	TimeFormat     string    `json:"time_format"`
 
-	KeyColor              *color.Color
-	ValColor              *color.Color
-	TimeLightBgColor      *color.Color
-	TimeDarkBgColor       *color.Color
-	MsgLightBgColor       *color.Color
-	MsgAbsentLightBgColor *color.Color
-	MsgDarkBgColor        *color.Color
-	MsgAbsentDarkBgColor  *color.Color
-	DebugLevelColor       *color.Color
-	InfoLevelColor        *color.Color
-	WarnLevelColor        *color.Color
-	ErrorLevelColor       *color.Color
-	PanicLevelColor       *color.Color
-	FatalLevelColor       *color.Color
-	UnknownLevelColor     *color.Color
+	Palette *TextPalette `json:"palette"`
+	// once compiled
+	palette *Palette
 }
 
 func (h *HandlerOptions) shouldShowKey(key string) bool {

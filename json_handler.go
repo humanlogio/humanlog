@@ -197,11 +197,11 @@ func (h *JSONHandler) Prettify(skipUnchanged bool) []byte {
 		msgAbsentColor *color.Color
 	)
 	if h.Opts.LightBg {
-		msgColor = h.Opts.MsgLightBgColor
-		msgAbsentColor = h.Opts.MsgAbsentLightBgColor
+		msgColor = h.Opts.palette.MsgLightBgColor
+		msgAbsentColor = h.Opts.palette.MsgAbsentLightBgColor
 	} else {
-		msgColor = h.Opts.MsgDarkBgColor
-		msgAbsentColor = h.Opts.MsgAbsentDarkBgColor
+		msgColor = h.Opts.palette.MsgDarkBgColor
+		msgAbsentColor = h.Opts.palette.MsgAbsentDarkBgColor
 	}
 	msgColor = color.New(color.FgHiWhite)
 	msgAbsentColor = color.New(color.FgHiWhite)
@@ -217,24 +217,24 @@ func (h *JSONHandler) Prettify(skipUnchanged bool) []byte {
 	var level string
 	switch h.Level {
 	case "debug":
-		level = h.Opts.DebugLevelColor.Sprint(lvl)
+		level = h.Opts.palette.DebugLevelColor.Sprint(lvl)
 	case "info":
-		level = h.Opts.InfoLevelColor.Sprint(lvl)
+		level = h.Opts.palette.InfoLevelColor.Sprint(lvl)
 	case "warn", "warning":
-		level = h.Opts.WarnLevelColor.Sprint(lvl)
+		level = h.Opts.palette.WarnLevelColor.Sprint(lvl)
 	case "error":
-		level = h.Opts.ErrorLevelColor.Sprint(lvl)
+		level = h.Opts.palette.ErrorLevelColor.Sprint(lvl)
 	case "fatal", "panic":
-		level = h.Opts.FatalLevelColor.Sprint(lvl)
+		level = h.Opts.palette.FatalLevelColor.Sprint(lvl)
 	default:
-		level = h.Opts.UnknownLevelColor.Sprint(lvl)
+		level = h.Opts.palette.UnknownLevelColor.Sprint(lvl)
 	}
 
 	var timeColor *color.Color
 	if h.Opts.LightBg {
-		timeColor = h.Opts.TimeLightBgColor
+		timeColor = h.Opts.palette.TimeLightBgColor
 	} else {
-		timeColor = h.Opts.TimeDarkBgColor
+		timeColor = h.Opts.palette.TimeDarkBgColor
 	}
 	_, _ = fmt.Fprintf(h.out, "%s |%s| %s\t %s",
 		timeColor.Sprint(h.Time.Format(h.Opts.TimeFormat)),
@@ -261,7 +261,7 @@ func (h *JSONHandler) joinKVs(skipUnchanged bool, sep string) []string {
 				continue
 			}
 		}
-		kstr := h.Opts.KeyColor.Sprint(k)
+		kstr := h.Opts.palette.KeyColor.Sprint(k)
 
 		var vstr string
 		if h.Opts.Truncates && len(v) > h.Opts.TruncateLength {
@@ -269,7 +269,7 @@ func (h *JSONHandler) joinKVs(skipUnchanged bool, sep string) []string {
 		} else {
 			vstr = v
 		}
-		vstr = h.Opts.ValColor.Sprint(vstr)
+		vstr = h.Opts.palette.ValColor.Sprint(vstr)
 		kv = append(kv, kstr+sep+vstr)
 	}
 
