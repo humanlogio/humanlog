@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+
+set -eu
+
+root=$(git rev-parse --show-toplevel)
+
+function main() {
+    buf generate https://github.com/humanlog-io/api-proto.git
+}
+
+main

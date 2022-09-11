@@ -12,9 +12,11 @@ import (
 	"github.com/humanlogio/humanlog/internal/pkg/sink/stdiosink"
 	"github.com/mattn/go-colorable"
 	"github.com/urfave/cli"
+	"humanlog.io/humanlog"
+	types "humanlog.io/humanlog/api/go/types/v1"
 )
 
-var Version = "devel"
+var Version = &types.Version{}
 
 func fatalf(c *cli.Context, format string, args ...interface{}) {
 	log.Printf(format, args...)
