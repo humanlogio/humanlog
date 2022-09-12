@@ -76,6 +76,22 @@ func TestHarness(t *testing.T) {
 				t.Errorf("want %q", wantPart)
 				t.Errorf("got  %q", gotPart)
 			}
+
+			dir, err := ioutil.TempDir(os.TempDir(), "humanlog-tests-*")
+			if err != nil {
+				t.Fatal(err)
+			}
+			gotf, err := ioutil.TempFile(dir, de.Name())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := gotf.Write(got); err != nil {
+				t.Fatal(err)
+			}
+			if err := gotf.Close(); err != nil {
+				t.Fatal(err)
+			}
+			t.Logf("wrote output to %q", gotf.Name())
 		})
 	}
 }
