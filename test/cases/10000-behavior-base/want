@@ -1,0 +1,10 @@
+Feb  5 12:41:48 |DEBU| some message 1 rand_index=1 caller=zapper/zapper.go:18
+Feb  5 12:41:49 |ERRO| some message 2 rand_index=3 caller=zapper/zapper.go:18
+Feb  5 15:45:04 |FATA| some message 5 rand_index=11 caller=zapper/zapper.go:18
+Feb  5 12:41:50 |INFO| some message 3 rand_index=5 caller=zapper/zapper.go:18
+Feb  5 12:41:51 |WARN| some message 4 rand_index=7 caller=zapper/zapper.go:18
+2021-02-06T22:55:22.004Z    DEBUG zapper/zapper.go:17    some message 1    {"rand_index": 1}
+2021-02-06T22:55:22.008Z    ERROR zapper/zapper.go:17    some message 2    {"rand_index": 2}
+2021-02-06T22:55:22.009Z    FATAL zapper/zapper.go:17    some message 5    {"rand_index": 1}
+2021-02-06T22:55:22.009Z    INFO  zapper/zapper.go:17 some message 3 {"rand_index": 2}
+2021-02-06T22:55:22.009Z    WARN  zapper/zapper.go:17 some message 4 {"rand_index": 4}

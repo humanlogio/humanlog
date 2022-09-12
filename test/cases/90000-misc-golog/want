@@ -1,0 +1,14 @@
+2022/09/11 16:31:21 main.go:63: creating otel trace grpc client
+2022/09/11 16:31:21 main.go:67: creating otel trace exporter
+2022/09/11 16:31:21 main.go:73: creating otel trace provider
+2022/09/11 16:31:21 main.go:94: connecting to mysql
+2022/09/11 16:31:21 main.go:101: creating listener
+2022/09/11 16:31:21 main.go:107: listening on "127.0.0.1:8080"
+2022/09/11 16:31:21 main.go:122: starting service
+2022/09/11 16:37:52.198136 main.go:63: creating otel trace grpc client
+2022/09/11 16:37:52.198325 main.go:67: creating otel trace exporter
+2022/09/11 16:37:52.198588 main.go:73: creating otel trace provider
+2022/09/11 16:37:52.198726 main.go:94: connecting to mysql
+2022/09/11 16:37:52.198756 main.go:101: creating listener
+2022/09/11 16:37:52.198930 main.go:107: listening on "127.0.0.1:8080"
+2022/09/11 16:37:52.198984 main.go:122: starting service
