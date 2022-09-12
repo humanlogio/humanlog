@@ -1,0 +1,10 @@
+2021-02-05T12:41:48.053-0700    DEBUG   zapper/zapper.go:18     some message 1   {"rand_index": 1}
+2021-02-05T12:41:49.059-0700    ERROR   zapper/zapper.go:18     some message 2   {"rand_index": 3}
+2021-02-05T15:45:04.425-0700    FATAL   zapper/zapper.go:18     some message 5   {"rand_index": 11}
+2021-02-05T12:41:50.064-0700    INFO    zapper/zapper.go:18     some message 3   {"rand_index": 5}
+2021-02-05T12:41:51.069-0700    WARN    zapper/zapper.go:18     some message 4   {"rand_index": 7}
+2021-02-06T22:55:22.004Z    DEBUG zapper/zapper.go:17    some message 1    {"rand_index": 1}
+2021-02-06T22:55:22.008Z    ERROR zapper/zapper.go:17    some message 2    {"rand_index": 2}
+2021-02-06T22:55:22.009Z    FATAL zapper/zapper.go:17    some message 5    {"rand_index": 1}
+2021-02-06T22:55:22.009Z    INFO  zapper/zapper.go:17 some message 3 {"rand_index": 2}
+2021-02-06T22:55:22.009Z    WARN  zapper/zapper.go:17 some message 4 {"rand_index": 4}

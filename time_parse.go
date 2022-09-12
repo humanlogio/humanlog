@@ -23,6 +23,8 @@ var formats = []string{
 	time.StampMilli,
 	time.StampMicro,
 	time.StampNano,
+	"2006/01/02 15:04:05",
+	"2006/01/02 15:04:05.999999999",
 }
 
 func parseTimeFloat64(value float64) time.Time {

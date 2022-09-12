@@ -1,0 +1,22 @@
+msg="i like turtle" key=value1
+key=value1 msg="i like turtle" key2=42
+key=value2 msg="i like turtle" key2=43
+time="2022/09/11 16:31:21" do_all_electric_sheeps="dream"
+time="2022/09/11 16:31:21.198136" do_all_electric_sheeps="dream"
+time="2021-08-11T13:15:10.290034-05:00" message="hello"
+time="2021-08-11T13:15:10.290034-05:00" msg="hello"
+ts="2021-08-11T13:15:10.290034-05:00" msg="hello"
+timestamp="2021-08-11T13:15:10.290034-05:00" msg="hello"
+@timestamp="2021-08-11T13:15:10.290034-05:00" msg="hello"
+level="fatal"
+lvl="fatal"
+loglevel="fatal"
+severity="fatal"
+level="fatal"
+level="debug"
+level="info"
+level="warn"
+level="warning"
+level="error"
+level="panic"
+level="some unknown level"

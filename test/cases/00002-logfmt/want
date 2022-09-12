@@ -1,0 +1,22 @@
+Jan  1 00:00:00 || i like turtle key=value1
+Jan  1 00:00:00 || i like turtle key2=42
+Jan  1 00:00:00 || i like turtle key2=43 key=value2
+Sep 11 16:31:21 || <no msg> do_all_electric_sheeps=dream
+Sep 11 16:31:21 || <no msg> 
+Aug 11 13:15:10 || hello 
+Aug 11 13:15:10 || hello 
+Aug 11 13:15:10 || hello 
+Aug 11 13:15:10 || hello 
+Aug 11 13:15:10 || hello 
+Jan  1 00:00:00 |FATA| <no msg> 
+Jan  1 00:00:00 |FATA| <no msg> 
+Jan  1 00:00:00 |FATA| <no msg> 
+Jan  1 00:00:00 |FATA| <no msg> 
+Jan  1 00:00:00 |FATA| <no msg> 
+Jan  1 00:00:00 |DEBU| <no msg> 
+Jan  1 00:00:00 |INFO| <no msg> 
+Jan  1 00:00:00 |WARN| <no msg> 
+Jan  1 00:00:00 |WARN| <no msg> 
+Jan  1 00:00:00 |ERRO| <no msg> 
+Jan  1 00:00:00 |PANI| <no msg> 
+Jan  1 00:00:00 |SOME| <no msg> 
