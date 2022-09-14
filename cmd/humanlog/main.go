@@ -6,6 +6,7 @@ import (
 	"os/signal"
 	"strings"
 
+	"github.com/adrg/xdg"
 	"github.com/aybabtme/humanlog"
 	"github.com/aybabtme/rgbterm"
 	"github.com/mattn/go-colorable"
@@ -22,6 +23,7 @@ func fatalf(c *cli.Context, format string, args ...interface{}) {
 
 func main() {
 	app := newApp()
+	_ = xdg.DataHome
 
 	prefix := rgbterm.FgString(app.Name+"> ", 99, 99, 99)
 
