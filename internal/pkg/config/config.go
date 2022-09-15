@@ -22,7 +22,7 @@ var DefaultConfig = Config{
 	SkipUnchanged:  ptr(true),
 	Truncates:      ptr(true),
 	LightBg:        ptr(false),
-	ColorFlag:      ptr("auto"),
+	ColorMode:      ptr("auto"),
 	TruncateLength: ptr(15),
 	TimeFormat:     ptr(time.Stamp),
 	Interrupt:      ptr(false),
@@ -94,7 +94,7 @@ type Config struct {
 	SkipUnchanged  *bool        `json:"skip-unchanged"`
 	Truncates      *bool        `json:"truncates"`
 	LightBg        *bool        `json:"light-bg"`
-	ColorFlag      *string      `json:"color-mode"`
+	ColorMode      *string      `json:"color-mode"`
 	TruncateLength *int         `json:"truncate-length"`
 	TimeFormat     *string      `json:"time-format"`
 	Palette        *TextPalette `json:"palette"`
@@ -130,8 +130,8 @@ func (cfg Config) populateEmpty(other *Config) *Config {
 	if out.LightBg == nil && other.LightBg != nil {
 		out.LightBg = other.LightBg
 	}
-	if out.ColorFlag == nil && other.ColorFlag != nil {
-		out.ColorFlag = other.ColorFlag
+	if out.ColorMode == nil && other.ColorMode != nil {
+		out.ColorMode = other.ColorMode
 	}
 	if out.TruncateLength == nil && other.TruncateLength != nil {
 		out.TruncateLength = other.TruncateLength

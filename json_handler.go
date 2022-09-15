@@ -67,8 +67,8 @@ func (h *JSONHandler) clear() {
 
 // TryHandle tells if this line was handled by this handler.
 func (h *JSONHandler) TryHandle(d []byte, out *model.Structured) bool {
+	h.clear()
 	if !h.UnmarshalJSON(d) {
-		h.clear()
 		return false
 	}
 	out.Time = h.Time

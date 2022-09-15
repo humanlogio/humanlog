@@ -32,12 +32,11 @@ func Scanner(src io.Reader, sink sink.Sink, opts *HandlerOptions) error {
 
 		if ev.Structured == nil {
 			ev.Structured = data
-		} else {
-			data.Time = time.Time{}
-			data.Msg = ""
-			data.Level = ""
-			data.KVs = data.KVs[:0]
 		}
+		data.Time = time.Time{}
+		data.Msg = ""
+		data.Level = ""
+		data.KVs = data.KVs[:0]
 		ev.Raw = lineData
 
 		// remove that pesky syslog crap
@@ -60,7 +59,6 @@ func Scanner(src io.Reader, sink sink.Sink, opts *HandlerOptions) error {
 		if err := sink.Receive(ev); err != nil {
 			return err
 		}
-
 	}
 
 	switch err := in.Err(); err {

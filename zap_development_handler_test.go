@@ -1,7 +1,6 @@
 package humanlog
 
 import (
-	"reflect"
 	"testing"
 	"time"
 
@@ -125,6 +124,7 @@ func Test_tryZapDevPrefix(t *testing.T) {
 		logLine   []byte
 		wantMatch bool
 
+		wantTime     time.Time
 		wantLevel    string
 		wantLocation string
 		wantMessage  string
@@ -144,6 +144,7 @@ func Test_tryZapDevPrefix(t *testing.T) {
 			logLine: logLinesByLevel["DEBUG"],
 
 			wantMatch:    true,
+			wantTime:     time.Date(2021, 2, 5, 12, 41, 48, 53e6, time.FixedZone("", -7*3600)),
 			wantLevel:    "debug",
 			wantLocation: "zapper/zapper.go:18",
 			wantMessage:  "some message 1",
@@ -154,6 +155,7 @@ func Test_tryZapDevPrefix(t *testing.T) {
 			logLine: logLinesByLevel["ERROR"],
 
 			wantMatch:    true,
+			wantTime:     time.Date(2021, 2, 5, 12, 41, 49, 59e6, time.FixedZone("", -7*3600)),
 			wantLevel:    "error",
 			wantLocation: "zapper/zapper.go:18",
 			wantMessage:  "some message 2",
@@ -163,8 +165,8 @@ func Test_tryZapDevPrefix(t *testing.T) {
 
 			logLine: logLinesByLevel["FATAL"],
 
-			wantMatch: true,
-
+			wantMatch:    true,
+			wantTime:     time.Date(2021, 2, 5, 15, 45, 4, 425e6, time.FixedZone("", -7*3600)),
 			wantLevel:    "fatal",
 			wantLocation: "zapper/zapper.go:18",
 			wantMessage:  "some message 5",
@@ -175,6 +177,7 @@ func Test_tryZapDevPrefix(t *testing.T) {
 			logLine: logLinesByLevel["INFO"],
 
 			wantMatch:    true,
+			wantTime:     time.Date(2021, 2, 5, 12, 41, 50, 64e6, time.FixedZone("", -7*3600)),
 			wantLevel:    "info",
 			wantLocation: "zapper/zapper.go:18",
 			wantMessage:  "some message 3",
@@ -186,6 +189,7 @@ func Test_tryZapDevPrefix(t *testing.T) {
 			logLine: logLinesByLevel["WARN"],
 
 			wantMatch:    true,
+			wantTime:     time.Date(2021, 2, 5, 12, 41, 51, 69e6, time.FixedZone("", -7*3600)),
 			wantLevel:    "warn",
 			wantLocation: "zapper/zapper.go:18",
 			wantMessage:  "some message 4",
@@ -194,9 +198,8 @@ func Test_tryZapDevPrefix(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			h := &JSONHandler{}
 			ev := new(model.Structured)
-			m := tryZapDevPrefix(test.logLine, ev, h)
+			m := tryZapDevPrefix(test.logLine, ev, &JSONHandler{})
 
 			if m != test.wantMatch {
 				t.Error("expected the prefix to match, it did not")
@@ -206,20 +209,30 @@ func Test_tryZapDevPrefix(t *testing.T) {
 				return
 			}
 
-			if reflect.DeepEqual(time.Time{}, h.Time) {
-				t.Errorf("want a parsed time, got empty time; want != got")
+			if !test.wantTime.Equal(ev.Time) {
+				t.Errorf("want %v, got %v; want != got", test.wantTime, ev.Time)
 			}
-			if h.Level != test.wantLevel {
-				t.Errorf("want %q, got %q; want != got", test.wantLevel, h.Level)
+			if ev.Level != test.wantLevel {
+				t.Errorf("want %q, got %q; want != got", test.wantLevel, ev.Level)
 			}
-			if h.Message != test.wantMessage {
-				t.Errorf("want %q, got %q; want != got", test.wantMessage, h.Message)
+			if ev.Msg != test.wantMessage {
+				t.Errorf("want %q, got %q; want != got", test.wantMessage, ev.Msg)
 			}
-			if h.Fields["caller"] != test.wantLocation {
-				t.Errorf("want %q, got %q; want != got", test.wantLocation, h.Fields["caller"])
+
+			if findFieldValue(ev, "caller") != test.wantLocation {
+				t.Errorf("want %q, got %q; want != got", test.wantLocation, findFieldValue(ev, "caller"))
 			}
 		})
 	}
+}
+
+func findFieldValue(ev *model.Structured, field string) string {
+	for _, kv := range ev.KVs {
+		if kv.Key == field {
+			return kv.Value
+		}
+	}
+	return ""
 }
 
 var dcLogLinesByLevel = map[string][]byte{
@@ -340,6 +353,7 @@ func Test_tryZapDevDCPrefix(t *testing.T) {
 		logLine   []byte
 		wantMatch bool
 
+		wantTime     time.Time
 		wantLevel    string
 		wantLocation string
 		wantMessage  string
@@ -359,6 +373,7 @@ func Test_tryZapDevDCPrefix(t *testing.T) {
 			logLine: dcLogLinesByLevel["DEBUG"],
 
 			wantMatch:    true,
+			wantTime:     time.Date(2021, 2, 6, 22, 55, 22, 4e6, time.UTC),
 			wantLevel:    "debug",
 			wantLocation: "zapper/zapper.go:17",
 			wantMessage:  "some message 1",
@@ -369,6 +384,7 @@ func Test_tryZapDevDCPrefix(t *testing.T) {
 			logLine: dcLogLinesByLevel["ERROR"],
 
 			wantMatch:    true,
+			wantTime:     time.Date(2021, 2, 6, 22, 55, 22, 8e6, time.UTC),
 			wantLevel:    "error",
 			wantLocation: "zapper/zapper.go:17",
 			wantMessage:  "some message 2",
@@ -380,6 +396,7 @@ func Test_tryZapDevDCPrefix(t *testing.T) {
 
 			wantMatch: true,
 
+			wantTime:     time.Date(2021, 2, 6, 22, 55, 22, 9e6, time.UTC),
 			wantLevel:    "fatal",
 			wantLocation: "zapper/zapper.go:17",
 			wantMessage:  "some message 5",
@@ -390,6 +407,7 @@ func Test_tryZapDevDCPrefix(t *testing.T) {
 			logLine: dcLogLinesByLevel["INFO"],
 
 			wantMatch:    true,
+			wantTime:     time.Date(2021, 2, 6, 22, 55, 22, 9e6, time.UTC),
 			wantLevel:    "info",
 			wantLocation: "zapper/zapper.go:17",
 			wantMessage:  "some message 3",
@@ -401,6 +419,7 @@ func Test_tryZapDevDCPrefix(t *testing.T) {
 			logLine: dcLogLinesByLevel["WARN"],
 
 			wantMatch:    true,
+			wantTime:     time.Date(2021, 2, 6, 22, 55, 22, 9e6, time.UTC),
 			wantLevel:    "warn",
 			wantLocation: "zapper/zapper.go:17",
 			wantMessage:  "some message 4",
@@ -409,9 +428,8 @@ func Test_tryZapDevDCPrefix(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			h := &JSONHandler{}
 			ev := new(model.Structured)
-			m := tryZapDevDCPrefix(test.logLine, ev, h)
+			m := tryZapDevDCPrefix(test.logLine, ev, &JSONHandler{})
 
 			if m != test.wantMatch {
 				t.Error("expected the prefix to match, it did not")
@@ -421,17 +439,18 @@ func Test_tryZapDevDCPrefix(t *testing.T) {
 				return
 			}
 
-			if reflect.DeepEqual(time.Time{}, h.Time) {
-				t.Errorf("want a parsed time, got empty time; want != got")
+			if !test.wantTime.Equal(ev.Time) {
+				t.Errorf("want %v, got %v; want != got", test.wantTime, ev.Time)
 			}
-			if h.Level != test.wantLevel {
-				t.Errorf("want %q, got %q; want != got", test.wantLevel, h.Level)
+			if ev.Level != test.wantLevel {
+				t.Errorf("want %q, got %q; want != got", test.wantLevel, ev.Level)
 			}
-			if h.Message != test.wantMessage {
-				t.Errorf("want %q, got %q; want != got", test.wantMessage, h.Message)
+			if ev.Msg != test.wantMessage {
+				t.Errorf("want %q, got %q; want != got", test.wantMessage, ev.Msg)
 			}
-			if h.Fields["caller"] != test.wantLocation {
-				t.Errorf("want %q, got %q; want != got", test.wantLocation, h.Fields["caller"])
+
+			if findFieldValue(ev, "caller") != test.wantLocation {
+				t.Errorf("want %q, got %q; want != got", test.wantLocation, findFieldValue(ev, "caller"))
 			}
 		})
 	}

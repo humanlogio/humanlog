@@ -1,29 +1,29 @@
 {
     "skip": null,
     "keep": null,
-    "time_fields": [
+    "time-fields": [
       "time",
       "ts",
       "@timestamp",
       "timestamp"
     ],
-    "message_fields": [
+    "message-fields": [
       "message",
       "msg"
     ],
-    "level_fields": [
+    "level-fields": [
       "level",
       "lvl",
       "loglevel",
       "severity"
     ],
-    "sort_longest": true,
-    "skip_unchanged": true,
+    "sort-longest": true,
+    "skip-unchanged": true,
     "truncates": false,
-    "light_bg": false,
-    "color_mode": 2,
-    "truncate_length": 15,
-    "time_format": "Jan _2 15:04:05",
+    "light-bg": false,
+    "color-mode": "off",
+    "truncate-length": 15,
+    "time-format": "Jan _2 15:04:05",
     "palette": null
   }
   
