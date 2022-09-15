@@ -1,14 +1,14 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
-	"strings"
 
-	"github.com/adrg/xdg"
 	"github.com/aybabtme/humanlog"
 	"github.com/aybabtme/rgbterm"
+	"github.com/fatih/color"
 	"github.com/mattn/go-colorable"
 	"github.com/urfave/cli"
 )
@@ -23,7 +23,6 @@ func fatalf(c *cli.Context, format string, args ...interface{}) {
 
 func main() {
 	app := newApp()
-	_ = xdg.DataHome
 
 	prefix := rgbterm.FgString(app.Name+"> ", 99, 99, 99)
 
@@ -35,8 +34,12 @@ func main() {
 		log.Fatal(err)
 	}
 }
-
 func newApp() *cli.App {
+
+	configFlag := cli.StringFlag{
+		Name:  "config",
+		Usage: "specify a config file to use, otherwise uses the default one",
+	}
 
 	skip := cli.StringSlice{}
 	keep := cli.StringSlice{}
@@ -71,13 +74,13 @@ func newApp() *cli.App {
 	truncateLength := cli.IntFlag{
 		Name:  "truncate-length",
 		Usage: "truncate values that are longer than this length",
-		Value: humanlog.DefaultOptions.TruncateLength,
+		Value: *defaultConfig.TruncateLength,
 	}
 
 	colorFlag := cli.StringFlag{
 		Name:  "color",
 		Usage: "specify color mode: auto, on/force, off",
-		Value: "auto",
+		Value: *defaultConfig.ColorFlag,
 	}
 
 	lightBg := cli.BoolFlag{
@@ -127,48 +130,100 @@ func newApp() *cli.App {
 	app.Version = Version
 	app.Usage = "reads structured logs from stdin, makes them pretty on stdout!"
 
-	app.Flags = []cli.Flag{skipFlag, keepFlag, sortLongest, skipUnchanged, truncates, truncateLength, colorFlag, lightBg, timeFormat, ignoreInterrupts, messageFieldsFlag, timeFieldsFlag, levelFieldsFlag}
+	app.Flags = []cli.Flag{configFlag, skipFlag, keepFlag, sortLongest, skipUnchanged, truncates, truncateLength, colorFlag, lightBg, timeFormat, ignoreInterrupts, messageFieldsFlag, timeFieldsFlag, levelFieldsFlag}
 
 	app.Action = func(c *cli.Context) error {
 
-		opts := humanlog.DefaultOptions
-		opts.SortLongest = c.BoolT(sortLongest.Name)
-		opts.SkipUnchanged = c.BoolT(skipUnchanged.Name)
-		opts.Truncates = c.BoolT(truncates.Name)
-		opts.TruncateLength = c.Int(truncateLength.Name)
-		opts.LightBg = c.BoolT(lightBg.Name)
-		opts.TimeFormat = c.String(timeFormat.Name)
-		var err error
-		if opts.ColorFlag, err = humanlog.GrokColorMode(c.String(colorFlag.Name)); err != nil {
-			fatalf(c, "bad --%s value: %s", colorFlag.Name, err.Error())
+		configFilepath, err := getDefaultConfigFilepath()
+		if err != nil {
+			return fmt.Errorf("looking up config file path: %v", err)
+		}
+		// read config
+		var cfg *Config
+		if c.IsSet(configFlag.Name) {
+			configFilepath = c.String(configFlag.Name)
+			cfgFromFlag, err := readConfigFile(configFilepath, defaultConfig)
+			if err != nil {
+				return fmt.Errorf("reading --config file %q: %v", configFilepath, err)
+			}
+			cfg = cfgFromFlag
+		} else {
+			cfgFromDir, err := readConfigFile(configFilepath, defaultConfig)
+			if err != nil {
+				return fmt.Errorf("reading default config file: %v", err)
+			}
+			cfg = cfgFromDir
 		}
 
-		switch {
-		case c.IsSet(skipFlag.Name) && c.IsSet(keepFlag.Name):
-			fatalf(c, "can only use one of %q and %q", skipFlag.Name, keepFlag.Name)
-		case c.IsSet(skipFlag.Name):
-			opts.SetSkip(skip)
-		case c.IsSet(keepFlag.Name):
-			opts.SetKeep(keep)
+		// flags overwrite config file
+
+		if c.IsSet(sortLongest.Name) {
+			cfg.SortLongest = ptr(c.BoolT(sortLongest.Name))
+		}
+		if c.IsSet(skipUnchanged.Name) {
+			cfg.SkipUnchanged = ptr(c.BoolT(skipUnchanged.Name))
+		}
+		if c.IsSet(truncates.Name) {
+			cfg.Truncates = ptr(c.BoolT(truncates.Name))
+		}
+		if c.IsSet(truncateLength.Name) {
+			cfg.TruncateLength = ptr(c.Int(truncateLength.Name))
+		}
+		if c.IsSet(lightBg.Name) {
+			cfg.LightBg = ptr(c.Bool(lightBg.Name))
+		}
+		if c.IsSet(timeFormat.Name) {
+			cfg.TimeFormat = ptr(c.String(timeFormat.Name))
+		}
+		if c.IsSet(colorFlag.Name) {
+			cfg.ColorFlag = ptr(c.String(colorFlag.Name))
+		}
+		if c.IsSet(skipFlag.Name) {
+			cfg.Skip = ptr([]string(skip))
+		}
+		if c.IsSet(keepFlag.Name) {
+			cfg.Keep = ptr([]string(keep))
+		}
+		if c.IsSet(messageFieldsFlag.Name) {
+			cfg.MessageFields = ptr([]string(messageFields))
 		}
 
-		if c.IsSet(strings.Split(messageFieldsFlag.Name, ",")[0]) {
-			opts.MessageFields = messageFields
+		if c.IsSet(timeFieldsFlag.Name) {
+			cfg.TimeFields = ptr([]string(timeFields))
 		}
 
-		if c.IsSet(strings.Split(timeFieldsFlag.Name, ",")[0]) {
-			opts.TimeFields = timeFields
+		if c.IsSet(levelFieldsFlag.Name) {
+			cfg.LevelFields = ptr([]string(levelFields))
 		}
 
-		if c.IsSet(strings.Split(levelFieldsFlag.Name, ",")[0]) {
-			opts.LevelFields = levelFields
+		if c.IsSet(ignoreInterrupts.Name) {
+			cfg.Interrupt = ptr(c.Bool(ignoreInterrupts.Name))
 		}
 
-		if c.IsSet(strings.Split(ignoreInterrupts.Name, ",")[0]) {
+		// apply the config
+		if *cfg.Interrupt {
 			signal.Ignore(os.Interrupt)
 		}
 
-		opts.ColorFlag.Apply()
+		colorMode, err := GrokColorMode(*cfg.ColorFlag)
+		if err != nil {
+			return fmt.Errorf("invalid --color=%q: %v", *cfg.ColorFlag, err)
+		}
+		switch colorMode {
+		case ColorModeOff:
+			color.NoColor = true
+		case ColorModeOn:
+			color.NoColor = false
+		default:
+			// 'Auto' default is applied as a global variable initializer function, so nothing
+			// to do here.
+		}
+
+		if len(*cfg.Skip) > 0 && len(*cfg.Keep) > 0 {
+			fatalf(c, "can only use one of %q and %q", skipFlag.Name, keepFlag.Name)
+		}
+
+		opts := cfg.toHandlerOptions()
 
 		log.Print("reading stdin...")
 		if err := humanlog.Scanner(os.Stdin, colorable.NewColorableStdout(), opts); err != nil {
