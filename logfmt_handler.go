@@ -31,8 +31,8 @@ func (h *LogfmtHandler) TryHandle(d []byte, out *model.Structured) bool {
 	if !bytes.ContainsRune(d, '=') {
 		return false
 	}
+	h.clear()
 	if !h.UnmarshalLogfmt(d) {
-		h.clear()
 		return false
 	}
 	out.Time = h.Time

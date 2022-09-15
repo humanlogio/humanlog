@@ -7,10 +7,9 @@ import (
 	"os/signal"
 
 	"github.com/aybabtme/rgbterm"
-	"github.com/fatih/color"
 	"github.com/humanlogio/humanlog"
 	"github.com/humanlogio/humanlog/internal/pkg/config"
-	"github.com/humanlogio/humanlog/internal/pkg/sink"
+	"github.com/humanlogio/humanlog/internal/pkg/sink/stdiosink"
 	"github.com/mattn/go-colorable"
 	"github.com/urfave/cli"
 )
@@ -82,7 +81,7 @@ func newApp() *cli.App {
 	colorFlag := cli.StringFlag{
 		Name:  "color",
 		Usage: "specify color mode: auto, on/force, off",
-		Value: *config.DefaultConfig.ColorFlag,
+		Value: stdiosink.DefaultStdioOpts.ColorFlag,
 	}
 
 	lightBg := cli.BoolFlag{
@@ -93,7 +92,7 @@ func newApp() *cli.App {
 	timeFormat := cli.StringFlag{
 		Name:  "time-format",
 		Usage: "output time format, see https://golang.org/pkg/time/ for details",
-		Value: sink.DefaultStdioOpts.TimeFormat,
+		Value: stdiosink.DefaultStdioOpts.TimeFormat,
 	}
 
 	ignoreInterrupts := cli.BoolFlag{
@@ -178,7 +177,7 @@ func newApp() *cli.App {
 			cfg.TimeFormat = ptr(c.String(timeFormat.Name))
 		}
 		if c.IsSet(colorFlag.Name) {
-			cfg.ColorFlag = ptr(c.String(colorFlag.Name))
+			cfg.ColorMode = ptr(c.String(colorFlag.Name))
 		}
 		if c.IsSet(skipFlag.Name) {
 			cfg.Skip = ptr([]string(skip))
@@ -207,31 +206,17 @@ func newApp() *cli.App {
 			signal.Ignore(os.Interrupt)
 		}
 
-		colorMode, err := config.GrokColorMode(*cfg.ColorFlag)
-		if err != nil {
-			return fmt.Errorf("invalid --color=%q: %v", *cfg.ColorFlag, err)
-		}
-		switch colorMode {
-		case config.ColorModeOff:
-			color.NoColor = true
-		case config.ColorModeOn:
-			color.NoColor = false
-		default:
-			// 'Auto' default is applied as a global variable initializer function, so nothing
-			// to do here.
-		}
-
 		if len(*cfg.Skip) > 0 && len(*cfg.Keep) > 0 {
 			fatalf(c, "can only use one of %q and %q", skipFlag.Name, keepFlag.Name)
 		}
 
-		sinkOpts, errs := sink.StdioOptsFrom(*cfg)
+		sinkOpts, errs := stdiosink.StdioOptsFrom(*cfg)
 		if len(errs) > 0 {
 			for _, err := range errs {
 				log.Printf("config error: %v", err)
 			}
 		}
-		sink := sink.NewStdio(colorable.NewColorableStdout(), sinkOpts)
+		sink := stdiosink.NewStdio(colorable.NewColorableStdout(), sinkOpts)
 		handlerOpts := humanlog.HandlerOptionsFrom(*cfg)
 
 		log.Print("reading stdin...")

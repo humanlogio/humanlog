@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/humanlogio/humanlog/internal/pkg/config"
-	"github.com/humanlogio/humanlog/internal/pkg/sink"
+	"github.com/humanlogio/humanlog/internal/pkg/sink/stdiosink"
 )
 
 func TestHarness(t *testing.T) {
@@ -42,11 +42,11 @@ func TestHarness(t *testing.T) {
 				t.Fatalf("unmarshaling config: %v", err)
 			}
 			gotw := bytes.NewBuffer(nil)
-			sinkOpts, errs := sink.StdioOptsFrom(cfg)
+			sinkOpts, errs := stdiosink.StdioOptsFrom(cfg)
 			if len(errs) > 1 {
 				t.Fatalf("errs=%v", errs)
 			}
-			s := sink.NewStdio(gotw, sinkOpts)
+			s := stdiosink.NewStdio(gotw, sinkOpts)
 			err = Scanner(bytes.NewReader(input), s, HandlerOptionsFrom(cfg))
 			if err != nil {
 				t.Fatalf("scanning input: %v", err)
