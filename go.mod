@@ -3,7 +3,6 @@ module github.com/humanlogio/humanlog
 go 1.19
 
 require (
-	github.com/adrg/xdg v0.4.0
 	github.com/aybabtme/rgbterm v0.0.0-20170906152045-cc83f3b3ce59
 	github.com/fatih/color v1.7.1-0.20180516100307-2d684516a886
 	github.com/go-logfmt/logfmt v0.4.0
