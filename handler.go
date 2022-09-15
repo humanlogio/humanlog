@@ -17,7 +17,6 @@ var DefaultOptions = &HandlerOptions{
 	SortLongest:    true,
 	SkipUnchanged:  true,
 	Truncates:      true,
-	ColorFlag:      ColorModeAuto,
 	LightBg:        false,
 	TruncateLength: 15,
 	TimeFormat:     time.Stamp,
@@ -26,28 +25,24 @@ var DefaultOptions = &HandlerOptions{
 	MessageFields: []string{"message", "msg"},
 	LevelFields:   []string{"level", "lvl", "loglevel", "severity"},
 
-	palette: DefaultPalette,
+	Palette: DefaultPalette,
 }
 
 type HandlerOptions struct {
-	Skip map[string]struct{} `json:"skip"`
-	Keep map[string]struct{} `json:"keep"`
+	Skip map[string]struct{}
+	Keep map[string]struct{}
 
-	TimeFields    []string `json:"time_fields"`
-	MessageFields []string `json:"message_fields"`
-	LevelFields   []string `json:"level_fields"`
+	TimeFields    []string
+	MessageFields []string
+	LevelFields   []string
 
-	SortLongest    bool      `json:"sort_longest"`
-	SkipUnchanged  bool      `json:"skip_unchanged"`
-	Truncates      bool      `json:"truncates"`
-	LightBg        bool      `json:"light_bg"`
-	ColorFlag      ColorMode `json:"color_mode"`
-	TruncateLength int       `json:"truncate_length"`
-	TimeFormat     string    `json:"time_format"`
-
-	Palette *TextPalette `json:"palette"`
-	// once compiled
-	palette *Palette
+	SortLongest    bool
+	SkipUnchanged  bool
+	Truncates      bool
+	LightBg        bool
+	TruncateLength int
+	TimeFormat     string
+	Palette        Palette
 }
 
 func (h *HandlerOptions) shouldShowKey(key string) bool {
@@ -71,22 +66,4 @@ func (h *HandlerOptions) shouldShowUnchanged(key string) bool {
 		}
 	}
 	return false
-}
-
-func (h *HandlerOptions) SetSkip(skip []string) {
-	if h.Skip == nil {
-		h.Skip = make(map[string]struct{})
-	}
-	for _, key := range skip {
-		h.Skip[key] = struct{}{}
-	}
-}
-
-func (h *HandlerOptions) SetKeep(keep []string) {
-	if h.Keep == nil {
-		h.Keep = make(map[string]struct{})
-	}
-	for _, key := range keep {
-		h.Keep[key] = struct{}{}
-	}
 }

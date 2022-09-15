@@ -14,17 +14,6 @@ var (
 // the lines aren't JSON-structured, it will simply write them out with no
 // prettification.
 func Scanner(src io.Reader, dst io.Writer, opts *HandlerOptions) error {
-	if opts.Palette != nil {
-		p, err := opts.Palette.compile()
-		if err != nil {
-			opts.palette = DefaultPalette
-		} else {
-			opts.palette = p
-		}
-	}
-	if opts.palette == nil {
-		opts.palette = DefaultPalette
-	}
 	in := bufio.NewScanner(src)
 	in.Split(bufio.ScanLines)
 
