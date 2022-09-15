@@ -2,6 +2,8 @@ package humanlog
 
 import (
 	"regexp"
+
+	"github.com/humanlogio/humanlog/internal/pkg/model"
 )
 
 // dcLogsPrefixRe parses out a prefix like 'web_1 | ' from docker-compose
@@ -14,23 +16,26 @@ import (
 var dcLogsPrefixRe = regexp.MustCompile("^(?:\x1b\\[\\d+m)?(?P<service_name>[a-zA-Z0-9._-]+)\\s+\\|(?:\x1b\\[0m)? (?P<rest_of_line>.*)$")
 
 type handler interface {
-	TryHandle([]byte) bool
-	setField(key, val []byte)
+	TryHandle([]byte, *model.Structured) bool
 }
 
-func tryDockerComposePrefix(d []byte, nextHandler handler) bool {
+func tryDockerComposePrefix(d []byte, ev *model.Structured, nextHandler handler) bool {
 	matches := dcLogsPrefixRe.FindSubmatch(d)
 	if matches != nil {
-		if nextHandler.TryHandle(matches[2]) {
-			nextHandler.setField([]byte(`service`), matches[1])
+		if nextHandler.TryHandle(matches[2], ev) {
+			ev.KVs = append(ev.KVs, model.KV{
+				Key: "service", Value: string(matches[1]),
+			})
 			return true
 		}
 		// The Zap Development handler is only built for `JSONHandler`s so
 		// short-circuit calls for LogFmtHandlers
 		switch h := nextHandler.(type) {
 		case *JSONHandler:
-			if tryZapDevDCPrefix(matches[2], h) {
-				h.setField([]byte(`service`), matches[1])
+			if tryZapDevDCPrefix(matches[2], ev, h) {
+				ev.KVs = append(ev.KVs, model.KV{
+					Key: "service", Value: string(matches[1]),
+				})
 				return true
 			}
 		}

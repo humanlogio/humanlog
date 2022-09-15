@@ -4,16 +4,18 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/humanlogio/humanlog/internal/pkg/model"
 )
 
 // Zap Development logs are made up of the following separated by whitespace
-// 1. timestamp in ISO-8601 (??)
-// 2. Log Level (one of DEBUG ERROR INFO WARN FATAL)
-// 3. Caller Location in the source
-// 4. The main logged message
-// 5. a JSON object containing the structured k/v pairs
-// 6. optional context lines - but since they are on a separate line the main
-//    scanner loop will never capture them
+//  1. timestamp in ISO-8601 (??)
+//  2. Log Level (one of DEBUG ERROR INFO WARN FATAL)
+//  3. Caller Location in the source
+//  4. The main logged message
+//  5. a JSON object containing the structured k/v pairs
+//  6. optional context lines - but since they are on a separate line the main
+//     scanner loop will never capture them
 var zapDevLogsPrefixRe = regexp.MustCompile("^(?P<timestamp>\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}-\\d{4})\\s+(?P<level>\\w{4,5})\\s+(?P<location>\\S+)\\s+(?P<message>[^{]+?)\\s+(?P<jsonbody>{.+})$")
 
 // Zap Development Logs when run in Docker-Compose are nearly identical to before
@@ -26,18 +28,19 @@ var zapDevDCLogsPrefixRe = regexp.MustCompile("^(?P<timestamp>\\d{4}-\\d{2}-\\d{
 // time package which is worrisome but this pattern does work.
 const someRFC = "2006-01-02T15:04:05.000-0700"
 
-func tryZapDevPrefix(d []byte, handler *JSONHandler) bool {
+func tryZapDevPrefix(d []byte, ev *model.Structured, handler *JSONHandler) bool {
 	if matches := zapDevLogsPrefixRe.FindSubmatch(d); matches != nil {
-		if handler.TryHandle(matches[5]) {
+		if handler.TryHandle(matches[5], ev) {
 			t, err := time.Parse(someRFC, string(matches[1]))
 			if err != nil {
 				return false
 			}
-			handler.Time = t
-
-			handler.Level = strings.ToLower(string(matches[2]))
-			handler.setField([]byte("caller"), matches[3])
-			handler.Message = string(matches[4])
+			ev.Time = t
+			ev.Level = strings.ToLower(string(matches[2]))
+			ev.Msg = string(matches[4])
+			ev.KVs = append(ev.KVs, model.KV{
+				Key: "caller", Value: string(matches[3]),
+			})
 			return true
 		}
 	}
@@ -48,18 +51,20 @@ func tryZapDevPrefix(d []byte, handler *JSONHandler) bool {
 // time package which is worrisome but this pattern does work.
 const someOtherRFC = "2006-01-02T15:04:05.000Z"
 
-func tryZapDevDCPrefix(d []byte, handler *JSONHandler) bool {
+func tryZapDevDCPrefix(d []byte, ev *model.Structured, handler *JSONHandler) bool {
 	if matches := zapDevDCLogsPrefixRe.FindSubmatch(d); matches != nil {
-		if handler.TryHandle(matches[5]) {
+		if handler.TryHandle(matches[5], ev) {
 			t, err := time.Parse(someOtherRFC, string(matches[1]))
 			if err != nil {
 				return false
 			}
-			handler.Time = t
-
-			handler.Level = strings.ToLower(string(matches[2]))
-			handler.setField([]byte("caller"), matches[3])
-			handler.Message = string(matches[4])
+			ev.Time = t
+			ev.Level = strings.ToLower(string(matches[2]))
+			ev.Msg = string(matches[4])
+			ev.KVs = append(
+				ev.KVs,
+				model.KV{Key: "caller", Value: string(matches[3])},
+			)
 			return true
 		}
 	}

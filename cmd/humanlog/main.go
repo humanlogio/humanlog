@@ -10,6 +10,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/humanlogio/humanlog"
 	"github.com/humanlogio/humanlog/internal/pkg/config"
+	"github.com/humanlogio/humanlog/internal/pkg/sink"
 	"github.com/mattn/go-colorable"
 	"github.com/urfave/cli"
 )
@@ -92,7 +93,7 @@ func newApp() *cli.App {
 	timeFormat := cli.StringFlag{
 		Name:  "time-format",
 		Usage: "output time format, see https://golang.org/pkg/time/ for details",
-		Value: humanlog.DefaultOptions.TimeFormat,
+		Value: sink.DefaultStdioOpts.TimeFormat,
 	}
 
 	ignoreInterrupts := cli.BoolFlag{
@@ -224,10 +225,17 @@ func newApp() *cli.App {
 			fatalf(c, "can only use one of %q and %q", skipFlag.Name, keepFlag.Name)
 		}
 
-		opts := humanlog.HandlerOptionsFrom(*cfg)
+		sinkOpts, errs := sink.StdioOptsFrom(*cfg)
+		if len(errs) > 0 {
+			for _, err := range errs {
+				log.Printf("config error: %v", err)
+			}
+		}
+		sink := sink.NewStdio(colorable.NewColorableStdout(), sinkOpts)
+		handlerOpts := humanlog.HandlerOptionsFrom(*cfg)
 
 		log.Print("reading stdin...")
-		if err := humanlog.Scanner(os.Stdin, colorable.NewColorableStdout(), opts); err != nil {
+		if err := humanlog.Scanner(os.Stdin, sink, handlerOpts); err != nil {
 			log.Fatalf("scanning caught an error: %v", err)
 		}
 		return nil
