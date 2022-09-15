@@ -6,9 +6,10 @@ import (
 	"os"
 	"os/signal"
 
-	"github.com/aybabtme/humanlog"
 	"github.com/aybabtme/rgbterm"
 	"github.com/fatih/color"
+	"github.com/humanlogio/humanlog"
+	"github.com/humanlogio/humanlog/internal/pkg/config"
 	"github.com/mattn/go-colorable"
 	"github.com/urfave/cli"
 )
@@ -74,13 +75,13 @@ func newApp() *cli.App {
 	truncateLength := cli.IntFlag{
 		Name:  "truncate-length",
 		Usage: "truncate values that are longer than this length",
-		Value: *defaultConfig.TruncateLength,
+		Value: *config.DefaultConfig.TruncateLength,
 	}
 
 	colorFlag := cli.StringFlag{
 		Name:  "color",
 		Usage: "specify color mode: auto, on/force, off",
-		Value: *defaultConfig.ColorFlag,
+		Value: *config.DefaultConfig.ColorFlag,
 	}
 
 	lightBg := cli.BoolFlag{
@@ -134,21 +135,21 @@ func newApp() *cli.App {
 
 	app.Action = func(c *cli.Context) error {
 
-		configFilepath, err := getDefaultConfigFilepath()
+		configFilepath, err := config.GetDefaultConfigFilepath()
 		if err != nil {
 			return fmt.Errorf("looking up config file path: %v", err)
 		}
 		// read config
-		var cfg *Config
+		var cfg *config.Config
 		if c.IsSet(configFlag.Name) {
 			configFilepath = c.String(configFlag.Name)
-			cfgFromFlag, err := readConfigFile(configFilepath, defaultConfig)
+			cfgFromFlag, err := config.ReadConfigFile(configFilepath, &config.DefaultConfig)
 			if err != nil {
 				return fmt.Errorf("reading --config file %q: %v", configFilepath, err)
 			}
 			cfg = cfgFromFlag
 		} else {
-			cfgFromDir, err := readConfigFile(configFilepath, defaultConfig)
+			cfgFromDir, err := config.ReadConfigFile(configFilepath, &config.DefaultConfig)
 			if err != nil {
 				return fmt.Errorf("reading default config file: %v", err)
 			}
@@ -205,14 +206,14 @@ func newApp() *cli.App {
 			signal.Ignore(os.Interrupt)
 		}
 
-		colorMode, err := GrokColorMode(*cfg.ColorFlag)
+		colorMode, err := config.GrokColorMode(*cfg.ColorFlag)
 		if err != nil {
 			return fmt.Errorf("invalid --color=%q: %v", *cfg.ColorFlag, err)
 		}
 		switch colorMode {
-		case ColorModeOff:
+		case config.ColorModeOff:
 			color.NoColor = true
-		case ColorModeOn:
+		case config.ColorModeOn:
 			color.NoColor = false
 		default:
 			// 'Auto' default is applied as a global variable initializer function, so nothing
@@ -223,7 +224,7 @@ func newApp() *cli.App {
 			fatalf(c, "can only use one of %q and %q", skipFlag.Name, keepFlag.Name)
 		}
 
-		opts := cfg.toHandlerOptions()
+		opts := humanlog.HandlerOptionsFrom(*cfg)
 
 		log.Print("reading stdin...")
 		if err := humanlog.Scanner(os.Stdin, colorable.NewColorableStdout(), opts); err != nil {
@@ -232,4 +233,8 @@ func newApp() *cli.App {
 		return nil
 	}
 	return app
+}
+
+func ptr[T any](v T) *T {
+	return &v
 }

@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/humanlogio/humanlog/internal/pkg/config"
 )
 
 func TestHarness(t *testing.T) {
@@ -30,14 +32,15 @@ func TestHarness(t *testing.T) {
 			if err != nil {
 				t.Fatalf("reading expected output: %v", err)
 			}
-			optsjson, err := ioutil.ReadFile(filepath.Join(root, de.Name(), "opts.json"))
+			cfgjson, err := ioutil.ReadFile(filepath.Join(root, de.Name(), "config.json"))
 			if err != nil {
-				t.Fatalf("reading options: %v", err)
+				t.Fatalf("reading config: %v", err)
 			}
-			opts := new(HandlerOptions)
-			if err := json.Unmarshal(optsjson, &opts); err != nil {
-				t.Fatalf("unmarshaling options: %v", err)
+			var cfg config.Config
+			if err := json.Unmarshal(cfgjson, &cfg); err != nil {
+				t.Fatalf("unmarshaling config: %v", err)
 			}
+			opts := HandlerOptionsFrom(cfg)
 			gotw := bytes.NewBuffer(nil)
 			err = Scanner(bytes.NewReader(input), gotw, opts)
 			if err != nil {
