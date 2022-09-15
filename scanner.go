@@ -4,62 +4,62 @@ import (
 	"bufio"
 	"bytes"
 	"io"
-)
+	"time"
 
-var (
-	eol = [...]byte{'\n'}
+	"github.com/humanlogio/humanlog/internal/pkg/model"
+	"github.com/humanlogio/humanlog/internal/pkg/sink"
 )
 
 // Scanner reads JSON-structured lines from src and prettify them onto dst. If
 // the lines aren't JSON-structured, it will simply write them out with no
 // prettification.
-func Scanner(src io.Reader, dst io.Writer, opts *HandlerOptions) error {
+func Scanner(src io.Reader, sink sink.Sink, opts *HandlerOptions) error {
 	in := bufio.NewScanner(src)
 	in.Split(bufio.ScanLines)
 
 	var line uint64
 
-	var lastLogfmt bool
-	var lastJSON bool
-
 	logfmtEntry := LogfmtHandler{Opts: opts}
 	jsonEntry := JSONHandler{Opts: opts}
+
+	ev := new(model.Event)
+	data := new(model.Structured)
+	ev.Structured = data
 
 	for in.Scan() {
 		line++
 		lineData := in.Bytes()
 
+		if ev.Structured == nil {
+			ev.Structured = data
+		} else {
+			data.Time = time.Time{}
+			data.Msg = ""
+			data.Level = ""
+			data.KVs = data.KVs[:0]
+		}
+		ev.Raw = lineData
+
 		// remove that pesky syslog crap
 		lineData = bytes.TrimPrefix(lineData, []byte("@cee: "))
-
 		switch {
 
-		case jsonEntry.TryHandle(lineData):
-			dst.Write(jsonEntry.Prettify(opts.SkipUnchanged && lastJSON))
-			lastJSON = true
+		case jsonEntry.TryHandle(lineData, data):
 
-		case logfmtEntry.TryHandle(lineData):
-			dst.Write(logfmtEntry.Prettify(opts.SkipUnchanged && lastLogfmt))
-			lastLogfmt = true
+		case logfmtEntry.TryHandle(lineData, data):
 
-		case tryDockerComposePrefix(lineData, &jsonEntry):
-			dst.Write(jsonEntry.Prettify(opts.SkipUnchanged && lastJSON))
-			lastJSON = true
+		case tryDockerComposePrefix(lineData, data, &jsonEntry):
 
-		case tryDockerComposePrefix(lineData, &logfmtEntry):
-			dst.Write(logfmtEntry.Prettify(opts.SkipUnchanged && lastLogfmt))
-			lastLogfmt = true
+		case tryDockerComposePrefix(lineData, data, &logfmtEntry):
 
-		case tryZapDevPrefix(lineData, &jsonEntry):
-			dst.Write(jsonEntry.Prettify(opts.SkipUnchanged && lastJSON))
-			lastJSON = true
+		case tryZapDevPrefix(lineData, data, &jsonEntry):
 
 		default:
-			lastLogfmt = false
-			lastJSON = false
-			dst.Write(lineData)
+			ev.Structured = nil
 		}
-		dst.Write(eol[:])
+		if err := sink.Receive(ev); err != nil {
+			return err
+		}
 
 	}
 

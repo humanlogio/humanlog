@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/humanlogio/humanlog/internal/pkg/config"
+	"github.com/humanlogio/humanlog/internal/pkg/sink"
 )
 
 func TestHarness(t *testing.T) {
@@ -40,9 +41,13 @@ func TestHarness(t *testing.T) {
 			if err := json.Unmarshal(cfgjson, &cfg); err != nil {
 				t.Fatalf("unmarshaling config: %v", err)
 			}
-			opts := HandlerOptionsFrom(cfg)
 			gotw := bytes.NewBuffer(nil)
-			err = Scanner(bytes.NewReader(input), gotw, opts)
+			sinkOpts, errs := sink.StdioOptsFrom(cfg)
+			if len(errs) > 1 {
+				t.Fatalf("errs=%v", errs)
+			}
+			s := sink.NewStdio(gotw, sinkOpts)
+			err = Scanner(bytes.NewReader(input), s, HandlerOptionsFrom(cfg))
 			if err != nil {
 				t.Fatalf("scanning input: %v", err)
 			}

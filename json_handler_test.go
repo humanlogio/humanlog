@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/humanlogio/humanlog"
+	"github.com/humanlogio/humanlog/internal/pkg/model"
 )
 
 func TestJSONHandler_UnmarshalJSON_ParsesFields(t *testing.T) {
@@ -22,8 +23,8 @@ func TestJSONHandler_UnmarshalJSON_ParsesFields(t *testing.T) {
 	opts := *humanlog.DefaultOptions
 
 	h := humanlog.JSONHandler{Opts: &opts}
-
-	if !h.TryHandle(raw) {
+	ev := new(model.Structured)
+	if !h.TryHandle(raw, ev) {
 		t.Fatalf("failed to parse log level")
 	}
 
@@ -58,7 +59,8 @@ func TestJSONHandler_UnmarshalJSON_ParsesCustomFields(t *testing.T) {
 
 	h := humanlog.JSONHandler{Opts: &opts}
 
-	if !h.TryHandle(raw) {
+	ev := new(model.Structured)
+	if !h.TryHandle(raw, ev) {
 		t.Fatalf("failed to parse log level")
 	}
 
@@ -91,8 +93,8 @@ func TestJSONHandler_UnmarshalJSON_ParsesCustomNestedFields(t *testing.T) {
 	opts.TimeFields = []string{"data.time"}
 
 	h := humanlog.JSONHandler{Opts: &opts}
-
-	if !h.TryHandle(raw) {
+	ev := new(model.Structured)
+	if !h.TryHandle(raw, ev) {
 		t.Fatalf("failed to handle log")
 	}
 
@@ -134,8 +136,8 @@ func TestJSONHandler_UnmarshalJSON_ParsesCustomMultiNestedFields(t *testing.T) {
 	opts.TimeFields = []string{"data.l2.time"}
 
 	h := humanlog.JSONHandler{Opts: &opts}
-
-	if !h.TryHandle(raw) {
+	ev := new(model.Structured)
+	if !h.TryHandle(raw, ev) {
 		t.Fatalf("failed to handle log")
 	}
 

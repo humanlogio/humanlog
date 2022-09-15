@@ -4,6 +4,8 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/humanlogio/humanlog/internal/pkg/model"
 )
 
 var logLinesByLevel = map[string][]byte{
@@ -193,7 +195,8 @@ func Test_tryZapDevPrefix(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			h := &JSONHandler{}
-			m := tryZapDevPrefix(test.logLine, h)
+			ev := new(model.Structured)
+			m := tryZapDevPrefix(test.logLine, ev, h)
 
 			if m != test.wantMatch {
 				t.Error("expected the prefix to match, it did not")
@@ -407,7 +410,8 @@ func Test_tryZapDevDCPrefix(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			h := &JSONHandler{}
-			m := tryZapDevDCPrefix(test.logLine, h)
+			ev := new(model.Structured)
+			m := tryZapDevDCPrefix(test.logLine, ev, h)
 
 			if m != test.wantMatch {
 				t.Error("expected the prefix to match, it did not")
