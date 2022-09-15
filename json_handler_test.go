@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aybabtme/humanlog"
+	"github.com/humanlogio/humanlog"
 )
 
 func TestJSONHandler_UnmarshalJSON_ParsesFields(t *testing.T) {

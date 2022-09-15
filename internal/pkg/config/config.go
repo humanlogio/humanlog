@@ -1,21 +1,17 @@
-package main
+package config
 
 import (
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
-
-	"github.com/aybabtme/humanlog"
-	"github.com/fatih/color"
 )
 
-var defaultConfig = &Config{
+var DefaultConfig = Config{
 	Version:        1,
 	Skip:           ptr([]string{}),
 	Keep:           ptr([]string{}),
@@ -33,9 +29,7 @@ var defaultConfig = &Config{
 	Palette:        nil,
 }
 
-var _ = defaultConfig.toHandlerOptions() // ensure it's valid
-
-func getDefaultConfigFilepath() (string, error) {
+func GetDefaultConfigFilepath() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("$HOME not set, can't determine a config file path")
@@ -65,7 +59,7 @@ func getDefaultConfigFilepath() (string, error) {
 	return configFilepath, nil
 }
 
-func readConfigFile(path string, dflt *Config) (*Config, error) {
+func ReadConfigFile(path string, dflt *Config) (*Config, error) {
 	configFile, err := os.Open(path)
 	if err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
@@ -151,63 +145,6 @@ func (cfg Config) populateEmpty(other *Config) *Config {
 	return &out
 }
 
-func (cfg Config) toHandlerOptions() *humanlog.HandlerOptions {
-	opts := humanlog.DefaultOptions
-	if cfg.Skip != nil {
-		opts.Skip = sliceToSet(cfg.Skip)
-	}
-	if cfg.Keep != nil {
-		opts.Keep = sliceToSet(cfg.Keep)
-	}
-	if cfg.TimeFields != nil {
-		opts.TimeFields = *cfg.TimeFields
-	}
-	if cfg.MessageFields != nil {
-		opts.MessageFields = *cfg.MessageFields
-	}
-	if cfg.LevelFields != nil {
-		opts.LevelFields = *cfg.LevelFields
-	}
-	if cfg.SortLongest != nil {
-		opts.SortLongest = *cfg.SortLongest
-	}
-	if cfg.SkipUnchanged != nil {
-		opts.SkipUnchanged = *cfg.SkipUnchanged
-	}
-	if cfg.Truncates != nil {
-		opts.Truncates = *cfg.Truncates
-	}
-	if cfg.LightBg != nil {
-		opts.LightBg = *cfg.LightBg
-	}
-	if cfg.TruncateLength != nil {
-		opts.TruncateLength = *cfg.TruncateLength
-	}
-	if cfg.TimeFormat != nil {
-		opts.TimeFormat = *cfg.TimeFormat
-	}
-	if cfg.Palette != nil {
-		pl, err := cfg.Palette.compile()
-		if err != nil {
-			log.Printf("invalid palette, using default one: %v", err)
-		} else {
-			opts.Palette = *pl
-		}
-	}
-	return opts
-}
-
-func sliceToSet(arr *[]string) map[string]struct{} {
-	if arr == nil {
-		return nil
-	}
-	out := make(map[string]struct{})
-	for _, key := range *arr {
-		out[key] = struct{}{}
-	}
-	return out
-}
-
 type TextPalette struct {
 	KeyColor              []string `json:"key"`
 	ValColor              []string `json:"val"`
@@ -224,119 +161,6 @@ type TextPalette struct {
 	PanicLevelColor       []string `json:"panic_level"`
 	FatalLevelColor       []string `json:"fatal_level"`
 	UnknownLevelColor     []string `json:"unknown_level"`
-}
-
-func (pl TextPalette) compile() (*humanlog.Palette, error) {
-	var err error
-	out := &humanlog.Palette{}
-	out.KeyColor, err = attributesToColor(pl.KeyColor)
-	if err != nil {
-		return nil, fmt.Errorf("in palette key %q, %v", "key", err)
-	}
-	out.ValColor, err = attributesToColor(pl.ValColor)
-	if err != nil {
-		return nil, fmt.Errorf("in palette key %q, %v", "val", err)
-	}
-	out.TimeLightBgColor, err = attributesToColor(pl.TimeLightBgColor)
-	if err != nil {
-		return nil, fmt.Errorf("in palette key %q, %v", "time_light_bg", err)
-	}
-	out.TimeDarkBgColor, err = attributesToColor(pl.TimeDarkBgColor)
-	if err != nil {
-		return nil, fmt.Errorf("in palette key %q, %v", "time_dark_bg", err)
-	}
-	out.MsgLightBgColor, err = attributesToColor(pl.MsgLightBgColor)
-	if err != nil {
-		return nil, fmt.Errorf("in palette key %q, %v", "msg_light_bg", err)
-	}
-	out.MsgAbsentLightBgColor, err = attributesToColor(pl.MsgAbsentLightBgColor)
-	if err != nil {
-		return nil, fmt.Errorf("in palette key %q, %v", "msg_absent_light_bg", err)
-	}
-	out.MsgDarkBgColor, err = attributesToColor(pl.MsgDarkBgColor)
-	if err != nil {
-		return nil, fmt.Errorf("in palette key %q, %v", "msg_dark_bg", err)
-	}
-	out.MsgAbsentDarkBgColor, err = attributesToColor(pl.MsgAbsentDarkBgColor)
-	if err != nil {
-		return nil, fmt.Errorf("in palette key %q, %v", "msg_absent_dark_bg", err)
-	}
-	out.DebugLevelColor, err = attributesToColor(pl.DebugLevelColor)
-	if err != nil {
-		return nil, fmt.Errorf("in palette key %q, %v", "debug_level", err)
-	}
-	out.InfoLevelColor, err = attributesToColor(pl.InfoLevelColor)
-	if err != nil {
-		return nil, fmt.Errorf("in palette key %q, %v", "info_level", err)
-	}
-	out.WarnLevelColor, err = attributesToColor(pl.WarnLevelColor)
-	if err != nil {
-		return nil, fmt.Errorf("in palette key %q, %v", "warn_level", err)
-	}
-	out.ErrorLevelColor, err = attributesToColor(pl.ErrorLevelColor)
-	if err != nil {
-		return nil, fmt.Errorf("in palette key %q, %v", "error_level", err)
-	}
-	out.PanicLevelColor, err = attributesToColor(pl.PanicLevelColor)
-	if err != nil {
-		return nil, fmt.Errorf("in palette key %q, %v", "panic_level", err)
-	}
-	out.FatalLevelColor, err = attributesToColor(pl.FatalLevelColor)
-	if err != nil {
-		return nil, fmt.Errorf("in palette key %q, %v", "fatal_level", err)
-	}
-	out.UnknownLevelColor, err = attributesToColor(pl.UnknownLevelColor)
-	if err != nil {
-		return nil, fmt.Errorf("in palette key %q, %v", "unknown_level", err)
-	}
-	return out, err
-}
-
-func attributesToColor(names []string) (*color.Color, error) {
-	attrs := make([]color.Attribute, 0, len(names))
-	for _, name := range names {
-		attr, ok := colorAttributeIndex[name]
-		if !ok {
-			return nil, fmt.Errorf("color %q isn't supported", name)
-		}
-		attrs = append(attrs, attr)
-	}
-	return color.New(attrs...), nil
-}
-
-var colorAttributeIndex = map[string]color.Attribute{
-	"fg_black":      color.FgBlack,
-	"fg_red":        color.FgRed,
-	"fg_green":      color.FgGreen,
-	"fg_yellow":     color.FgYellow,
-	"fg_blue":       color.FgBlue,
-	"fg_magenta":    color.FgMagenta,
-	"fg_cyan":       color.FgCyan,
-	"fg_white":      color.FgWhite,
-	"fg_hi_black":   color.FgHiBlack,
-	"fg_hi_red":     color.FgHiRed,
-	"fg_hi_green":   color.FgHiGreen,
-	"fg_hi_yellow":  color.FgHiYellow,
-	"fg_hi_blue":    color.FgHiBlue,
-	"fg_hi_magenta": color.FgHiMagenta,
-	"fg_hi_cyan":    color.FgHiCyan,
-	"fg_hi_white":   color.FgHiWhite,
-	"bg_black":      color.BgBlack,
-	"bg_red":        color.BgRed,
-	"bg_green":      color.BgGreen,
-	"bg_yellow":     color.BgYellow,
-	"bg_blue":       color.BgBlue,
-	"bg_magenta":    color.BgMagenta,
-	"bg_cyan":       color.BgCyan,
-	"bg_white":      color.BgWhite,
-	"bg_hi_black":   color.BgHiBlack,
-	"bg_hi_red":     color.BgHiRed,
-	"bg_hi_green":   color.BgHiGreen,
-	"bg_hi_yellow":  color.BgHiYellow,
-	"bg_hi_blue":    color.BgHiBlue,
-	"bg_hi_magenta": color.BgHiMagenta,
-	"bg_hi_cyan":    color.BgHiCyan,
-	"bg_hi_white":   color.BgHiWhite,
 }
 
 type ColorMode int

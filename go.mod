@@ -1,4 +1,4 @@
-module github.com/aybabtme/humanlog
+module github.com/humanlogio/humanlog
 
 go 1.19
 
