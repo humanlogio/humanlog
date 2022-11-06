@@ -3,6 +3,7 @@ package humanlog
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"io"
 	"time"
 
@@ -13,7 +14,7 @@ import (
 // Scanner reads JSON-structured lines from src and prettify them onto dst. If
 // the lines aren't JSON-structured, it will simply write them out with no
 // prettification.
-func Scanner(src io.Reader, sink sink.Sink, opts *HandlerOptions) error {
+func Scanner(ctx context.Context, src io.Reader, sink sink.Sink, opts *HandlerOptions) error {
 	in := bufio.NewScanner(src)
 	in.Split(bufio.ScanLines)
 
@@ -27,6 +28,7 @@ func Scanner(src io.Reader, sink sink.Sink, opts *HandlerOptions) error {
 	ev.Structured = data
 
 	for in.Scan() {
+
 		line++
 		lineData := in.Bytes()
 
@@ -59,6 +61,17 @@ func Scanner(src io.Reader, sink sink.Sink, opts *HandlerOptions) error {
 		if err := sink.Receive(ev); err != nil {
 			return err
 		}
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+		}
+	}
+
+	select {
+	case <-ctx.Done():
+		return nil
+	default:
 	}
 
 	switch err := in.Err(); err {
