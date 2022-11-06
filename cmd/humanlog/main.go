@@ -1,22 +1,36 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 
 	"github.com/aybabtme/rgbterm"
+	"github.com/blang/semver"
+	"github.com/bufbuild/connect-go"
+	cliupdatepb "github.com/humanlog-io/api/go/svc/cliupdate/v1"
+	"github.com/humanlog-io/api/go/svc/cliupdate/v1/cliupdatev1connect"
+	types "github.com/humanlog-io/api/go/types/v1"
 	"github.com/humanlogio/humanlog"
 	"github.com/humanlogio/humanlog/internal/pkg/config"
 	"github.com/humanlogio/humanlog/internal/pkg/sink/stdiosink"
 	"github.com/mattn/go-colorable"
 	"github.com/urfave/cli"
-	"humanlog.io/humanlog"
-	types "humanlog.io/humanlog/api/go/types/v1"
 )
 
-var Version = &types.Version{}
+var (
+	Version       = &types.Version{Minor: 6}
+	semverVersion = func() semver.Version {
+		v, err := Version.AsSemver()
+		if err != nil {
+			panic(err)
+		}
+		return v
+	}()
+)
 
 func fatalf(c *cli.Context, format string, args ...interface{}) {
 	log.Printf(format, args...)
@@ -130,11 +144,33 @@ func newApp() *cli.App {
 	app.Author = "Antoine Grondin"
 	app.Email = "antoinegrondin@gmail.com"
 	app.Name = "humanlog"
-	app.Version = Version
+	app.Version = semverVersion.String()
 	app.Usage = "reads structured logs from stdin, makes them pretty on stdout!"
 
-	app.Flags = []cli.Flag{configFlag, skipFlag, keepFlag, sortLongest, skipUnchanged, truncates, truncateLength, colorFlag, lightBg, timeFormat, ignoreInterrupts, messageFieldsFlag, timeFieldsFlag, levelFieldsFlag}
+	var (
+		ctx       context.Context
+		cancel    context.CancelFunc
+		updateRes <-chan *checkForUpdateRes
+	)
+	app.Before = func(c *cli.Context) error {
+		ctx, cancel = signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)
+		updateRes = checkForUpdate(ctx, &checkForUpdateReq{})
+		return nil
+	}
+	app.After = func(c *cli.Context) error {
+		cancel()
+		select {
+		case nextVersion := <-updateRes:
+			semverVersion.LT(nextVersion)
+			if Version != nextVersion {
+				log.Printf("a new version of humanlog is available: please update")
+			}
+		default:
+		}
+		return nil
+	}
 
+	app.Flags = []cli.Flag{configFlag, skipFlag, keepFlag, sortLongest, skipUnchanged, truncates, truncateLength, colorFlag, lightBg, timeFormat, ignoreInterrupts, messageFieldsFlag, timeFieldsFlag, levelFieldsFlag}
 	app.Action = func(c *cli.Context) error {
 
 		configFilepath, err := config.GetDefaultConfigFilepath()
@@ -222,9 +258,10 @@ func newApp() *cli.App {
 		handlerOpts := humanlog.HandlerOptionsFrom(*cfg)
 
 		log.Print("reading stdin...")
-		if err := humanlog.Scanner(os.Stdin, sink, handlerOpts); err != nil {
+		if err := humanlog.Scanner(ctx, os.Stdin, sink, handlerOpts); err != nil {
 			log.Fatalf("scanning caught an error: %v", err)
 		}
+
 		return nil
 	}
 	return app
@@ -232,4 +269,52 @@ func newApp() *cli.App {
 
 func ptr[T any](v T) *T {
 	return &v
+}
+
+const apiURL = "https://api.humanlog.io"
+
+type checkForUpdateReq struct {
+	arch      string
+	os        string
+	accountID string
+	machineID string
+	current   *types.Version
+}
+type checkForUpdateRes struct {
+	pb     *types.Version
+	sem    semver.Version
+	url    string
+	sha256 string
+}
+
+func checkForUpdate(ctx context.Context) <-chan *checkForUpdateRes {
+	out := make(chan *checkForUpdateRes, 1)
+	go func() {
+		defer close(out)
+		client := &http.Client{}
+		updateClient := cliupdatev1connect.NewUpdateServiceClient(client, apiURL)
+		res, err := updateClient.GetNextUpdate(ctx, &connect.Request[cliupdatepb.GetNextUpdateRequest]{
+			Msg: &cliupdatepb.GetNextUpdateRequest{CurrentVersion: Version},
+		})
+		if err != nil {
+			log.Printf("looking for update failed: %v", err)
+			return
+		}
+		nextVersion := res.Msg.NextVersion
+
+		nexVersion, err := nextVersion.AsSemver()
+		if err != nil {
+			log.Printf("looking for update returned bogus version: %v", err)
+			return
+		}
+		if nexVersion.EQ(semverVersion) {
+			log.Printf("running latest version: %v", semverVersion)
+		} else if nexVersion.LT(semverVersion) {
+			log.Printf("you appear to be running an unreleased version")
+		} else if nexVersion.GT(semverVersion) {
+			log.Printf("next version is %q, you're running %q", nexVersion, semverVersion)
+		}
+		out <- &checkForUpdateRes{pb: nextVersion, sem: nexVersion}
+	}()
+	return out
 }
