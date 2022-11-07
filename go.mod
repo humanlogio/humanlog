@@ -8,7 +8,7 @@ require (
 	github.com/bufbuild/connect-go v1.1.0
 	github.com/fatih/color v1.13.0
 	github.com/go-logfmt/logfmt v0.5.1
-	github.com/humanlog-io/api/go v0.0.0-20221107080824-690520531f97
+	github.com/humanlog-io/api/go v0.0.0-20221107084702-a2c1dd4d4370
 	github.com/kr/logfmt v0.0.0-20210122060352-19f9bcb100e6
 	github.com/mattn/go-colorable v0.1.13
 	github.com/urfave/cli v1.22.10
