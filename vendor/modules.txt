@@ -17,7 +17,7 @@ github.com/fatih/color
 # github.com/go-logfmt/logfmt v0.5.1
 ## explicit; go 1.17
 github.com/go-logfmt/logfmt
-# github.com/humanlog-io/api/go v0.0.0-20221107080824-690520531f97
+# github.com/humanlog-io/api/go v0.0.0-20221107084702-a2c1dd4d4370
 ## explicit; go 1.19
 github.com/humanlog-io/api/go/svc/cliupdate/v1
 github.com/humanlog-io/api/go/svc/cliupdate/v1/cliupdatev1connect

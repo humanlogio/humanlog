@@ -217,11 +217,11 @@ func newApp() *cli.App {
 				log.Printf("a new version of humanlog is available: please update")
 			}
 			updateStatefile := false
-			if statefile.AccountID == nil && res.accountID != "" {
+			if statefile.AccountID == nil && res.accountID > 0 {
 				updateStatefile = true
 				statefile.AccountID = &res.accountID
 			}
-			if statefile.MachineID == nil && res.machineID != "" {
+			if statefile.MachineID == nil && res.machineID > 0 {
 				updateStatefile = true
 				statefile.MachineID = &res.machineID
 			}

@@ -71,9 +71,9 @@ func WriteStateFile(path string, state *State) error {
 }
 
 type State struct {
-	Version   int     `json:"version"`
-	AccountID *string `json:"account_id"`
-	MachineID *string `json:"machine_id"`
+	Version   int    `json:"version"`
+	AccountID *int64 `json:"account_id"`
+	MachineID *int64 `json:"machine_id"`
 }
 
 func (cfg State) populateEmpty(other *State) *State {
