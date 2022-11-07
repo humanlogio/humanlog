@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime"
+	"strings"
 
 	"github.com/aybabtme/rgbterm"
 	"github.com/blang/semver"
@@ -150,11 +152,21 @@ func newApp() *cli.App {
 	var (
 		ctx       context.Context
 		cancel    context.CancelFunc
+		statefile *StateFile
 		updateRes <-chan *checkForUpdateRes
 	)
 	app.Before = func(c *cli.Context) error {
 		ctx, cancel = signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)
-		updateRes = checkForUpdate(ctx, &checkForUpdateReq{})
+		req := &checkForUpdateReq{
+			arch:    runtime.GOARCH,
+			os:      runtime.GOOS,
+			current: Version,
+		}
+		if statefile != nil {
+			req.accountID = statefile.AccountID
+			req.machineID = statefile.MachineID
+		}
+		updateRes = checkForUpdate(ctx, req)
 		return nil
 	}
 	app.After = func(c *cli.Context) error {
@@ -287,14 +299,20 @@ type checkForUpdateRes struct {
 	sha256 string
 }
 
-func checkForUpdate(ctx context.Context) <-chan *checkForUpdateRes {
+func checkForUpdate(ctx context.Context, req *checkForUpdateReq) <-chan *checkForUpdateRes {
 	out := make(chan *checkForUpdateRes, 1)
 	go func() {
 		defer close(out)
 		client := &http.Client{}
 		updateClient := cliupdatev1connect.NewUpdateServiceClient(client, apiURL)
 		res, err := updateClient.GetNextUpdate(ctx, &connect.Request[cliupdatepb.GetNextUpdateRequest]{
-			Msg: &cliupdatepb.GetNextUpdateRequest{CurrentVersion: Version},
+			Msg: &cliupdatepb.GetNextUpdateRequest{
+				CurrentVersion:         Version,
+				AccountId:              req.accountID,
+				MachineId:              req.machineID,
+				MachineArchitecture:    req.arch,
+				MachineOperatingSystem: req.os,
+			},
 		})
 		if err != nil {
 			log.Printf("looking for update failed: %v", err)
