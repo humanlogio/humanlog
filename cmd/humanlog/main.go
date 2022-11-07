@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
-	"strings"
 
 	"github.com/aybabtme/rgbterm"
 	"github.com/blang/semver"
@@ -19,6 +18,7 @@ import (
 	"github.com/humanlogio/humanlog"
 	"github.com/humanlogio/humanlog/internal/pkg/config"
 	"github.com/humanlogio/humanlog/internal/pkg/sink/stdiosink"
+	"github.com/humanlogio/humanlog/internal/pkg/state"
 	"github.com/mattn/go-colorable"
 	"github.com/urfave/cli"
 )
@@ -150,47 +150,22 @@ func newApp() *cli.App {
 	app.Usage = "reads structured logs from stdin, makes them pretty on stdout!"
 
 	var (
-		ctx       context.Context
-		cancel    context.CancelFunc
-		statefile *StateFile
-		updateRes <-chan *checkForUpdateRes
+		ctx           context.Context
+		cancel        context.CancelFunc
+		cfg           *config.Config
+		stateFilepath string
+		statefile     *state.State
+		updateRes     <-chan *checkForUpdateRes
 	)
+
 	app.Before = func(c *cli.Context) error {
 		ctx, cancel = signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)
-		req := &checkForUpdateReq{
-			arch:    runtime.GOARCH,
-			os:      runtime.GOOS,
-			current: Version,
-		}
-		if statefile != nil {
-			req.accountID = statefile.AccountID
-			req.machineID = statefile.MachineID
-		}
-		updateRes = checkForUpdate(ctx, req)
-		return nil
-	}
-	app.After = func(c *cli.Context) error {
-		cancel()
-		select {
-		case nextVersion := <-updateRes:
-			semverVersion.LT(nextVersion)
-			if Version != nextVersion {
-				log.Printf("a new version of humanlog is available: please update")
-			}
-		default:
-		}
-		return nil
-	}
-
-	app.Flags = []cli.Flag{configFlag, skipFlag, keepFlag, sortLongest, skipUnchanged, truncates, truncateLength, colorFlag, lightBg, timeFormat, ignoreInterrupts, messageFieldsFlag, timeFieldsFlag, levelFieldsFlag}
-	app.Action = func(c *cli.Context) error {
 
 		configFilepath, err := config.GetDefaultConfigFilepath()
 		if err != nil {
 			return fmt.Errorf("looking up config file path: %v", err)
 		}
 		// read config
-		var cfg *config.Config
 		if c.IsSet(configFlag.Name) {
 			configFilepath = c.String(configFlag.Name)
 			cfgFromFlag, err := config.ReadConfigFile(configFilepath, &config.DefaultConfig)
@@ -206,8 +181,63 @@ func newApp() *cli.App {
 			cfg = cfgFromDir
 		}
 
-		// flags overwrite config file
+		stateFilepath, err = state.GetDefaultStateFilepath()
+		if err != nil {
+			return fmt.Errorf("looking up state file path: %v", err)
+		}
+		// read state
+		statefile, err = state.ReadStateFile(stateFilepath, &state.DefaultState)
+		if err != nil {
+			return fmt.Errorf("reading default config file: %v", err)
+		}
 
+		if cfg.CheckForUpdates != nil && *cfg.CheckForUpdates {
+			req := &checkForUpdateReq{
+				arch:    runtime.GOARCH,
+				os:      runtime.GOOS,
+				current: Version,
+			}
+			if statefile != nil {
+				if statefile.AccountID != nil {
+					req.accountID = *statefile.AccountID
+				}
+				if statefile.MachineID != nil {
+					req.machineID = *statefile.MachineID
+				}
+			}
+			updateRes = checkForUpdate(ctx, req)
+		}
+		return nil
+	}
+	app.After = func(c *cli.Context) error {
+		cancel()
+		select {
+		case res := <-updateRes:
+			if semverVersion.LT(res.sem) {
+				log.Printf("a new version of humanlog is available: please update")
+			}
+			updateStatefile := false
+			if statefile.AccountID == nil && res.accountID != "" {
+				updateStatefile = true
+				statefile.AccountID = &res.accountID
+			}
+			if statefile.MachineID == nil && res.machineID != "" {
+				updateStatefile = true
+				statefile.MachineID = &res.machineID
+			}
+			if updateStatefile {
+				if err := state.WriteStateFile(stateFilepath, statefile); err != nil {
+					log.Printf("failed to update statefile")
+				}
+			}
+		default:
+		}
+		return nil
+	}
+
+	app.Flags = []cli.Flag{configFlag, skipFlag, keepFlag, sortLongest, skipUnchanged, truncates, truncateLength, colorFlag, lightBg, timeFormat, ignoreInterrupts, messageFieldsFlag, timeFieldsFlag, levelFieldsFlag}
+	app.Action = func(c *cli.Context) error {
+		// flags overwrite config file
 		if c.IsSet(sortLongest.Name) {
 			cfg.SortLongest = ptr(c.BoolT(sortLongest.Name))
 		}
@@ -288,15 +318,17 @@ const apiURL = "https://api.humanlog.io"
 type checkForUpdateReq struct {
 	arch      string
 	os        string
-	accountID string
-	machineID string
+	accountID int64
+	machineID int64
 	current   *types.Version
 }
 type checkForUpdateRes struct {
-	pb     *types.Version
-	sem    semver.Version
-	url    string
-	sha256 string
+	pb        *types.Version
+	sem       semver.Version
+	url       string
+	sha256    string
+	accountID int64
+	machineID int64
 }
 
 func checkForUpdate(ctx context.Context, req *checkForUpdateReq) <-chan *checkForUpdateRes {
@@ -332,7 +364,11 @@ func checkForUpdate(ctx context.Context, req *checkForUpdateReq) <-chan *checkFo
 		} else if nexVersion.GT(semverVersion) {
 			log.Printf("next version is %q, you're running %q", nexVersion, semverVersion)
 		}
-		out <- &checkForUpdateRes{pb: nextVersion, sem: nexVersion}
+		out <- &checkForUpdateRes{
+			pb:        nextVersion,
+			sem:       nexVersion,
+			machineID: res.Msg.Machine.Id,
+		}
 	}()
 	return out
 }

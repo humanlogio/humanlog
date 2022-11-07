@@ -2,6 +2,7 @@ package humanlog
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io/ioutil"
 	"os"
@@ -13,6 +14,7 @@ import (
 )
 
 func TestHarness(t *testing.T) {
+	ctx := context.Background()
 	root := "test/cases"
 	des, err := os.ReadDir(root)
 	if err != nil {
@@ -47,7 +49,7 @@ func TestHarness(t *testing.T) {
 				t.Fatalf("errs=%v", errs)
 			}
 			s := stdiosink.NewStdio(gotw, sinkOpts)
-			err = Scanner(bytes.NewReader(input), s, HandlerOptionsFrom(cfg))
+			err = Scanner(ctx, bytes.NewReader(input), s, HandlerOptionsFrom(cfg))
 			if err != nil {
 				t.Fatalf("scanning input: %v", err)
 			}
