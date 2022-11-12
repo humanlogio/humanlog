@@ -2,7 +2,7 @@ build:
   main: ./cmd/humanlog/main.go
   binary: humanlog
   ldflags:
-    - -s -w -X main.Version={{.Version}}
+    - -s -w -X main.versionMajor={{.Major}} -X main.versionMinor={{.Minor}} -X main.versionPatch={{.Patch}} -X main.versionPrerelease={{.Prerelease}} -X main.versionBuild={{.ShortCommit}}
   goos:
     - windows
     - darwin

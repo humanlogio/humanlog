@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"strconv"
 
 	"github.com/aybabtme/rgbterm"
 	"github.com/blang/semver"
@@ -24,9 +25,26 @@ import (
 )
 
 var (
-	Version       = &types.Version{Minor: 6}
+	versionMajor      string
+	versionMinor      string
+	versionPatch      string
+	versionPrerelease string
+	versionBuild      string
+	version           = func() *types.Version {
+		var prerelease []string
+		if versionPrerelease != "" {
+			prerelease = append(prerelease, versionPrerelease)
+		}
+		return &types.Version{
+			Major:       int32(mustatoi(versionMajor)),
+			Minor:       int32(mustatoi(versionMinor)),
+			Patch:       int32(mustatoi(versionPatch)),
+			Prereleases: prerelease,
+			Build:       versionBuild,
+		}
+	}()
 	semverVersion = func() semver.Version {
-		v, err := Version.AsSemver()
+		v, err := version.AsSemver()
 		if err != nil {
 			panic(err)
 		}
@@ -195,7 +213,7 @@ func newApp() *cli.App {
 			req := &checkForUpdateReq{
 				arch:    runtime.GOARCH,
 				os:      runtime.GOOS,
-				current: Version,
+				current: version,
 			}
 			if statefile != nil {
 				if statefile.AccountID != nil {
@@ -212,7 +230,10 @@ func newApp() *cli.App {
 	app.After = func(c *cli.Context) error {
 		cancel()
 		select {
-		case res := <-updateRes:
+		case res, ok := <-updateRes:
+			if !ok {
+				return nil
+			}
 			if semverVersion.LT(res.sem) {
 				log.Printf("a new version of humanlog is available: please update")
 			}
@@ -227,7 +248,7 @@ func newApp() *cli.App {
 			}
 			if updateStatefile {
 				if err := state.WriteStateFile(stateFilepath, statefile); err != nil {
-					log.Printf("failed to update statefile")
+					log.Printf("failed to update statefile: %v", err)
 				}
 			}
 		default:
@@ -339,7 +360,7 @@ func checkForUpdate(ctx context.Context, req *checkForUpdateReq) <-chan *checkFo
 		updateClient := cliupdatev1connect.NewUpdateServiceClient(client, apiURL)
 		res, err := updateClient.GetNextUpdate(ctx, &connect.Request[cliupdatepb.GetNextUpdateRequest]{
 			Msg: &cliupdatepb.GetNextUpdateRequest{
-				CurrentVersion:         Version,
+				CurrentVersion:         version,
 				AccountId:              req.accountID,
 				MachineId:              req.machineID,
 				MachineArchitecture:    req.arch,
@@ -371,4 +392,12 @@ func checkForUpdate(ctx context.Context, req *checkForUpdateReq) <-chan *checkFo
 		}
 	}()
 	return out
+}
+
+func mustatoi(a string) int {
+	i, err := strconv.Atoi(a)
+	if err != nil {
+		panic(err)
+	}
+	return i
 }
