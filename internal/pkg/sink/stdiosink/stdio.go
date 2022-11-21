@@ -155,7 +155,7 @@ func (std *Stdio) Receive(ev *model.Event) error {
 
 	lvl := strings.ToUpper(data.Level)[:imin(4, len(data.Level))]
 	var level string
-	switch data.Level {
+	switch strings.ToLower(data.Level) {
 	case "debug":
 		level = std.opts.Palette.DebugLevelColor.Sprint(lvl)
 	case "info":
