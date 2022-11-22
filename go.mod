@@ -1,4 +1,4 @@
-module github.com/humanlogio/humanlog
+module github.com/johnwarden/humanlog
 
 go 1.19
 
