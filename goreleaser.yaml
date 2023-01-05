@@ -9,6 +9,7 @@ build:
     - linux
   goarch:
     - amd64
+    - arm64
 
 brews:
   - tap:
@@ -16,5 +17,6 @@ brews:
       name: homebrew-tap
 
 nfpms:
-  - formats:
+  - maintainer: 'antoinegrondin@gmail.com'
+    formats:
       - deb
