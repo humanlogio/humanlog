@@ -12,22 +12,22 @@ import (
 )
 
 var DefaultConfig = Config{
-	Version:         1,
-	Skip:            ptr([]string{}),
-	Keep:            ptr([]string{}),
-	TimeFields:      ptr([]string{"time", "ts", "@timestamp", "timestamp"}),
-	MessageFields:   ptr([]string{"message", "msg"}),
-	LevelFields:     ptr([]string{"level", "lvl", "loglevel", "severity"}),
-	SortLongest:     ptr(true),
-	SkipUnchanged:   ptr(true),
-	Truncates:       ptr(true),
-	LightBg:         ptr(false),
-	ColorMode:       ptr("auto"),
-	TruncateLength:  ptr(15),
-	TimeFormat:      ptr(time.Stamp),
-	Interrupt:       ptr(false),
-	CheckForUpdates: ptr(true),
-	Palette:         nil,
+	Version:             1,
+	Skip:                ptr([]string{}),
+	Keep:                ptr([]string{}),
+	TimeFields:          ptr([]string{"time", "ts", "@timestamp", "timestamp"}),
+	MessageFields:       ptr([]string{"message", "msg"}),
+	LevelFields:         ptr([]string{"level", "lvl", "loglevel", "severity"}),
+	SortLongest:         ptr(true),
+	SkipUnchanged:       ptr(true),
+	Truncates:           ptr(true),
+	LightBg:             ptr(false),
+	ColorMode:           ptr("auto"),
+	TruncateLength:      ptr(15),
+	TimeFormat:          ptr(time.Stamp),
+	Interrupt:           ptr(false),
+	SkipCheckForUpdates: ptr(false),
+	Palette:             nil,
 }
 
 func GetDefaultConfigFilepath() (string, error) {
@@ -85,22 +85,22 @@ func ReadConfigFile(path string, dflt *Config) (*Config, error) {
 }
 
 type Config struct {
-	Version         int          `json:"version"`
-	Skip            *[]string    `json:"skip"`
-	Keep            *[]string    `json:"keep"`
-	TimeFields      *[]string    `json:"time-fields"`
-	MessageFields   *[]string    `json:"message-fields"`
-	LevelFields     *[]string    `json:"level-fields"`
-	SortLongest     *bool        `json:"sort-longest"`
-	SkipUnchanged   *bool        `json:"skip-unchanged"`
-	Truncates       *bool        `json:"truncates"`
-	LightBg         *bool        `json:"light-bg"`
-	ColorMode       *string      `json:"color-mode"`
-	TruncateLength  *int         `json:"truncate-length"`
-	TimeFormat      *string      `json:"time-format"`
-	Palette         *TextPalette `json:"palette"`
-	Interrupt       *bool        `json:"interrupt"`
-	CheckForUpdates *bool        `json:"check_updates"`
+	Version             int          `json:"version"`
+	Skip                *[]string    `json:"skip"`
+	Keep                *[]string    `json:"keep"`
+	TimeFields          *[]string    `json:"time-fields"`
+	MessageFields       *[]string    `json:"message-fields"`
+	LevelFields         *[]string    `json:"level-fields"`
+	SortLongest         *bool        `json:"sort-longest"`
+	SkipUnchanged       *bool        `json:"skip-unchanged"`
+	Truncates           *bool        `json:"truncates"`
+	LightBg             *bool        `json:"light-bg"`
+	ColorMode           *string      `json:"color-mode"`
+	TruncateLength      *int         `json:"truncate-length"`
+	TimeFormat          *string      `json:"time-format"`
+	Palette             *TextPalette `json:"palette"`
+	Interrupt           *bool        `json:"interrupt"`
+	SkipCheckForUpdates *bool        `json:"skip_check_updates"`
 }
 
 func (cfg Config) populateEmpty(other *Config) *Config {
@@ -143,6 +143,12 @@ func (cfg Config) populateEmpty(other *Config) *Config {
 	}
 	if out.Palette == nil && other.Palette != nil {
 		out.Palette = other.Palette
+	}
+	if out.Interrupt == nil && other.Interrupt != nil {
+		out.Interrupt = other.Interrupt
+	}
+	if out.SkipCheckForUpdates == nil && other.SkipCheckForUpdates != nil {
+		out.SkipCheckForUpdates = other.SkipCheckForUpdates
 	}
 	return &out
 }
