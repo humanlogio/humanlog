@@ -7,6 +7,7 @@ Read logs from `stdin` and prints them back to `stdout`, but prettier.
 [Grab a release](https://github.com/humanlogio/humanlog/releases) or :
 
 ## With Go installed
+
 ```bash
 $ go get -u github.com/humanlogio/humanlog/...
 ```
@@ -20,7 +21,7 @@ wget -qO- https://github.com/humanlogio/humanlog/releases/download/{{.version}}/
 ## On OS X
 
 ```bash
-brew tap aybabtme/homebrew-tap
+brew tap humanlogio/homebrew-tap
 brew install humanlog
 ```
 
@@ -39,10 +40,10 @@ $ humanlog < /var/log/logfile.log
 
 How to help:
 
-* __support more log formats__: by submitting `human.Handler` implementations.
-* __live querying__: add support for filtering in log output in real time.
-* __charting__: some key-values have semantics that could be charted in real time. For
-instance, durations, frequency of numeric values, etc. See the [l2met][] project.
+- **support more log formats**: by submitting `human.Handler` implementations.
+- **live querying**: add support for filtering in log output in real time.
+- **charting**: some key-values have semantics that could be charted in real time. For
+  instance, durations, frequency of numeric values, etc. See the [l2met][] project.
 
 # Usage
 
@@ -57,19 +58,28 @@ VERSION:
    {{.version}}
 
 AUTHOR:
-  Antoine Grondin - <antoinegrondin@gmail.com>
+   Antoine Grondin <antoinegrondin@gmail.com>
 
 COMMANDS:
    help, h  Shows a list of commands or help for one command
 
 GLOBAL OPTIONS:
-   --skip '--skip option --skip option'   keys to skip when parsing a log entry
-   --keep '--keep option --keep option'   keys to keep when parsing a log entry
-   --sort-longest       sort by longest key after having sorted lexicographically
-   --skip-unchanged        skip keys that have the same value than the previous entry
-   --truncate           truncates values that are longer than --truncate-length
-   --truncate-length '15'     truncate values that are longer than this length
-   --help, -h           show help
-   --version, -v        print the version
+   --config value                    specify a config file to use, otherwise uses the default one
+   --skip value                      keys to skip when parsing a log entry
+   --keep value                      keys to keep when parsing a log entry
+   --sort-longest                    sort by longest key after having sorted lexicographically
+   --skip-unchanged                  skip keys that have the same value than the previous entry
+   --truncate                        truncates values that are longer than --truncate-length
+   --truncate-length value           truncate values that are longer than this length (default: 15)
+   --color value                     specify color mode: auto, on/force, off (default: "auto")
+   --light-bg                        use black as the base foreground color (for terminals with light backgrounds)
+   --time-format value               output time format, see https://golang.org/pkg/time/ for details (default: "Jan _2 15:04:05")
+   --ignore-interrupts, -i           ignore interrupts
+   --message-fields value, -m value  Custom JSON fields to search for the log message. (i.e. mssge, data.body.message) [$HUMANLOG_MESSAGE_FIELDS]
+   --time-fields value, -t value     Custom JSON fields to search for the log time. (i.e. logtime, data.body.datetime) [$HUMANLOG_TIME_FIELDS]
+   --level-fields value, -l value    Custom JSON fields to search for the log level. (i.e. somelevel, data.level) [$HUMANLOG_LEVEL_FIELDS]
+   --help, -h                        show help
+   --version, -v                     print the version
 ```
+
 [l2met]: https://github.com/ryandotsmith/l2met

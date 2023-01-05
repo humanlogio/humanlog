@@ -12,7 +12,7 @@ build:
 
 brews:
   - tap:
-      owner: aybabtme
+      owner: humanlogio
       name: homebrew-tap
 
 nfpms:
