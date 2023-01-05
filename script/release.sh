@@ -29,7 +29,7 @@ fi
 
 set -e -u -x
 
-temple file < $basedir/scripts/README.tmpl.md > $basedir/README.md -var "version=$version"
+temple file < $basedir/script/README.tmpl.md > $basedir/README.md -var "version=$version"
 
 git add $basedir/README.md
 git commit -m "$msg"
