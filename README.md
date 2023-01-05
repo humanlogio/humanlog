@@ -15,7 +15,7 @@ $ go get -u github.com/humanlogio/humanlog/...
 ## On linux
 
 ```bash
-wget -qO- https://github.com/humanlogio/humanlog/releases/download/0.6.2/humanlog_0.6.2_linux_amd64.tar.gz | tar xvz
+wget -qO- https://github.com/humanlogio/humanlog/releases/download/0.6.1/humanlog_0.6.1_linux_amd64.tar.gz | tar xvz
 ```
 
 ## On OS X
@@ -55,7 +55,7 @@ USAGE:
    humanlog [global options] command [command options] [arguments...]
 
 VERSION:
-   0.6.2
+   0.6.1
 
 AUTHOR:
    Antoine Grondin <antoinegrondin@gmail.com>
