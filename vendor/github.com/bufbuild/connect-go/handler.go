@@ -16,6 +16,7 @@ package connect
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 )
 
@@ -47,7 +48,13 @@ func NewUnaryHandler[Req, Res any](
 		if !ok {
 			return nil, errorf(CodeInternal, "unexpected handler request type %T", request)
 		}
-		return unary(ctx, typed)
+		res, err := unary(ctx, typed)
+		if res == nil && err == nil {
+			// This is going to panic during serialization. Debugging is much easier
+			// if we panic here instead, so we can include the procedure name.
+			panic(fmt.Sprintf("%s returned nil *connect.Response and nil error", procedure)) //nolint: forbidigo
+		}
+		return res, err
 	})
 	config := newHandlerConfig(procedure, options)
 	if interceptor := config.Interceptor; interceptor != nil {
@@ -97,6 +104,11 @@ func NewClientStreamHandler[Req, Res any](
 			res, err := implementation(ctx, stream)
 			if err != nil {
 				return err
+			}
+			if res == nil {
+				// This is going to panic during serialization. Debugging is much easier
+				// if we panic here instead, so we can include the procedure name.
+				panic(fmt.Sprintf("%s returned nil *connect.Response and nil error", procedure)) //nolint: forbidigo
 			}
 			mergeHeaders(conn.ResponseHeader(), res.header)
 			mergeHeaders(conn.ResponseTrailer(), res.trailer)
@@ -162,6 +174,10 @@ func (h *Handler) ServeHTTP(responseWriter http.ResponseWriter, request *http.Re
 	// okay if we can't re-use the connection.
 	isBidi := (h.spec.StreamType & StreamTypeBidi) == StreamTypeBidi
 	if isBidi && request.ProtoMajor < 2 {
+		// Clients coded to expect full-duplex connections may hang if they've
+		// mistakenly negotiated HTTP/1.1. To unblock them, we must close the
+		// underlying TCP connection.
+		responseWriter.Header().Set("Connection", "close")
 		responseWriter.WriteHeader(http.StatusHTTPVersionNotSupported)
 		return
 	}
@@ -214,17 +230,18 @@ func (h *Handler) ServeHTTP(responseWriter http.ResponseWriter, request *http.Re
 }
 
 type handlerConfig struct {
-	CompressionPools map[string]*compressionPool
-	CompressionNames []string
-	Codecs           map[string]Codec
-	CompressMinBytes int
-	Interceptor      Interceptor
-	Procedure        string
-	HandleGRPC       bool
-	HandleGRPCWeb    bool
-	BufferPool       *bufferPool
-	ReadMaxBytes     int
-	SendMaxBytes     int
+	CompressionPools             map[string]*compressionPool
+	CompressionNames             []string
+	Codecs                       map[string]Codec
+	CompressMinBytes             int
+	Interceptor                  Interceptor
+	Procedure                    string
+	HandleGRPC                   bool
+	HandleGRPCWeb                bool
+	RequireConnectProtocolHeader bool
+	BufferPool                   *bufferPool
+	ReadMaxBytes                 int
+	SendMaxBytes                 int
 }
 
 func newHandlerConfig(procedure string, options []HandlerOption) *handlerConfig {
@@ -269,13 +286,14 @@ func (c *handlerConfig) newProtocolHandlers(streamType StreamType) []protocolHan
 	)
 	for _, protocol := range protocols {
 		handlers = append(handlers, protocol.NewHandler(&protocolHandlerParams{
-			Spec:             c.newSpec(streamType),
-			Codecs:           codecs,
-			CompressionPools: compressors,
-			CompressMinBytes: c.CompressMinBytes,
-			BufferPool:       c.BufferPool,
-			ReadMaxBytes:     c.ReadMaxBytes,
-			SendMaxBytes:     c.SendMaxBytes,
+			Spec:                         c.newSpec(streamType),
+			Codecs:                       codecs,
+			CompressionPools:             compressors,
+			CompressMinBytes:             c.CompressMinBytes,
+			BufferPool:                   c.BufferPool,
+			ReadMaxBytes:                 c.ReadMaxBytes,
+			SendMaxBytes:                 c.SendMaxBytes,
+			RequireConnectProtocolHeader: c.RequireConnectProtocolHeader,
 		}))
 	}
 	return handlers

@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 var DefaultState = State{
@@ -56,6 +56,7 @@ func ReadStateFile(path string, dflt *State) (*State, error) {
 	if err := json.NewDecoder(stateFile).Decode(&cfg); err != nil {
 		return nil, fmt.Errorf("decoding state file: %v", err)
 	}
+	cfg.path = path
 	return cfg.populateEmpty(dflt), nil
 }
 
@@ -64,20 +65,50 @@ func WriteStateFile(path string, state *State) error {
 	if err != nil {
 		return fmt.Errorf("marshaling state file: %v", err)
 	}
-	if err := ioutil.WriteFile(path, content, 0600); err != nil {
-		return fmt.Errorf("writing to state file %q: %v", path, err)
+
+	newf, err := os.CreateTemp(os.TempDir(), "humanlog_statefile")
+	if err != nil {
+		return fmt.Errorf("creating temporary file for statefile: %w", err)
 	}
+	success := false
+	defer func() {
+		if !success {
+			_ = os.Remove(newf.Name())
+		}
+	}()
+	if _, err := newf.Write(content); err != nil {
+		return fmt.Errorf("writing to temporary statefile: %w", err)
+	}
+	if err := newf.Close(); err != nil {
+		return fmt.Errorf("closing temporary statefile: %w", err)
+	}
+	if err := os.Chmod(newf.Name(), 0600); err != nil {
+		return fmt.Errorf("setting permissions on temporary statefile: %w", err)
+	}
+	if err := os.Rename(newf.Name(), path); err != nil {
+		return fmt.Errorf("replacing statefile: %w", err)
+	}
+	success = true
 	return nil
 }
 
 type State struct {
-	Version   int    `json:"version"`
-	AccountID *int64 `json:"account_id"`
-	MachineID *int64 `json:"machine_id"`
+	Version           int        `json:"version"`
+	AccountID         *int64     `json:"account_id"`
+	MachineID         *int64     `json:"machine_id"`
+	LastUpdateCheckAt *time.Time `json:"last_update_check_at"`
+
+	// unexported
+	path string
+}
+
+func (cfg *State) WriteBack() error {
+	return WriteStateFile(cfg.path, cfg)
 }
 
 func (cfg State) populateEmpty(other *State) *State {
-	out := *(&cfg)
+	ptr := &cfg
+	out := *ptr
 	if out.AccountID == nil && other.AccountID != nil {
 		out.AccountID = other.AccountID
 	}

@@ -8,7 +8,7 @@ import (
 	context "context"
 	errors "errors"
 	connect_go "github.com/bufbuild/connect-go"
-	v1 "github.com/humanlog-io/api/go/svc/cliupdate/v1"
+	v1 "github.com/humanlogio/api/go/svc/cliupdate/v1"
 	http "net/http"
 	strings "strings"
 )

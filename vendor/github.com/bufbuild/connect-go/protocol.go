@@ -26,6 +26,14 @@ import (
 	"strings"
 )
 
+// The names of the Connect, gRPC, and gRPC-Web protocols (as exposed by
+// [Peer.Protocol]). Additional protocols may be added in the future.
+const (
+	ProtocolConnect = "connect"
+	ProtocolGRPC    = "grpc"
+	ProtocolGRPCWeb = "grpcweb"
+)
+
 const (
 	headerContentType = "Content-Type"
 	headerUserAgent   = "User-Agent"
@@ -61,13 +69,14 @@ type protocol interface {
 // Spec rather than constructing their own, since new fields may have been
 // added.
 type protocolHandlerParams struct {
-	Spec             Spec
-	Codecs           readOnlyCodecs
-	CompressionPools readOnlyCompressionPools
-	CompressMinBytes int
-	BufferPool       *bufferPool
-	ReadMaxBytes     int
-	SendMaxBytes     int
+	Spec                         Spec
+	Codecs                       readOnlyCodecs
+	CompressionPools             readOnlyCompressionPools
+	CompressMinBytes             int
+	BufferPool                   *bufferPool
+	ReadMaxBytes                 int
+	SendMaxBytes                 int
+	RequireConnectProtocolHeader bool
 }
 
 // Handler is the server side of a protocol. HTTP handlers typically support
@@ -287,6 +296,17 @@ func negotiateCompression( //nolint:nonamedreturns
 		}
 	}
 	return requestCompression, responseCompression, nil
+}
+
+// checkServerStreamsCanFlush ensures that bidi and server streaming handlers
+// have received an http.ResponseWriter that implements http.Flusher, since
+// they must flush data after sending each message.
+func checkServerStreamsCanFlush(spec Spec, responseWriter http.ResponseWriter) *Error {
+	requiresFlusher := (spec.StreamType & StreamTypeServer) == StreamTypeServer
+	if _, flushable := responseWriter.(http.Flusher); requiresFlusher && !flushable {
+		return NewError(CodeInternal, fmt.Errorf("%T does not implement http.Flusher", responseWriter))
+	}
+	return nil
 }
 
 func flushResponseWriter(w http.ResponseWriter) {
