@@ -9,7 +9,7 @@ Read logs from `stdin` and prints them back to `stdout`, but prettier.
 ## With Go installed
 
 ```bash
-$ go get -u github.com/humanlogio/humanlog/...
+$ go install github.com/humanlogio/humanlog/cmd/humanlog@latest
 ```
 
 ## On linux
