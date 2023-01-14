@@ -227,7 +227,7 @@ func newApp() *cli.App {
 			if !ok {
 				return nil
 			}
-			if res.hasUpdate && promptedToUpdate == nil || promptedToUpdate.LT(res.sem) {
+			if res.hasUpdate {
 				alreadyPromptedForSameUpdate := promptedToUpdate != nil && promptedToUpdate.GTE(res.sem)
 				if !alreadyPromptedForSameUpdate {
 					promptToUpdate(semverVersion, res.sem)
