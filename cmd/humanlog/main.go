@@ -205,12 +205,12 @@ func newApp() *cli.App {
 			return fmt.Errorf("reading default config file: %v", err)
 		}
 
-		if statefile.LatestKnownVersion != nil && statefile.LatestKnownVersion.GT(semverVersion) {
-			promptToUpdate(semverVersion, *statefile.LatestKnownVersion)
-			promptedToUpdate = statefile.LatestKnownVersion
-		}
-
 		if shouldCheckForUpdate(c, cfg, statefile) {
+			if statefile.LatestKnownVersion != nil && statefile.LatestKnownVersion.GT(semverVersion) {
+				promptToUpdate(semverVersion, *statefile.LatestKnownVersion)
+				promptedToUpdate = statefile.LatestKnownVersion
+			}
+
 			req := &checkForUpdateReq{
 				arch:    runtime.GOARCH,
 				os:      runtime.GOOS,
