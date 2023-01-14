@@ -149,7 +149,6 @@ const apiURL = "https://api.humanlog.io"
 type checkForUpdateReq struct {
 	arch    string
 	os      string
-	state   *state.State
 	current *types.Version
 }
 type checkForUpdateRes struct {
