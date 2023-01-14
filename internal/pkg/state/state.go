@@ -51,7 +51,8 @@ func ReadStateFile(path string, dflt *State) (*State, error) {
 		if !errors.Is(err, os.ErrNotExist) {
 			return nil, fmt.Errorf("opening state file %q: %v", path, err)
 		}
-		return dflt, WriteStateFile(path, dflt)
+		cfg := (State{path: path}).populateEmpty(dflt)
+		return cfg, WriteStateFile(path, cfg)
 	}
 	defer stateFile.Close()
 	var cfg State
@@ -67,7 +68,6 @@ func WriteStateFile(path string, state *State) error {
 	if err != nil {
 		return fmt.Errorf("marshaling state file: %v", err)
 	}
-
 	newf, err := os.CreateTemp(os.TempDir(), "humanlog_statefile")
 	if err != nil {
 		return fmt.Errorf("creating temporary file for statefile: %w", err)
@@ -88,7 +88,7 @@ func WriteStateFile(path string, state *State) error {
 		return fmt.Errorf("setting permissions on temporary statefile: %w", err)
 	}
 	if err := os.Rename(newf.Name(), path); err != nil {
-		return fmt.Errorf("replacing statefile: %w", err)
+		return fmt.Errorf("replacing statefile at %q with %q: %w", path, newf.Name(), err)
 	}
 	success = true
 	return nil
