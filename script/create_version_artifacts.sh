@@ -82,6 +82,11 @@ function main() {
     tag=$(get_version)
 
     list_archives | handle_archive
+
+    apictl create published-version \
+            --project ${project} \
+            --channel latest \
+            --version $(get_version)
 }
 
 main 
