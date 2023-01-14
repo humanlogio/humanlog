@@ -11,7 +11,6 @@ import (
 
 	"github.com/aybabtme/rgbterm"
 	"github.com/blang/semver"
-	"github.com/fatih/color"
 	types "github.com/humanlogio/api/go/types/v1"
 	"github.com/humanlogio/humanlog"
 	"github.com/humanlogio/humanlog/internal/pkg/config"
@@ -165,11 +164,12 @@ func newApp() *cli.App {
 	app.Usage = "reads structured logs from stdin, makes them pretty on stdout!"
 
 	var (
-		ctx       context.Context
-		cancel    context.CancelFunc
-		cfg       *config.Config
-		statefile *state.State
-		updateRes <-chan *checkForUpdateRes
+		ctx              context.Context
+		cancel           context.CancelFunc
+		cfg              *config.Config
+		statefile        *state.State
+		promptedToUpdate *semver.Version
+		updateRes        <-chan *checkForUpdateRes
 	)
 
 	app.Before = func(c *cli.Context) error {
@@ -205,6 +205,11 @@ func newApp() *cli.App {
 			return fmt.Errorf("reading default config file: %v", err)
 		}
 
+		if statefile.LatestKnownVersion != nil && statefile.LatestKnownVersion.GT(semverVersion) {
+			promptToUpdate(semverVersion, *statefile.LatestKnownVersion)
+			promptedToUpdate = statefile.LatestKnownVersion
+		}
+
 		if shouldCheckForUpdate(c, cfg, statefile) {
 			req := &checkForUpdateReq{
 				arch:    runtime.GOARCH,
@@ -222,14 +227,11 @@ func newApp() *cli.App {
 			if !ok {
 				return nil
 			}
-
-			if res.hasUpdate {
-				log.Print(
-					color.YellowString("Update available %s -> %s.", semverVersion, res.sem),
-				)
-				log.Print(
-					color.YellowString("Run %s to upgrade.", color.New(color.Bold).Sprint("humanlog version update")),
-				)
+			if res.hasUpdate && promptedToUpdate == nil && promptedToUpdate.LT(res.sem) {
+				alreadyPromptedForSameUpdate := promptedToUpdate != nil && promptedToUpdate.GTE(res.sem)
+				if !alreadyPromptedForSameUpdate {
+					promptToUpdate(semverVersion, res.sem)
+				}
 			}
 		default:
 		}

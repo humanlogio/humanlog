@@ -58,7 +58,7 @@ func reqMeta(st *state.State) *types.ReqMeta {
 	return req
 }
 
-func updateFromResMeta(st *state.State, res *types.ResMeta, lastUpdateCheck *time.Time) error {
+func updateFromResMeta(st *state.State, res *types.ResMeta, latestKnownVersion *semver.Version, latestKnownVersionUpdatedAt *time.Time) error {
 	changed := false
 	if st.AccountID == nil || res.AccountId != *st.AccountID {
 		st.AccountID = &res.AccountId
@@ -68,8 +68,18 @@ func updateFromResMeta(st *state.State, res *types.ResMeta, lastUpdateCheck *tim
 		st.MachineID = &res.MachineId
 		changed = true
 	}
-	if st.LastUpdateCheckAt == nil && lastUpdateCheck != nil {
-		st.LastUpdateCheckAt = lastUpdateCheck
+	if st.LatestKnownVersion == nil && latestKnownVersion != nil {
+		st.LatestKnownVersion = latestKnownVersion
+		changed = true
+	} else if st.LatestKnownVersion != nil && latestKnownVersion != nil && !st.LatestKnownVersion.EQ(*latestKnownVersion) {
+		st.LatestKnownVersion = latestKnownVersion
+		changed = true
+	}
+	if st.LastestKnownVersionUpdatedAt == nil && latestKnownVersionUpdatedAt != nil {
+		st.LastestKnownVersionUpdatedAt = latestKnownVersionUpdatedAt
+		changed = true
+	} else if st.LastestKnownVersionUpdatedAt != nil && latestKnownVersionUpdatedAt != nil && !st.LastestKnownVersionUpdatedAt.Equal(*latestKnownVersionUpdatedAt) {
+		st.LastestKnownVersionUpdatedAt = latestKnownVersionUpdatedAt
 		changed = true
 	}
 	if !changed {
@@ -106,12 +116,7 @@ func versionCmd(
 					if err != nil {
 						return fmt.Errorf("invalid semver received: %w", err)
 					}
-					log.Print(
-						color.YellowString("Update available %s -> %s.", semverVersion, nextSV),
-					)
-					log.Print(
-						color.YellowString("Run %s to upgrade.", color.New(color.Bold).Sprint("humanlog version update")),
-					)
+					promptToUpdate(semverVersion, nextSV)
 					log.Printf("- url: %s", nextArtifact.Url)
 					log.Printf("- sha256: %s", nextArtifact.Sha256)
 					log.Printf("- sig: %s", nextArtifact.Signature)
@@ -173,14 +178,14 @@ func checkForUpdate(ctx context.Context, cfg *config.Config, state *state.State)
 	msg := res.Msg
 
 	lastCheckAt := time.Now()
-	if err := updateFromResMeta(state, msg.Meta, &lastCheckAt); err != nil {
-		log.Printf("failed to persist internal state: %v", err)
-	}
-
 	nextSV, err := msg.NextVersion.AsSemver()
 	if err != nil {
 		return nil, nil, false, err
 	}
+	if err := updateFromResMeta(state, msg.Meta, &nextSV, &lastCheckAt); err != nil {
+		log.Printf("failed to persist internal state: %v", err)
+	}
+
 	return msg.NextVersion, msg.NextArtifact, currentSV.LT(nextSV), nil
 }
 
@@ -206,4 +211,13 @@ func asyncCheckForUpdate(ctx context.Context, req *checkForUpdateReq, cfg *confi
 		}
 	}()
 	return out
+}
+
+func promptToUpdate(from, to semver.Version) {
+	log.Print(
+		color.YellowString("Update available %s -> %s.", from, to),
+	)
+	log.Print(
+		color.YellowString("Run `%s` to upgrade.", color.New(color.Bold).Sprint("humanlog version update")),
+	)
 }

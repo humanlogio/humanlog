@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/blang/semver"
 )
 
 var DefaultState = State{
@@ -93,10 +95,11 @@ func WriteStateFile(path string, state *State) error {
 }
 
 type State struct {
-	Version           int        `json:"version"`
-	AccountID         *int64     `json:"account_id"`
-	MachineID         *int64     `json:"machine_id"`
-	LastUpdateCheckAt *time.Time `json:"last_update_check_at"`
+	Version                      int             `json:"version"`
+	AccountID                    *int64          `json:"account_id"`
+	MachineID                    *int64          `json:"machine_id"`
+	LatestKnownVersion           *semver.Version `json:"latest_known_version,omitempty"`
+	LastestKnownVersionUpdatedAt *time.Time      `json:"latest_known_version_updated_at"`
 
 	// unexported
 	path string
