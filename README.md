@@ -4,26 +4,22 @@ Read logs from `stdin` and prints them back to `stdout`, but prettier.
 
 # Using it
 
-[Grab a release](https://github.com/humanlogio/humanlog/releases) or :
-
-## With Go installed
-
-```bash
-$ go install github.com/humanlogio/humanlog/cmd/humanlog@latest
-```
-
-## On linux
-
-```bash
-wget -qO- https://github.com/humanlogio/humanlog/releases/download/v0.6.2/humanlog_v0.6.2_linux_amd64.tar.gz | tar xvz
-```
-
-## On OS X
+## On macOS
 
 ```bash
 brew tap humanlogio/homebrew-tap
 brew install humanlog
 ```
+
+## On linux (and macOS)
+
+```bash
+curl -L "https://humanlog.io/install.sh" | sh
+```
+
+## Otherwise
+
+[Grab a release](https://github.com/humanlogio/humanlog/releases)!
 
 # Example
 
@@ -35,15 +31,6 @@ $ humanlog < /var/log/logfile.log
 ```
 
 ![2__fish___users_antoine_gocode_src_github_com_humanlogio_humanlog__fish_](https://cloud.githubusercontent.com/assets/1189716/4328545/f2330bb4-3f86-11e4-8242-4f49f6ae9efc.png)
-
-# Contributing
-
-How to help:
-
-- **support more log formats**: by submitting `human.Handler` implementations.
-- **live querying**: add support for filtering in log output in real time.
-- **charting**: some key-values have semantics that could be charted in real time. For
-  instance, durations, frequency of numeric values, etc. See the [l2met][] project.
 
 # Usage
 
@@ -61,6 +48,7 @@ AUTHOR:
    Antoine Grondin <antoinegrondin@gmail.com>
 
 COMMANDS:
+   version  Interact with humanlog versions
    help, h  Shows a list of commands or help for one command
 
 GLOBAL OPTIONS:
