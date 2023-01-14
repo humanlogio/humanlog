@@ -166,7 +166,7 @@ func checkForUpdate(ctx context.Context, cfg *config.Config, state *state.State)
 
 	updateClient := cliupdatev1connect.NewUpdateServiceClient(httpClient, apiURL)
 	res, err := updateClient.GetNextUpdate(ctx, connect.NewRequest(&cliupdatepb.GetNextUpdateRequest{
-		ProjectName:            "apictl", // "humanlog",
+		ProjectName:            "humanlog",
 		CurrentVersion:         version,
 		MachineArchitecture:    runtime.GOARCH,
 		MachineOperatingSystem: runtime.GOOS,
