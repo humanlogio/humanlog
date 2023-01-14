@@ -118,5 +118,11 @@ func (cfg State) populateEmpty(other *State) *State {
 	if out.MachineID == nil && other.MachineID != nil {
 		out.MachineID = other.MachineID
 	}
+	if out.LatestKnownVersion == nil && other.LatestKnownVersion != nil {
+		out.LatestKnownVersion = other.LatestKnownVersion
+	}
+	if out.LastestKnownVersionUpdatedAt == nil && other.LastestKnownVersionUpdatedAt != nil {
+		out.LastestKnownVersionUpdatedAt = other.LastestKnownVersionUpdatedAt
+	}
 	return &out
 }
