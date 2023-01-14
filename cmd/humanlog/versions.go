@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -96,10 +97,12 @@ func versionCmd(
 	getState func(cctx *cli.Context) *state.State,
 ) cli.Command {
 	return cli.Command{
-		Name: versionCmdName,
+		Name:  versionCmdName,
+		Usage: "Interact with humanlog versions",
 		Subcommands: cli.Commands{
 			{
-				Name: "check",
+				Name:  "check",
+				Usage: "checks whether a newer version is available",
 				Action: func(cctx *cli.Context) error {
 					ctx := getCtx(cctx)
 					cfg := getCfg(cctx)
@@ -124,7 +127,8 @@ func versionCmd(
 				},
 			},
 			{
-				Name: "update",
+				Name:  "update",
+				Usage: "self-update to the latest version",
 				Action: func(cctx *cli.Context) error {
 					ctx := getCtx(cctx)
 					cfg := getCfg(cctx)
@@ -194,8 +198,11 @@ func asyncCheckForUpdate(ctx context.Context, req *checkForUpdateReq, cfg *confi
 		defer close(out)
 		nextVersion, _, hasUpdate, err := checkForUpdate(ctx, cfg, state)
 		if err != nil {
-			// TODO: log to diagnostic file
-			log.Printf("failed to check for update")
+			if errors.Is(errors.Unwrap(err), context.Canceled) {
+				return
+			}
+			// TODO: log to diagnostic file?
+			log.Printf("failed to check for update: %v", err)
 			return
 		}
 		nexVersion, err := nextVersion.AsSemver()
