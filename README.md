@@ -42,7 +42,7 @@ USAGE:
    humanlog [global options] command [command options] [arguments...]
 
 VERSION:
-   v0.6.2
+   0.7.2+48f11b1
 
 AUTHOR:
    Antoine Grondin <antoinegrondin@gmail.com>
