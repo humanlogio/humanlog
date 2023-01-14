@@ -4,7 +4,7 @@ before:
     - go mod tidy
     - go generate ./...
 builds:
-  - main: ./cmd/humanlog/main.go
+  - main: ./cmd/humanlog/
     binary: humanlog
     env:
       - CGO_ENABLED=0
