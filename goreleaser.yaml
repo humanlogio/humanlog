@@ -1,22 +1,60 @@
-build:
-  main: ./cmd/humanlog/main.go
-  binary: humanlog
-  ldflags:
-    - -s -w -X main.versionMajor={{.Major}} -X main.versionMinor={{.Minor}} -X main.versionPatch={{.Patch}} -X main.versionPrerelease={{.Prerelease}} -X main.versionBuild={{.ShortCommit}}
-  goos:
-    - windows
-    - darwin
-    - linux
-  goarch:
-    - amd64
-    - arm64
-
+project_name: humanlog
+before:
+  hooks:
+    - go mod tidy
+    - go generate ./...
+builds:
+  - main: ./cmd/humanlog/main.go
+    binary: humanlog
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w -X main.versionMajor={{.Major}} -X main.versionMinor={{.Minor}} -X main.versionPatch={{.Patch}} -X main.versionPrerelease={{.Prerelease}} -X main.versionBuild={{.ShortCommit}}
+    goos:
+      - windows
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+release:
+  github:
+    owner: humanlogio
+    name: humanlog
+archives:
+  - name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        format: zip
 brews:
   - tap:
       owner: humanlogio
       name: homebrew-tap
-
 nfpms:
-  - maintainer: 'antoinegrondin@gmail.com'
+  - maintainer: "antoinegrondin@gmail.com"
     formats:
       - deb
+checksum:
+  name_template: "checksums.txt"
+signs:
+  - cmd: cosign
+    stdin: "{{ .Env.COSIGN_PWD }}"
+    args:
+      [
+        "sign-blob",
+        "--key=env://COSIGN_PRIVATE_KEY",
+        "--output-signature=${signature}",
+        "${artifact}",
+      ]
+    artifacts: all
+snapshot:
+  name_template: "{{ incpatch .Version }}-next"
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+# modelines, feel free to remove those if you don't want/use them:
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+# vim: set ts=2 sw=2 tw=0 fo=cnqoj
