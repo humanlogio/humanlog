@@ -31,11 +31,15 @@ func shouldCheckForUpdate(cctx *cli.Context, cfg *config.Config, state *state.St
 	if cctx.Args().First() == versionCmdName {
 		return false // check is done already
 	}
-	if !isTerminal(os.Stderr) || !isTerminal(os.Stdout) {
-		// not in interactive mode
+	if cfg.SkipCheckForUpdates != nil && *cfg.SkipCheckForUpdates {
 		return false
 	}
-	if cfg.SkipCheckForUpdates != nil && *cfg.SkipCheckForUpdates {
+	return true
+}
+
+func shouldPromptAboutUpdate() bool {
+	if !isTerminal(os.Stderr) || !isTerminal(os.Stdout) {
+		// not in interactive mode
 		return false
 	}
 	return true

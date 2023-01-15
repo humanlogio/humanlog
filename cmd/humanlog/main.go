@@ -207,8 +207,10 @@ func newApp() *cli.App {
 
 		if shouldCheckForUpdate(c, cfg, statefile) {
 			if statefile.LatestKnownVersion != nil && statefile.LatestKnownVersion.GT(semverVersion) {
-				promptToUpdate(semverVersion, *statefile.LatestKnownVersion)
 				promptedToUpdate = statefile.LatestKnownVersion
+				if shouldPromptAboutUpdate() {
+					promptToUpdate(semverVersion, *statefile.LatestKnownVersion)
+				}
 			}
 
 			req := &checkForUpdateReq{
@@ -230,7 +232,9 @@ func newApp() *cli.App {
 			if res.hasUpdate {
 				alreadyPromptedForSameUpdate := promptedToUpdate != nil && promptedToUpdate.GTE(res.sem)
 				if !alreadyPromptedForSameUpdate {
-					promptToUpdate(semverVersion, res.sem)
+					if shouldPromptAboutUpdate() {
+						promptToUpdate(semverVersion, res.sem)
+					}
 				}
 			}
 		default:
