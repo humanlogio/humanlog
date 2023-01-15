@@ -190,7 +190,7 @@ func checkForUpdate(ctx context.Context, cfg *config.Config, state *state.State)
 		return nil, nil, false, err
 	}
 	if err := updateFromResMeta(state, msg.Meta, &nextSV, &lastCheckAt); err != nil {
-		log.Printf("failed to persist internal state: %v", err)
+		logwarn("failed to persist internal state: %v", err)
 	}
 
 	return msg.NextVersion, msg.NextArtifact, currentSV.LT(nextSV), nil
@@ -206,12 +206,12 @@ func asyncCheckForUpdate(ctx context.Context, req *checkForUpdateReq, cfg *confi
 				return
 			}
 			// TODO: log to diagnostic file?
-			log.Printf("failed to check for update: %v", err)
+			logwarn("failed to check for update: %v", err)
 			return
 		}
 		nexVersion, err := nextVersion.AsSemver()
 		if err != nil {
-			log.Printf("next version is not a valid semver: %v", err)
+			logwarn("next version is not a valid semver: %v", err)
 			return
 		}
 		out <- &checkForUpdateRes{
