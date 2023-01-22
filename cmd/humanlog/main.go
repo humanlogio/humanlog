@@ -312,7 +312,7 @@ func newApp() *cli.App {
 		handlerOpts := humanlog.HandlerOptionsFrom(*cfg)
 
 		log.Print("reading stdin...")
-		if err := humanlog.Scanner(ctx, os.Stdin, sink, handlerOpts); err != nil {
+		if err := humanlog.Scan(ctx, os.Stdin, sink, handlerOpts); err != nil {
 			log.Fatalf("scanning caught an error: %v", err)
 		}
 
