@@ -2,6 +2,7 @@ package stdiosink
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"sort"
@@ -117,7 +118,7 @@ func NewStdio(w io.Writer, opts StdioOpts) *Stdio {
 	}
 }
 
-func (std *Stdio) Receive(ev *model.Event) error {
+func (std *Stdio) Receive(ctx context.Context, ev *model.Event) error {
 	if ev.Structured == nil {
 		std.lastRaw = true
 		std.lastLevel = ""

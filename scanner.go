@@ -11,11 +11,12 @@ import (
 	"github.com/humanlogio/humanlog/internal/pkg/sink"
 )
 
-// Scanner reads JSON-structured lines from src and prettify them onto dst. If
+// Scan reads JSON-structured lines from src and prettify them onto dst. If
 // the lines aren't JSON-structured, it will simply write them out with no
 // prettification.
-func Scanner(ctx context.Context, src io.Reader, sink sink.Sink, opts *HandlerOptions) error {
+func Scan(ctx context.Context, src io.Reader, sink sink.Sink, opts *HandlerOptions) error {
 	in := bufio.NewScanner(src)
+	in.Buffer(make([]byte, 1024*1024), 1024*1024)
 	in.Split(bufio.ScanLines)
 
 	var line uint64
@@ -58,7 +59,7 @@ func Scanner(ctx context.Context, src io.Reader, sink sink.Sink, opts *HandlerOp
 		default:
 			ev.Structured = nil
 		}
-		if err := sink.Receive(ev); err != nil {
+		if err := sink.Receive(ctx, ev); err != nil {
 			return err
 		}
 		select {
