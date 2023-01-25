@@ -18,7 +18,7 @@ func TestScannerLongLine(t *testing.T) {
 		{Raw: []byte(data), Structured: &model.Structured{Msg: strings.Repeat("a", 1023*1024)}},
 	}
 	sink := bufsink.NewSizedBufferedSink(100, nil)
-	err := Scan(ctx, src, sink, DefaultOptions)
+	err := Scan(ctx, src, sink, DefaultOptions())
 	require.NoError(t, err, "got %#v", err)
 	require.Equal(t, want, sink.Buffered)
 }

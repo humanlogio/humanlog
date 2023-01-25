@@ -199,7 +199,7 @@ func Test_tryZapDevPrefix(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			ev := new(model.Structured)
-			m := tryZapDevPrefix(test.logLine, ev, &JSONHandler{})
+			m := tryZapDevPrefix(test.logLine, ev, &JSONHandler{Opts: DefaultOptions()})
 
 			if m != test.wantMatch {
 				t.Error("expected the prefix to match, it did not")
@@ -429,7 +429,7 @@ func Test_tryZapDevDCPrefix(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			ev := new(model.Structured)
-			m := tryZapDevDCPrefix(test.logLine, ev, &JSONHandler{})
+			m := tryZapDevDCPrefix(test.logLine, ev, &JSONHandler{Opts: DefaultOptions()})
 
 			if m != test.wantMatch {
 				t.Error("expected the prefix to match, it did not")
