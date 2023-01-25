@@ -102,14 +102,23 @@ func (cfg Config) populateEmpty(other *Config) *Config {
 		out.Skip = other.Skip
 		out.Keep = other.Keep
 	}
-	if out.TimeFields == nil && other.TimeFields != nil {
-		out.TimeFields = other.TimeFields
+	if other.TimeFields != nil {
+		if out.TimeFields == nil {
+			out.TimeFields = ptr(make([]string, 0, len(*other.TimeFields)))
+		}
+		*out.TimeFields = append(*out.TimeFields, *other.TimeFields...)
 	}
 	if out.MessageFields == nil && other.MessageFields != nil {
-		out.MessageFields = other.MessageFields
+		if out.MessageFields == nil {
+			out.MessageFields = ptr(make([]string, 0, len(*other.MessageFields)))
+		}
+		*out.MessageFields = append(*out.MessageFields, *other.MessageFields...)
 	}
 	if out.LevelFields == nil && other.LevelFields != nil {
-		out.LevelFields = other.LevelFields
+		if out.LevelFields == nil {
+			out.LevelFields = ptr(make([]string, 0, len(*other.LevelFields)))
+		}
+		*out.LevelFields = append(*out.LevelFields, *other.LevelFields...)
 	}
 	if out.SortLongest == nil && other.SortLongest != nil {
 		out.SortLongest = other.SortLongest

@@ -110,10 +110,6 @@ func (h *JSONHandler) UnmarshalJSON(data []byte) bool {
 		return false
 	}
 
-	if h.Opts == nil {
-		h.Opts = DefaultOptions
-	}
-
 	searchJSON(raw, h.Opts.TimeFields, func(field string, value interface{}) bool {
 		var ok bool
 		h.Time, ok = tryParseTime(value)

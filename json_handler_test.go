@@ -20,9 +20,9 @@ func TestJSONHandler_UnmarshalJSON_ParsesFields(t *testing.T) {
 
 	raw := []byte(fmt.Sprintf(`{ "message": %q, "level": %q, "time": %q }`, msg, level, tm))
 
-	opts := *humanlog.DefaultOptions
+	opts := humanlog.DefaultOptions()
 
-	h := humanlog.JSONHandler{Opts: &opts}
+	h := humanlog.JSONHandler{Opts: opts}
 	ev := new(model.Structured)
 	if !h.TryHandle(raw, ev) {
 		t.Fatalf("failed to parse log level")
@@ -52,12 +52,12 @@ func TestJSONHandler_UnmarshalJSON_ParsesCustomFields(t *testing.T) {
 
 	raw := []byte(fmt.Sprintf(`{ "mymessage": %q, "mylevel": %q, "mytime": %q }`, msg, level, tm))
 
-	opts := *humanlog.DefaultOptions
+	opts := humanlog.DefaultOptions()
 	opts.LevelFields = []string{"mylevel"}
 	opts.MessageFields = []string{"mymessage"}
 	opts.TimeFields = []string{"mytime"}
 
-	h := humanlog.JSONHandler{Opts: &opts}
+	h := humanlog.JSONHandler{Opts: opts}
 
 	ev := new(model.Structured)
 	if !h.TryHandle(raw, ev) {
@@ -87,12 +87,12 @@ func TestJSONHandler_UnmarshalJSON_ParsesCustomNestedFields(t *testing.T) {
 
 	raw := []byte(fmt.Sprintf(`{ "data": { "message": %q, "level": %q, "time": %q }}`, msg, level, tm))
 
-	opts := *humanlog.DefaultOptions
+	opts := humanlog.DefaultOptions()
 	opts.LevelFields = []string{"data.level"}
 	opts.MessageFields = []string{"data.message"}
 	opts.TimeFields = []string{"data.time"}
 
-	h := humanlog.JSONHandler{Opts: &opts}
+	h := humanlog.JSONHandler{Opts: opts}
 	ev := new(model.Structured)
 	if !h.TryHandle(raw, ev) {
 		t.Fatalf("failed to handle log")
@@ -130,12 +130,12 @@ func TestJSONHandler_UnmarshalJSON_ParsesCustomMultiNestedFields(t *testing.T) {
 	  }
 	}`, msg, level, tm))
 
-	opts := *humanlog.DefaultOptions
+	opts := humanlog.DefaultOptions()
 	opts.LevelFields = []string{"data.l2.level"}
 	opts.MessageFields = []string{"data.l2.message"}
 	opts.TimeFields = []string{"data.l2.time"}
 
-	h := humanlog.JSONHandler{Opts: &opts}
+	h := humanlog.JSONHandler{Opts: opts}
 	ev := new(model.Structured)
 	if !h.TryHandle(raw, ev) {
 		t.Fatalf("failed to handle log")
