@@ -11,8 +11,10 @@ import (
 	"time"
 )
 
+type Config = ConfigV2
+
 var DefaultConfig = Config{
-	Version:             1,
+	Version:             2,
 	Skip:                ptr([]string{}),
 	Keep:                ptr([]string{}),
 	TimeFields:          ptr([]string{"time", "ts", "@timestamp", "timestamp"}),
@@ -21,13 +23,12 @@ var DefaultConfig = Config{
 	SortLongest:         ptr(true),
 	SkipUnchanged:       ptr(true),
 	Truncates:           ptr(true),
-	LightBg:             ptr(false),
 	ColorMode:           ptr("auto"),
 	TruncateLength:      ptr(15),
 	TimeFormat:          ptr(time.Stamp),
 	Interrupt:           ptr(false),
 	SkipCheckForUpdates: ptr(false),
-	Palette:             nil,
+	Themes:              nil,
 }
 
 func GetDefaultConfigFilepath() (string, error) {
@@ -77,98 +78,44 @@ func ReadConfigFile(path string, dflt *Config) (*Config, error) {
 		return dflt, nil
 	}
 	defer configFile.Close()
-	var cfg Config
-	if err := json.NewDecoder(configFile).Decode(&cfg); err != nil {
-		return nil, fmt.Errorf("decoding config file: %v", err)
+
+	data, err := ioutil.ReadAll(configFile)
+	if err != nil {
+		return nil, fmt.Errorf("reading config file: %w", err)
+	}
+
+	cfg, err := readConfigAndUpdate(data)
+	if err != nil {
+		return nil, fmt.Errorf("decoding config file: %w", err)
+	}
+	if cfg == nil {
+		cfg = new(Config)
 	}
 	return cfg.populateEmpty(dflt), nil
 }
 
-type Config struct {
-	Version             int          `json:"version"`
-	Skip                *[]string    `json:"skip"`
-	Keep                *[]string    `json:"keep"`
-	TimeFields          *[]string    `json:"time-fields"`
-	MessageFields       *[]string    `json:"message-fields"`
-	LevelFields         *[]string    `json:"level-fields"`
-	SortLongest         *bool        `json:"sort-longest"`
-	SkipUnchanged       *bool        `json:"skip-unchanged"`
-	Truncates           *bool        `json:"truncates"`
-	LightBg             *bool        `json:"light-bg"`
-	ColorMode           *string      `json:"color-mode"`
-	TruncateLength      *int         `json:"truncate-length"`
-	TimeFormat          *string      `json:"time-format"`
-	Palette             *TextPalette `json:"palette"`
-	Interrupt           *bool        `json:"interrupt"`
-	SkipCheckForUpdates *bool        `json:"skip_check_updates"`
+func readConfigAndUpdate(data []byte) (*ConfigV2, error) {
+	var versionCheck *ConfigVersioner
+	if err := json.Unmarshal(data, &versionCheck); err != nil {
+		return nil, fmt.Errorf("verifying config version: %w", err)
+	}
+	switch versionCheck.Version {
+	case 1:
+		var v1 ConfigV1
+		if err := json.Unmarshal(data, &v1); err != nil {
+			return nil, err
+		}
+		return getV2fromV1(v1), nil
+	case 2:
+		var v2 ConfigV2
+		return &v2, json.Unmarshal(data, &v2)
+	default:
+		return nil, nil
+	}
 }
 
-func (cfg Config) populateEmpty(other *Config) *Config {
-	out := *(&cfg)
-	if out.Skip == nil && out.Keep == nil {
-		// skip and keep are mutually exclusive, so these are
-		// either both set by default, or not at all
-		out.Skip = other.Skip
-		out.Keep = other.Keep
-	}
-	if out.TimeFields == nil && other.TimeFields != nil {
-		out.TimeFields = other.TimeFields
-	}
-	if out.MessageFields == nil && other.MessageFields != nil {
-		out.MessageFields = other.MessageFields
-	}
-	if out.LevelFields == nil && other.LevelFields != nil {
-		out.LevelFields = other.LevelFields
-	}
-	if out.SortLongest == nil && other.SortLongest != nil {
-		out.SortLongest = other.SortLongest
-	}
-	if out.SkipUnchanged == nil && other.SkipUnchanged != nil {
-		out.SkipUnchanged = other.SkipUnchanged
-	}
-	if out.Truncates == nil && other.Truncates != nil {
-		out.Truncates = other.Truncates
-	}
-	if out.LightBg == nil && other.LightBg != nil {
-		out.LightBg = other.LightBg
-	}
-	if out.ColorMode == nil && other.ColorMode != nil {
-		out.ColorMode = other.ColorMode
-	}
-	if out.TruncateLength == nil && other.TruncateLength != nil {
-		out.TruncateLength = other.TruncateLength
-	}
-	if out.TimeFormat == nil && other.TimeFormat != nil {
-		out.TimeFormat = other.TimeFormat
-	}
-	if out.Palette == nil && other.Palette != nil {
-		out.Palette = other.Palette
-	}
-	if out.Interrupt == nil && other.Interrupt != nil {
-		out.Interrupt = other.Interrupt
-	}
-	if out.SkipCheckForUpdates == nil && other.SkipCheckForUpdates != nil {
-		out.SkipCheckForUpdates = other.SkipCheckForUpdates
-	}
-	return &out
-}
-
-type TextPalette struct {
-	KeyColor              []string `json:"key"`
-	ValColor              []string `json:"val"`
-	TimeLightBgColor      []string `json:"time_light_bg"`
-	TimeDarkBgColor       []string `json:"time_dark_bg"`
-	MsgLightBgColor       []string `json:"msg_light_bg"`
-	MsgAbsentLightBgColor []string `json:"msg_absent_light_bg"`
-	MsgDarkBgColor        []string `json:"msg_dark_bg"`
-	MsgAbsentDarkBgColor  []string `json:"msg_absent_dark_bg"`
-	DebugLevelColor       []string `json:"debug_level"`
-	InfoLevelColor        []string `json:"info_level"`
-	WarnLevelColor        []string `json:"warn_level"`
-	ErrorLevelColor       []string `json:"error_level"`
-	PanicLevelColor       []string `json:"panic_level"`
-	FatalLevelColor       []string `json:"fatal_level"`
-	UnknownLevelColor     []string `json:"unknown_level"`
+type ConfigVersioner struct {
+	Version int `json:"version"`
 }
 
 type ColorMode int

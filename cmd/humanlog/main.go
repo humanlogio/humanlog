@@ -11,12 +11,14 @@ import (
 
 	"github.com/aybabtme/rgbterm"
 	"github.com/blang/semver"
+	"github.com/fatih/color"
 	types "github.com/humanlogio/api/go/types/v1"
 	"github.com/humanlogio/humanlog"
 	"github.com/humanlogio/humanlog/internal/pkg/config"
 	"github.com/humanlogio/humanlog/internal/pkg/sink/stdiosink"
 	"github.com/humanlogio/humanlog/internal/pkg/state"
 	"github.com/mattn/go-colorable"
+	"github.com/muesli/termenv"
 	"github.com/urfave/cli"
 )
 
@@ -76,6 +78,7 @@ func newApp() *cli.App {
 
 	skip := cli.StringSlice{}
 	keep := cli.StringSlice{}
+	highlight := cli.StringSlice{}
 
 	skipFlag := cli.StringSliceFlag{
 		Name:  "skip",
@@ -87,6 +90,12 @@ func newApp() *cli.App {
 		Name:  "keep",
 		Usage: "keys to keep when parsing a log entry",
 		Value: &keep,
+	}
+
+	highlightFlag := cli.StringSliceFlag{
+		Name:  "highlight",
+		Usage: "values to highlight in the log stream. other colors are disabled",
+		Value: &highlight,
 	}
 
 	sortLongest := cli.BoolTFlag{
@@ -118,7 +127,13 @@ func newApp() *cli.App {
 
 	lightBg := cli.BoolFlag{
 		Name:  "light-bg",
-		Usage: "use black as the base foreground color (for terminals with light backgrounds)",
+		Usage: "(deprecated, see --force-palette) use black as the base foreground color (for terminals with light backgrounds)",
+	}
+
+	forceTheme := cli.StringFlag{
+		Name:  "theme",
+		Value: "auto",
+		Usage: "one of \"light\" or \"dark\" to skip automatic theme detection and force usage of a specific theme",
 	}
 
 	timeFormat := cli.StringFlag{
@@ -247,7 +262,7 @@ func newApp() *cli.App {
 		getState = func(*cli.Context) *state.State { return statefile }
 	)
 	app.Commands = append(app.Commands, versionCmd(getCtx, getCfg, getState))
-	app.Flags = []cli.Flag{configFlag, skipFlag, keepFlag, sortLongest, skipUnchanged, truncates, truncateLength, colorFlag, lightBg, timeFormat, ignoreInterrupts, messageFieldsFlag, timeFieldsFlag, levelFieldsFlag}
+	app.Flags = []cli.Flag{configFlag, skipFlag, keepFlag, highlightFlag, sortLongest, skipUnchanged, truncates, truncateLength, colorFlag, forceTheme, timeFormat, ignoreInterrupts, messageFieldsFlag, timeFieldsFlag, levelFieldsFlag}
 	app.Action = func(c *cli.Context) error {
 		// flags overwrite config file
 		if c.IsSet(sortLongest.Name) {
@@ -263,7 +278,15 @@ func newApp() *cli.App {
 			cfg.TruncateLength = ptr(c.Int(truncateLength.Name))
 		}
 		if c.IsSet(lightBg.Name) {
-			cfg.LightBg = ptr(c.Bool(lightBg.Name))
+			logwarn("--light-bg is deprecated, humanlog now detects the appropriate theme to use by default. use --theme to force a specific color theme")
+			if c.Bool(lightBg.Name) {
+				c.Set(forceTheme.Name, "light")
+			} else {
+				c.Set(forceTheme.Name, "dark")
+			}
+		}
+		if c.IsSet(forceTheme.Name) {
+			cfg.SelectedTheme = ptr(c.String(forceTheme.Name))
 		}
 		if c.IsSet(timeFormat.Name) {
 			cfg.TimeFormat = ptr(c.String(timeFormat.Name))
@@ -276,6 +299,9 @@ func newApp() *cli.App {
 		}
 		if c.IsSet(keepFlag.Name) {
 			cfg.Keep = ptr([]string(keep))
+		}
+		if c.IsSet(highlightFlag.Name) {
+			cfg.Highlight = ptr([]string(highlight))
 		}
 		if c.IsSet(messageFieldsFlag.Name) {
 			cfg.MessageFields = ptr([]string(messageFields))
@@ -293,6 +319,25 @@ func newApp() *cli.App {
 			cfg.Interrupt = ptr(c.Bool(ignoreInterrupts.Name))
 		}
 
+		var outputOpts []termenv.
+		if cfg.ColorMode != nil {
+			colorMode, err := config.GrokColorMode(*cfg.ColorMode)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("invalid --color=%q: %v", *cfg.ColorMode, err))
+			}
+			switch colorMode {
+			case config.ColorModeOff:
+				color.NoColor = true
+				output.Profile
+			case config.ColorModeOn:
+				color.NoColor = false
+			default:
+				// 'Auto' default is applied as a global variable initializer function, so nothing
+				// to do here.
+			}
+		}
+		output := termenv.NewOutput(os.Stdout)
+
 		// apply the config
 		if *cfg.Interrupt {
 			signal.Ignore(os.Interrupt)
@@ -302,13 +347,50 @@ func newApp() *cli.App {
 			fatalf(c, "can only use one of %q and %q", skipFlag.Name, keepFlag.Name)
 		}
 
-		sinkOpts, errs := stdiosink.StdioOptsFrom(*cfg)
+		lightTheme := !output.HasDarkBackground()
+		if cfg.SelectedTheme != nil {
+			switch *cfg.SelectedTheme {
+			case "light":
+				lightTheme = true
+			case "dark":
+				lightTheme = false
+			case "auto":
+				// no change
+			default:
+				fatalf(c, `theme must be one of "light", "dark" or "auto"`)
+			}
+		}
+		var (
+			theme *stdiosink.Theme
+			err   error
+		)
+		if lightTheme {
+			if cfg.Themes != nil && cfg.Themes.Light != nil {
+				theme, err = stdiosink.ThemeFrom(output, cfg.Themes.Light)
+				if err != nil {
+					fatalf(c, `theme "light" in config file is invalid: %v`, err)
+				}
+			} else {
+				theme = stdiosink.DefaultLightTheme(output)
+			}
+		} else {
+			if cfg.Themes != nil && cfg.Themes.Dark != nil {
+				theme, err = stdiosink.ThemeFrom(output, cfg.Themes.Dark)
+				if err != nil {
+					fatalf(c, `theme "dark" in config file is invalid: %v`, err)
+				}
+			} else {
+				theme = stdiosink.DefaultDarkTheme(output)
+			}
+		}
+
+		sinkOpts, errs := stdiosink.StdioOptsFrom(*cfg, *theme)
 		if len(errs) > 0 {
 			for _, err := range errs {
 				log.Printf("config error: %v", err)
 			}
 		}
-		sink := stdiosink.NewStdio(colorable.NewColorableStdout(), sinkOpts)
+		sink := stdiosink.NewStdio(output, sinkOpts)
 		handlerOpts := humanlog.HandlerOptionsFrom(*cfg)
 
 		log.Print("reading stdin...")

@@ -1,6 +1,9 @@
 # github.com/aybabtme/rgbterm v0.0.0-20170906152045-cc83f3b3ce59
 ## explicit
 github.com/aybabtme/rgbterm
+# github.com/aymanbagabas/go-osc52 v1.0.3
+## explicit; go 1.16
+github.com/aymanbagabas/go-osc52
 # github.com/blang/semver v3.5.1+incompatible
 ## explicit
 github.com/blang/semver
@@ -31,15 +34,27 @@ github.com/humanlogio/api/go/types/v1
 # github.com/kr/logfmt v0.0.0-20210122060352-19f9bcb100e6
 ## explicit; go 1.14
 github.com/kr/logfmt
+# github.com/lucasb-eyer/go-colorful v1.2.0
+## explicit; go 1.12
+github.com/lucasb-eyer/go-colorful
 # github.com/mattn/go-colorable v0.1.13
 ## explicit; go 1.15
 github.com/mattn/go-colorable
 # github.com/mattn/go-isatty v0.0.16
 ## explicit; go 1.15
 github.com/mattn/go-isatty
+# github.com/mattn/go-runewidth v0.0.14
+## explicit; go 1.9
+github.com/mattn/go-runewidth
+# github.com/muesli/termenv v0.13.0
+## explicit; go 1.13
+github.com/muesli/termenv
 # github.com/pmezard/go-difflib v1.0.0
 ## explicit
 github.com/pmezard/go-difflib/difflib
+# github.com/rivo/uniseg v0.2.0
+## explicit; go 1.12
+github.com/rivo/uniseg
 # github.com/russross/blackfriday/v2 v2.1.0
 ## explicit
 github.com/russross/blackfriday/v2
@@ -52,7 +67,9 @@ github.com/stretchr/testify/require
 github.com/urfave/cli
 # golang.org/x/sys v0.1.0
 ## explicit; go 1.17
+golang.org/x/sys/internal/unsafeheader
 golang.org/x/sys/unix
+golang.org/x/sys/windows
 # google.golang.org/protobuf v1.28.1
 ## explicit; go 1.11
 google.golang.org/protobuf/encoding/protojson

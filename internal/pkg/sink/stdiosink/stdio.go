@@ -4,16 +4,15 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"sort"
 	"strings"
 	"text/tabwriter"
 	"time"
 
-	"github.com/fatih/color"
 	"github.com/humanlogio/humanlog/internal/pkg/config"
 	"github.com/humanlogio/humanlog/internal/pkg/model"
 	"github.com/humanlogio/humanlog/internal/pkg/sink"
+	"github.com/muesli/termenv"
 )
 
 var (
@@ -21,7 +20,8 @@ var (
 )
 
 type Stdio struct {
-	w    io.Writer
+	output *termenv.Output
+
 	opts StdioOpts
 
 	lastRaw   bool
@@ -32,31 +32,25 @@ type Stdio struct {
 type StdioOpts struct {
 	Keep           map[string]struct{}
 	Skip           map[string]struct{}
+	Highlight      map[string]struct{}
 	SkipUnchanged  bool
 	SortLongest    bool
 	TimeFormat     string
 	TruncateLength int
 	Truncates      bool
 
-	ColorFlag string
-	LightBg   bool
-	Palette   Palette
+	Theme Theme
 }
 
 var DefaultStdioOpts = StdioOpts{
-
 	SkipUnchanged:  true,
 	SortLongest:    true,
 	TimeFormat:     time.Stamp,
 	TruncateLength: 15,
 	Truncates:      true,
-
-	ColorFlag: "auto",
-	LightBg:   false,
-	Palette:   DefaultPalette,
 }
 
-func StdioOptsFrom(cfg config.Config) (StdioOpts, []error) {
+func StdioOptsFrom(cfg config.Config, theme Theme) (StdioOpts, []error) {
 	var errs []error
 	opts := DefaultStdioOpts
 	if cfg.Skip != nil {
@@ -64,6 +58,9 @@ func StdioOptsFrom(cfg config.Config) (StdioOpts, []error) {
 	}
 	if cfg.Keep != nil {
 		opts.Keep = sliceToSet(cfg.Keep)
+	}
+	if cfg.Highlight != nil {
+		opts.Highlight = sliceToSet(cfg.Highlight)
 	}
 	if cfg.SortLongest != nil {
 		opts.SortLongest = *cfg.SortLongest
@@ -74,48 +71,32 @@ func StdioOptsFrom(cfg config.Config) (StdioOpts, []error) {
 	if cfg.Truncates != nil {
 		opts.Truncates = *cfg.Truncates
 	}
-	if cfg.LightBg != nil {
-		opts.LightBg = *cfg.LightBg
-	}
 	if cfg.TruncateLength != nil {
 		opts.TruncateLength = *cfg.TruncateLength
 	}
 	if cfg.TimeFormat != nil {
 		opts.TimeFormat = *cfg.TimeFormat
 	}
-	if cfg.ColorMode != nil {
-		colorMode, err := config.GrokColorMode(*cfg.ColorMode)
-		if err != nil {
-			errs = append(errs, fmt.Errorf("invalid --color=%q: %v", *cfg.ColorMode, err))
-		}
-		switch colorMode {
-		case config.ColorModeOff:
-			color.NoColor = true
-		case config.ColorModeOn:
-			color.NoColor = false
-		default:
-			// 'Auto' default is applied as a global variable initializer function, so nothing
-			// to do here.
-		}
-	}
-	if cfg.Palette != nil {
-		pl, err := PaletteFrom(*cfg.Palette)
-		if err != nil {
-			errs = append(errs, fmt.Errorf("invalid palette, using default one: %v", err))
-		} else {
-			opts.Palette = *pl
-		}
-	}
+	opts.Theme = theme
 	return opts, errs
 }
 
 var _ sink.Sink = (*Stdio)(nil)
 
-func NewStdio(w io.Writer, opts StdioOpts) *Stdio {
+func NewStdio(output *termenv.Output, opts StdioOpts) *Stdio {
 	return &Stdio{
-		w:    w,
-		opts: opts,
+		output: output,
+		opts:   opts,
 	}
+}
+
+func containsHighlight(ev *model.Event, hl map[string]struct{}) bool {
+	for key := range hl {
+		if bytes.Contains(ev.Raw, []byte(key)) {
+			return true
+		}
+	}
+	return false
 }
 
 func (std *Stdio) Receive(ctx context.Context, ev *model.Event) error {
@@ -123,10 +104,11 @@ func (std *Stdio) Receive(ctx context.Context, ev *model.Event) error {
 		std.lastRaw = true
 		std.lastLevel = ""
 		std.lastKVs = nil
-		if _, err := std.w.Write(ev.Raw); err != nil {
+
+		if _, err := std.output.Write(ev.Raw); err != nil {
 			return err
 		}
-		if _, err := std.w.Write(eol[:]); err != nil {
+		if _, err := std.output.Write(eol[:]); err != nil {
 			return err
 		}
 		return nil
@@ -136,50 +118,31 @@ func (std *Stdio) Receive(ctx context.Context, ev *model.Event) error {
 	buf := bytes.NewBuffer(nil)
 	out := tabwriter.NewWriter(buf, 0, 1, 0, '\t', 0)
 
-	var (
-		msgColor       *color.Color
-		msgAbsentColor *color.Color
-	)
-	if std.opts.LightBg {
-		msgColor = std.opts.Palette.MsgLightBgColor
-		msgAbsentColor = std.opts.Palette.MsgAbsentLightBgColor
-	} else {
-		msgColor = std.opts.Palette.MsgDarkBgColor
-		msgAbsentColor = std.opts.Palette.MsgAbsentDarkBgColor
-	}
+	// shouldHighlight := true
+	// if len(std.opts.Highlight) > 0 {
+	// 	shouldHighlight = containsHighlight(ev, std.opts.Highlight)
+	// }
+	msgColor := std.opts.Theme.MsgBgColor
+	msgAbsentColor := std.opts.Theme.MsgAbsentBgColor
+	timeColor := std.opts.Theme.TimeBgColor
+
 	var msg string
 	if data.Msg == "" {
-		msg = msgAbsentColor.Sprint("<no msg>")
+		msg = msgAbsentColor("<no msg>")
 	} else {
-		msg = msgColor.Sprint(data.Msg)
+		msg = msgColor(data.Msg)
 	}
 
 	lvl := strings.ToUpper(data.Level)[:imin(4, len(data.Level))]
 	var level string
-	switch strings.ToLower(data.Level) {
-	case "debug":
-		level = std.opts.Palette.DebugLevelColor.Sprint(lvl)
-	case "info":
-		level = std.opts.Palette.InfoLevelColor.Sprint(lvl)
-	case "warn", "warning":
-		level = std.opts.Palette.WarnLevelColor.Sprint(lvl)
-	case "error":
-		level = std.opts.Palette.ErrorLevelColor.Sprint(lvl)
-	case "fatal", "panic":
-		level = std.opts.Palette.FatalLevelColor.Sprint(lvl)
-	default:
-		level = std.opts.Palette.UnknownLevelColor.Sprint(lvl)
-	}
-
-	var timeColor *color.Color
-	if std.opts.LightBg {
-		timeColor = std.opts.Palette.TimeLightBgColor
-	} else {
-		timeColor = std.opts.Palette.TimeDarkBgColor
-	}
+	// if !shouldHighlight {
+	// level = dim(lvl)
+	// } else {
+	level = std.colorForLevel(lvl)(lvl)
+	// }
 
 	_, _ = fmt.Fprintf(out, "%s |%s| %s\t %s",
-		timeColor.Sprint(data.Time.Format(std.opts.TimeFormat)),
+		timeColor(data.Time.Format(std.opts.TimeFormat)),
 		level,
 		msg,
 		strings.Join(std.joinKVs(data, "="), "\t "),
@@ -191,7 +154,7 @@ func (std *Stdio) Receive(ctx context.Context, ev *model.Event) error {
 
 	buf.Write(eol[:])
 
-	if _, err := buf.WriteTo(std.w); err != nil {
+	if _, err := buf.WriteTo(std.output); err != nil {
 		return err
 	}
 
@@ -203,6 +166,23 @@ func (std *Stdio) Receive(ctx context.Context, ev *model.Event) error {
 	std.lastLevel = ev.Structured.Level
 	std.lastKVs = kvs
 	return nil
+}
+
+func (std *Stdio) colorForLevel(lvl string) ColorerFn {
+	switch strings.ToLower(lvl) {
+	case "debug":
+		return std.opts.Theme.DebugLevelColor
+	case "info":
+		return std.opts.Theme.InfoLevelColor
+	case "warn", "warning":
+		return std.opts.Theme.WarnLevelColor
+	case "error":
+		return std.opts.Theme.ErrorLevelColor
+	case "fatal", "panic":
+		return std.opts.Theme.FatalLevelColor
+	default:
+		return std.opts.Theme.UnknownLevelColor
+	}
 }
 
 func (std *Stdio) joinKVs(data *model.Structured, sep string) []string {
@@ -221,7 +201,7 @@ func (std *Stdio) joinKVs(data *model.Structured, sep string) []string {
 				continue
 			}
 		}
-		kstr := std.opts.Palette.KeyColor.Sprint(k)
+		kstr := std.opts.Theme.KeyColor(k)
 
 		var vstr string
 		if std.opts.Truncates && len(v) > std.opts.TruncateLength {
@@ -229,7 +209,7 @@ func (std *Stdio) joinKVs(data *model.Structured, sep string) []string {
 		} else {
 			vstr = v
 		}
-		vstr = std.opts.Palette.ValColor.Sprint(vstr)
+		vstr = std.opts.Theme.ValColor(vstr)
 		kv = append(kv, kstr+sep+vstr)
 	}
 

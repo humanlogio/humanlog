@@ -2,123 +2,165 @@ package stdiosink
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/fatih/color"
 	"github.com/humanlogio/humanlog/internal/pkg/config"
+	"github.com/muesli/termenv"
 )
 
-var DefaultPalette = Palette{
-	KeyColor:              color.New(color.FgGreen),
-	ValColor:              color.New(color.FgHiWhite),
-	TimeLightBgColor:      color.New(color.FgBlack),
-	TimeDarkBgColor:       color.New(color.FgWhite),
-	MsgLightBgColor:       color.New(color.FgBlack),
-	MsgAbsentLightBgColor: color.New(color.FgHiBlack),
-	MsgDarkBgColor:        color.New(color.FgHiWhite),
-	MsgAbsentDarkBgColor:  color.New(color.FgWhite),
-	DebugLevelColor:       color.New(color.FgMagenta),
-	InfoLevelColor:        color.New(color.FgCyan),
-	WarnLevelColor:        color.New(color.FgYellow),
-	ErrorLevelColor:       color.New(color.FgRed),
-	PanicLevelColor:       color.New(color.BgRed),
-	FatalLevelColor:       color.New(color.BgHiRed, color.FgHiWhite),
-	UnknownLevelColor:     color.New(color.FgMagenta),
+var (
+	DefaultLightTheme = func(output *termenv.Output) *Theme {
+		return &Theme{
+			KeyColor:          fatihColorerFn(color.New(color.FgGreen)),
+			ValColor:          fatihColorerFn(color.New(color.FgHiWhite)),
+			TimeBgColor:       fatihColorerFn(color.New(color.FgBlack)),
+			MsgBgColor:        fatihColorerFn(color.New(color.FgBlack)),
+			MsgAbsentBgColor:  fatihColorerFn(color.New(color.FgHiBlack)),
+			DebugLevelColor:   fatihColorerFn(color.New(color.FgMagenta)),
+			InfoLevelColor:    fatihColorerFn(color.New(color.FgCyan)),
+			WarnLevelColor:    fatihColorerFn(color.New(color.FgYellow)),
+			ErrorLevelColor:   fatihColorerFn(color.New(color.FgRed)),
+			PanicLevelColor:   fatihColorerFn(color.New(color.BgRed)),
+			FatalLevelColor:   fatihColorerFn(color.New(color.BgHiRed, color.FgHiWhite)),
+			UnknownLevelColor: fatihColorerFn(color.New(color.FgMagenta)),
+		}
+	}
+	DefaultDarkTheme = func(output *termenv.Output) *Theme {
+		return &Theme{
+			KeyColor:          fatihColorerFn(color.New(color.FgGreen)),
+			ValColor:          fatihColorerFn(color.New(color.FgHiWhite)),
+			TimeBgColor:       fatihColorerFn(color.New(color.FgWhite)),
+			MsgBgColor:        fatihColorerFn(color.New(color.FgHiWhite)),
+			MsgAbsentBgColor:  fatihColorerFn(color.New(color.FgWhite)),
+			DebugLevelColor:   fatihColorerFn(color.New(color.FgMagenta)),
+			InfoLevelColor:    fatihColorerFn(color.New(color.FgCyan)),
+			WarnLevelColor:    fatihColorerFn(color.New(color.FgYellow)),
+			ErrorLevelColor:   fatihColorerFn(color.New(color.FgRed)),
+			PanicLevelColor:   fatihColorerFn(color.New(color.BgRed)),
+			FatalLevelColor:   fatihColorerFn(color.New(color.BgHiRed, color.FgHiWhite)),
+			UnknownLevelColor: fatihColorerFn(color.New(color.FgMagenta)),
+		}
+	}
+)
+
+type ColorerFn func(string) string
+
+func fatihColorerFn(cl *color.Color) ColorerFn {
+	return func(in string) string { return cl.Sprint(in) }
 }
 
-type Palette struct {
-	KeyColor              *color.Color
-	ValColor              *color.Color
-	TimeLightBgColor      *color.Color
-	TimeDarkBgColor       *color.Color
-	MsgLightBgColor       *color.Color
-	MsgAbsentLightBgColor *color.Color
-	MsgDarkBgColor        *color.Color
-	MsgAbsentDarkBgColor  *color.Color
-	DebugLevelColor       *color.Color
-	InfoLevelColor        *color.Color
-	WarnLevelColor        *color.Color
-	ErrorLevelColor       *color.Color
-	PanicLevelColor       *color.Color
-	FatalLevelColor       *color.Color
-	UnknownLevelColor     *color.Color
+type Theme struct {
+	KeyColor          ColorerFn
+	ValColor          ColorerFn
+	TimeBgColor       ColorerFn
+	MsgBgColor        ColorerFn
+	MsgAbsentBgColor  ColorerFn
+	DebugLevelColor   ColorerFn
+	InfoLevelColor    ColorerFn
+	WarnLevelColor    ColorerFn
+	ErrorLevelColor   ColorerFn
+	PanicLevelColor   ColorerFn
+	FatalLevelColor   ColorerFn
+	UnknownLevelColor ColorerFn
 }
 
-func PaletteFrom(pl config.TextPalette) (*Palette, error) {
+func ThemeFrom(output *termenv.Output, theme *config.TextThemeV2) (*Theme, error) {
 	var err error
-	out := &Palette{}
-	out.KeyColor, err = attributesToColor(pl.KeyColor)
+	out := &Theme{}
+	out.KeyColor, err = parseColor(output, theme.KeyColor)
 	if err != nil {
-		return nil, fmt.Errorf("in palette key %q, %v", "key", err)
+		return nil, fmt.Errorf("in theme key %q, %v", "key", err)
 	}
-	out.ValColor, err = attributesToColor(pl.ValColor)
+	out.ValColor, err = parseColor(output, theme.ValColor)
 	if err != nil {
-		return nil, fmt.Errorf("in palette key %q, %v", "val", err)
+		return nil, fmt.Errorf("in theme key %q, %v", "val", err)
 	}
-	out.TimeLightBgColor, err = attributesToColor(pl.TimeLightBgColor)
+	out.TimeBgColor, err = parseColor(output, theme.TimeColor)
 	if err != nil {
-		return nil, fmt.Errorf("in palette key %q, %v", "time_light_bg", err)
+		return nil, fmt.Errorf("in theme key %q, %v", "time", err)
 	}
-	out.TimeDarkBgColor, err = attributesToColor(pl.TimeDarkBgColor)
+	out.MsgBgColor, err = parseColor(output, theme.MsgColor)
 	if err != nil {
-		return nil, fmt.Errorf("in palette key %q, %v", "time_dark_bg", err)
+		return nil, fmt.Errorf("in theme key %q, %v", "msg", err)
 	}
-	out.MsgLightBgColor, err = attributesToColor(pl.MsgLightBgColor)
+	out.MsgAbsentBgColor, err = parseColor(output, theme.MsgAbsentColor)
 	if err != nil {
-		return nil, fmt.Errorf("in palette key %q, %v", "msg_light_bg", err)
+		return nil, fmt.Errorf("in theme key %q, %v", "msg_absent", err)
 	}
-	out.MsgAbsentLightBgColor, err = attributesToColor(pl.MsgAbsentLightBgColor)
+	out.DebugLevelColor, err = parseColor(output, theme.DebugLevelColor)
 	if err != nil {
-		return nil, fmt.Errorf("in palette key %q, %v", "msg_absent_light_bg", err)
+		return nil, fmt.Errorf("in theme key %q, %v", "debug_level", err)
 	}
-	out.MsgDarkBgColor, err = attributesToColor(pl.MsgDarkBgColor)
+	out.InfoLevelColor, err = parseColor(output, theme.InfoLevelColor)
 	if err != nil {
-		return nil, fmt.Errorf("in palette key %q, %v", "msg_dark_bg", err)
+		return nil, fmt.Errorf("in theme key %q, %v", "info_level", err)
 	}
-	out.MsgAbsentDarkBgColor, err = attributesToColor(pl.MsgAbsentDarkBgColor)
+	out.WarnLevelColor, err = parseColor(output, theme.WarnLevelColor)
 	if err != nil {
-		return nil, fmt.Errorf("in palette key %q, %v", "msg_absent_dark_bg", err)
+		return nil, fmt.Errorf("in theme key %q, %v", "warn_level", err)
 	}
-	out.DebugLevelColor, err = attributesToColor(pl.DebugLevelColor)
+	out.ErrorLevelColor, err = parseColor(output, theme.ErrorLevelColor)
 	if err != nil {
-		return nil, fmt.Errorf("in palette key %q, %v", "debug_level", err)
+		return nil, fmt.Errorf("in theme key %q, %v", "error_level", err)
 	}
-	out.InfoLevelColor, err = attributesToColor(pl.InfoLevelColor)
+	out.PanicLevelColor, err = parseColor(output, theme.PanicLevelColor)
 	if err != nil {
-		return nil, fmt.Errorf("in palette key %q, %v", "info_level", err)
+		return nil, fmt.Errorf("in theme key %q, %v", "panic_level", err)
 	}
-	out.WarnLevelColor, err = attributesToColor(pl.WarnLevelColor)
+	out.FatalLevelColor, err = parseColor(output, theme.FatalLevelColor)
 	if err != nil {
-		return nil, fmt.Errorf("in palette key %q, %v", "warn_level", err)
+		return nil, fmt.Errorf("in theme key %q, %v", "fatal_level", err)
 	}
-	out.ErrorLevelColor, err = attributesToColor(pl.ErrorLevelColor)
+	out.UnknownLevelColor, err = parseColor(output, theme.UnknownLevelColor)
 	if err != nil {
-		return nil, fmt.Errorf("in palette key %q, %v", "error_level", err)
-	}
-	out.PanicLevelColor, err = attributesToColor(pl.PanicLevelColor)
-	if err != nil {
-		return nil, fmt.Errorf("in palette key %q, %v", "panic_level", err)
-	}
-	out.FatalLevelColor, err = attributesToColor(pl.FatalLevelColor)
-	if err != nil {
-		return nil, fmt.Errorf("in palette key %q, %v", "fatal_level", err)
-	}
-	out.UnknownLevelColor, err = attributesToColor(pl.UnknownLevelColor)
-	if err != nil {
-		return nil, fmt.Errorf("in palette key %q, %v", "unknown_level", err)
+		return nil, fmt.Errorf("in theme key %q, %v", "unknown_level", err)
 	}
 	return out, err
 }
 
-func attributesToColor(names []string) (*color.Color, error) {
-	attrs := make([]color.Attribute, 0, len(names))
-	for _, name := range names {
-		attr, ok := colorAttributeIndex[name]
-		if !ok {
-			return nil, fmt.Errorf("color %q isn't supported", name)
+func parseColor(output *termenv.Output, csnames string) (ColorerFn, error) {
+	names := strings.Split(csnames, ",")
+
+	switch len(names) {
+	case 0:
+		return func(s string) string { return s }, nil
+	case 1:
+		name := names[0]
+		if attr, ok := colorAttributeIndex[name]; ok {
+			return fatihColorerFn(color.New(attr)), nil
 		}
-		attrs = append(attrs, attr)
+		c := output.Color(name)
+		if c == nil {
+			return nil, fmt.Errorf("not a valid color: %q", name)
+		}
+		return func(s string) string {
+			return output.String(s).Foreground(c).String()
+		}, nil
+	case 2:
+		fg, bg := names[0], names[1]
+		fgAttr, ok := fgColorAttributeIndex[fg]
+		if ok {
+			bgAttr, ok := bgColorAttributeIndex[bg]
+			if !ok {
+				return nil, fmt.Errorf("color %q isn't supported", bg)
+			}
+			return fatihColorerFn(color.New(fgAttr, bgAttr)), nil
+		}
+		fgc := output.Color(fg)
+		if fgc == nil {
+			return nil, fmt.Errorf("not a valid foreground color: %q", fg)
+		}
+		bgc := output.Color(bg)
+		if bgc == nil {
+			return nil, fmt.Errorf("not a valid background color: %q", bg)
+		}
+		return func(s string) string {
+			return output.String(s).Foreground(fgc).Background(bgc).String()
+		}, nil
+	default:
+		return nil, fmt.Errorf("colors must be in the form \"foreground,background\", e.g.: \"#ffffff,#0000ff\"")
 	}
-	return color.New(attrs...), nil
 }
 
 var colorAttributeIndex = map[string]color.Attribute{
@@ -154,4 +196,42 @@ var colorAttributeIndex = map[string]color.Attribute{
 	"bg_hi_magenta": color.BgHiMagenta,
 	"bg_hi_cyan":    color.BgHiCyan,
 	"bg_hi_white":   color.BgHiWhite,
+}
+
+var fgColorAttributeIndex = map[string]color.Attribute{
+	"black":      color.FgBlack,
+	"red":        color.FgRed,
+	"green":      color.FgGreen,
+	"yellow":     color.FgYellow,
+	"blue":       color.FgBlue,
+	"magenta":    color.FgMagenta,
+	"cyan":       color.FgCyan,
+	"white":      color.FgWhite,
+	"hi_black":   color.FgHiBlack,
+	"hi_red":     color.FgHiRed,
+	"hi_green":   color.FgHiGreen,
+	"hi_yellow":  color.FgHiYellow,
+	"hi_blue":    color.FgHiBlue,
+	"hi_magenta": color.FgHiMagenta,
+	"hi_cyan":    color.FgHiCyan,
+	"hi_white":   color.FgHiWhite,
+}
+
+var bgColorAttributeIndex = map[string]color.Attribute{
+	"black":      color.BgBlack,
+	"red":        color.BgRed,
+	"green":      color.BgGreen,
+	"yellow":     color.BgYellow,
+	"blue":       color.BgBlue,
+	"magenta":    color.BgMagenta,
+	"cyan":       color.BgCyan,
+	"white":      color.BgWhite,
+	"hi_black":   color.BgHiBlack,
+	"hi_red":     color.BgHiRed,
+	"hi_green":   color.BgHiGreen,
+	"hi_yellow":  color.BgHiYellow,
+	"hi_blue":    color.BgHiBlue,
+	"hi_magenta": color.BgHiMagenta,
+	"hi_cyan":    color.BgHiCyan,
+	"hi_white":   color.BgHiWhite,
 }
