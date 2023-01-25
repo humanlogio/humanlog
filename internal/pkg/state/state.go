@@ -68,7 +68,8 @@ func WriteStateFile(path string, state *State) error {
 	if err != nil {
 		return fmt.Errorf("marshaling state file: %v", err)
 	}
-	newf, err := os.CreateTemp(os.TempDir(), "humanlog_statefile")
+
+	newf, err := os.CreateTemp(filepath.Dir(path), "humanlog_statefile")
 	if err != nil {
 		return fmt.Errorf("creating temporary file for statefile: %w", err)
 	}
