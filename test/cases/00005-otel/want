@@ -1,0 +1,7 @@
+Jan 24 10:37:28 |INFO| starting consumerLoop... sdk.version=1.24.0 sdk.name=sdk-telemetry telemetry.sdk.name=opentelemetry service.name=unknown_service:acme deployment.environment=development service.instance.id=cf7r9p8j3ee3onr3dsk0
+Jan 24 10:37:29 |INFO| starting pooling 
+Jan 24 10:37:29 |INFO| looking for unassigned owner resource count pool_size=0
+Jan 24 10:37:29 |INFO| looking for unassigned owner resource count 
+Jan 24 10:37:29 |INFO| server starting server.addr=[::]:2206
+Jan 24 10:37:29 |INFO| pool is full, nothing to do pool_size=0
+Jan 24 10:37:29 |INFO| pool is full, nothing to do 

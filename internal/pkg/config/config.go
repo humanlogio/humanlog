@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,9 +14,9 @@ var DefaultConfig = Config{
 	Version:             1,
 	Skip:                ptr([]string{}),
 	Keep:                ptr([]string{}),
-	TimeFields:          ptr([]string{"time", "ts", "@timestamp", "timestamp"}),
-	MessageFields:       ptr([]string{"message", "msg"}),
-	LevelFields:         ptr([]string{"level", "lvl", "loglevel", "severity"}),
+	TimeFields:          ptr([]string{"time", "ts", "@timestamp", "timestamp", "Timestamp"}),
+	MessageFields:       ptr([]string{"message", "msg", "Body"}),
+	LevelFields:         ptr([]string{"level", "lvl", "loglevel", "severity", "SeverityText"}),
 	SortLongest:         ptr(true),
 	SkipUnchanged:       ptr(true),
 	Truncates:           ptr(true),
@@ -65,14 +64,6 @@ func ReadConfigFile(path string, dflt *Config) (*Config, error) {
 	if err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
 			return nil, fmt.Errorf("opening config file %q: %v", path, err)
-		}
-
-		cfgContent, err := json.MarshalIndent(dflt, "", "\t")
-		if err != nil {
-			return nil, fmt.Errorf("marshaling default config file: %v", err)
-		}
-		if err := ioutil.WriteFile(path, cfgContent, 0600); err != nil {
-			return nil, fmt.Errorf("writing default to config file %q: %v", path, err)
 		}
 		return dflt, nil
 	}

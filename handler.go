@@ -12,11 +12,14 @@ type Handler interface {
 	logfmt.Handler
 }
 
-var DefaultOptions = &HandlerOptions{
-	TimeFields:    []string{"time", "ts", "@timestamp", "timestamp"},
-	MessageFields: []string{"message", "msg"},
-	LevelFields:   []string{"level", "lvl", "loglevel", "severity"},
-}
+var DefaultOptions = func() *HandlerOptions {
+	opts := &HandlerOptions{
+		TimeFields:    []string{"time", "ts", "@timestamp", "timestamp", "Timestamp"},
+		MessageFields: []string{"message", "msg", "Body"},
+		LevelFields:   []string{"level", "lvl", "loglevel", "severity", "SeverityLevel"},
+	}
+	return opts
+}()
 
 type HandlerOptions struct {
 	TimeFields    []string
