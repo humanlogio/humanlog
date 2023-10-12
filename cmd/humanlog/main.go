@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"runtime"
 	"strconv"
+	"strings"
 
 	"github.com/aybabtme/rgbterm"
 	"github.com/blang/semver"
@@ -277,20 +278,20 @@ func newApp() *cli.App {
 		if c.IsSet(keepFlag.Name) {
 			cfg.Keep = ptr([]string(keep))
 		}
-		if c.IsSet(messageFieldsFlag.Name) {
+		if c.IsSet(strings.Split(messageFieldsFlag.Name, ",")[0]) {
 			cfg.MessageFields = ptr([]string(messageFields))
 		}
 
-		if c.IsSet(timeFieldsFlag.Name) {
+		if c.IsSet(strings.Split(timeFieldsFlag.Name, ",")[0]) {
 			cfg.TimeFields = ptr([]string(timeFields))
 		}
 
-		if c.IsSet(levelFieldsFlag.Name) {
+		if c.IsSet(strings.Split(levelFieldsFlag.Name, ",")[0]) {
 			cfg.LevelFields = ptr([]string(levelFields))
 		}
 
-		if c.IsSet(ignoreInterrupts.Name) {
-			cfg.Interrupt = ptr(c.Bool(ignoreInterrupts.Name))
+		if c.IsSet(strings.Split(ignoreInterrupts.Name, ",")[0]) {
+			cfg.Interrupt = ptr(c.Bool(strings.Split(ignoreInterrupts.Name, ",")[0]))
 		}
 
 		// apply the config
