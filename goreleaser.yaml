@@ -36,17 +36,17 @@ nfpms:
       - deb
 checksum:
   name_template: "checksums.txt"
-signs:
-  - cmd: cosign
-    stdin: "{{ .Env.COSIGN_PWD }}"
-    args:
-      [
-        "sign-blob",
-        "--key=env://COSIGN_PRIVATE_KEY",
-        "--output-signature=${signature}",
-        "${artifact}",
-      ]
-    artifacts: all
+# signs:
+#   - cmd: cosign
+#     stdin: "{{ .Env.COSIGN_PWD }}"
+#     args:
+#       [
+#         "sign-blob",
+#         "--key=env://COSIGN_PRIVATE_KEY",
+#         "--output-signature=${signature}",
+#         "${artifact}",
+#       ]
+#     artifacts: all
 snapshot:
   name_template: "{{ incpatch .Version }}-next"
 changelog:
