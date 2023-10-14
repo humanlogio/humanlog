@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/humanlogio/humanlog/internal/pkg/model"
-	"github.com/humanlogio/humanlog/internal/pkg/sink/bufsink"
+	"github.com/humanlogio/humanlog/sink/bufsink"
 	"github.com/stretchr/testify/require"
 )
 
