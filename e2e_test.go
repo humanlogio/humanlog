@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/humanlogio/humanlog/internal/pkg/config"
-	"github.com/humanlogio/humanlog/internal/pkg/sink/stdiosink"
+	"github.com/humanlogio/humanlog/sink/stdiosink"
 )
 
 func TestHarness(t *testing.T) {
