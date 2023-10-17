@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/humanlogio/humanlog/internal/pkg/model"
-	"github.com/humanlogio/humanlog/sink"
+	"github.com/humanlogio/humanlog/pkg/sink"
 )
 
 // Scan reads JSON-structured lines from src and prettify them onto dst. If
