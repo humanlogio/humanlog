@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/humanlogio/humanlog/internal/pkg/model"
-	"github.com/humanlogio/humanlog/sink"
+	"github.com/humanlogio/humanlog/pkg/sink"
 )
 
 type SizedBuffer struct {

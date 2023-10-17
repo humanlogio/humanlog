@@ -16,7 +16,7 @@ import (
 	"github.com/humanlogio/humanlog"
 	"github.com/humanlogio/humanlog/internal/pkg/config"
 	"github.com/humanlogio/humanlog/internal/pkg/state"
-	"github.com/humanlogio/humanlog/sink/stdiosink"
+	"github.com/humanlogio/humanlog/pkg/sink/stdiosink"
 	"github.com/mattn/go-colorable"
 	"github.com/urfave/cli"
 )

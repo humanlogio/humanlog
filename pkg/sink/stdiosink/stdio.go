@@ -13,7 +13,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/humanlogio/humanlog/internal/pkg/config"
 	"github.com/humanlogio/humanlog/internal/pkg/model"
-	"github.com/humanlogio/humanlog/sink"
+	"github.com/humanlogio/humanlog/pkg/sink"
 )
 
 var (
