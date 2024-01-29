@@ -1,7 +1,9 @@
 package humanlog
 
 import (
+	"fmt"
 	"testing"
+	"time"
 )
 
 func TestTimeParseFloat64(t *testing.T) {
@@ -33,4 +35,42 @@ func TestTimeParseFloat64(t *testing.T) {
 			t.Fatal(tm.UnixNano())
 		}
 	})
+}
+
+func TestTryParseFloatTime(t *testing.T) {
+	testTime := time.Now()
+
+	t.Run("microseconds", func(t *testing.T) {
+		actualTime, ok := tryParseTime(fmt.Sprintf("%d", testTime.UnixMicro()))
+		if !ok {
+			t.Fatal("time not parsed")
+		}
+
+		if actualTime.UnixMicro() != testTime.UnixMicro() {
+			t.Fatalf("time not equal: %d != %d", actualTime.UnixMicro(), testTime.UnixMicro())
+		}
+	})
+
+	t.Run("milliseconds", func(t *testing.T) {
+		actualTime, ok := tryParseTime(fmt.Sprintf("%d", testTime.UnixMilli()))
+		if !ok {
+			t.Fatal("time not parsed")
+		}
+
+		if actualTime.UnixMilli() != testTime.UnixMilli() {
+			t.Fatalf("time not equal: %d != %d", actualTime.UnixMilli(), testTime.UnixMilli())
+		}
+	})
+
+	t.Run("seconds", func(t *testing.T) {
+		actualTime, ok := tryParseTime(fmt.Sprintf("%d", testTime.Unix()))
+		if !ok {
+			t.Fatal("time not parsed")
+		}
+
+		if actualTime.Unix() != testTime.Unix() {
+			t.Fatalf("time not equal: %d != %d", actualTime.Unix(), testTime.Unix())
+		}
+	})
+
 }
