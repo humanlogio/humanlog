@@ -1,6 +1,7 @@
 package humanlog
 
 import (
+	"strconv"
 	"time"
 )
 
@@ -53,6 +54,11 @@ func tryParseTime(value interface{}) (time.Time, bool) {
 			if err == nil {
 				return t, true
 			}
+		}
+		// try to parse unix time number from string
+		floatVal, err := strconv.ParseFloat(v, 64)
+		if err == nil {
+			return parseTimeFloat64(floatVal), true
 		}
 	case float32:
 		return parseTimeFloat64(float64(v)), true
