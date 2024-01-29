@@ -1,6 +1,7 @@
 package humanlog
 
 import (
+	"strconv"
 	"time"
 )
 
@@ -46,24 +47,29 @@ func parseTimeFloat64(value float64) time.Time {
 func tryParseTime(value interface{}) (time.Time, bool) {
 	var t time.Time
 	var err error
-	switch value.(type) {
+	switch typedVal := value.(type) {
 	case string:
 		for _, layout := range formats {
-			t, err = time.Parse(layout, value.(string))
+			t, err = time.Parse(layout, typedVal)
 			if err == nil {
 				return t, true
 			}
 		}
+		// try to parse unix time number from string
+		floatVal, err := strconv.ParseFloat(typedVal, 64)
+		if err == nil {
+			return parseTimeFloat64(floatVal), true
+		}
 	case float32:
-		return parseTimeFloat64(float64(value.(float32))), true
+		return parseTimeFloat64(float64(typedVal)), true
 	case float64:
-		return parseTimeFloat64(value.(float64)), true
+		return parseTimeFloat64(typedVal), true
 	case int:
-		return parseTimeFloat64(float64(value.(int))), true
+		return parseTimeFloat64(float64(typedVal)), true
 	case int32:
-		return parseTimeFloat64(float64(value.(int32))), true
+		return parseTimeFloat64(float64(typedVal)), true
 	case int64:
-		return parseTimeFloat64(float64(value.(int64))), true
+		return parseTimeFloat64(float64(typedVal)), true
 	}
 	return t, false
 }
