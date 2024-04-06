@@ -57,6 +57,9 @@ func (h *LogfmtHandler) UnmarshalLogfmt(data []byte) bool {
 			val := dec.Value()
 			if h.Time.IsZero() {
 				foundTime := checkEachUntilFound(h.Opts.TimeFields, func(field string) bool {
+					if !bytes.Equal(key, []byte(field)) {
+						return false
+					}
 					time, ok := tryParseTime(string(val))
 					if ok {
 						h.Time = time
