@@ -1,2 +1,4 @@
 *.ignore
 dist
+debug.log
+logdump.json

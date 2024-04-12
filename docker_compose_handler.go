@@ -3,7 +3,7 @@ package humanlog
 import (
 	"regexp"
 
-	"github.com/humanlogio/humanlog/internal/pkg/model"
+	typesv1 "github.com/humanlogio/api/go/types/v1"
 )
 
 // dcLogsPrefixRe parses out a prefix like 'web_1 | ' from docker-compose
@@ -16,14 +16,14 @@ import (
 var dcLogsPrefixRe = regexp.MustCompile("^(?:\x1b\\[\\d+m)?(?P<service_name>[a-zA-Z0-9._-]+)\\s+\\|(?:\x1b\\[0m)? (?P<rest_of_line>.*)$")
 
 type handler interface {
-	TryHandle([]byte, *model.Structured) bool
+	TryHandle([]byte, *typesv1.StructuredLogEvent) bool
 }
 
-func tryDockerComposePrefix(d []byte, ev *model.Structured, nextHandler handler) bool {
+func tryDockerComposePrefix(d []byte, ev *typesv1.StructuredLogEvent, nextHandler handler) bool {
 	matches := dcLogsPrefixRe.FindSubmatch(d)
 	if matches != nil {
 		if nextHandler.TryHandle(matches[2], ev) {
-			ev.KVs = append(ev.KVs, model.KV{
+			ev.Kvs = append(ev.Kvs, &typesv1.KV{
 				Key: "service", Value: string(matches[1]),
 			})
 			return true
@@ -33,7 +33,7 @@ func tryDockerComposePrefix(d []byte, ev *model.Structured, nextHandler handler)
 		switch h := nextHandler.(type) {
 		case *JSONHandler:
 			if tryZapDevDCPrefix(matches[2], ev, h) {
-				ev.KVs = append(ev.KVs, model.KV{
+				ev.Kvs = append(ev.Kvs, &typesv1.KV{
 					Key: "service", Value: string(matches[1]),
 				})
 				return true

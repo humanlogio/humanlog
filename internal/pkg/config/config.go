@@ -92,6 +92,13 @@ type Config struct {
 	Palette             *TextPalette `json:"palette"`
 	Interrupt           *bool        `json:"interrupt"`
 	SkipCheckForUpdates *bool        `json:"skip_check_updates"`
+
+	ExperimentalFeatures *Features `json:"experimental_features"`
+}
+
+type Features struct {
+	SendLogsToCloud      *bool `json:"send_logs_to_cloud"`
+	ServeLocalhostOnPort *int  `json:"serve_localhost_on_port"`
 }
 
 func (cfg Config) populateEmpty(other *Config) *Config {

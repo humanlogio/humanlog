@@ -7,7 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/humanlogio/humanlog/internal/pkg/model"
+	typesv1 "github.com/humanlogio/api/go/types/v1"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // JSONHandler can handle logs emitted by logrus.TextFormatter loggers.
@@ -66,16 +67,16 @@ func (h *JSONHandler) clear() {
 }
 
 // TryHandle tells if this line was handled by this handler.
-func (h *JSONHandler) TryHandle(d []byte, out *model.Structured) bool {
+func (h *JSONHandler) TryHandle(d []byte, out *typesv1.StructuredLogEvent) bool {
 	h.clear()
 	if !h.UnmarshalJSON(d) {
 		return false
 	}
-	out.Time = h.Time
+	out.Timestamp = timestamppb.New(h.Time)
 	out.Msg = h.Message
-	out.Level = h.Level
+	out.Lvl = h.Level
 	for k, v := range h.Fields {
-		out.KVs = append(out.KVs, model.KV{Key: k, Value: v})
+		out.Kvs = append(out.Kvs, &typesv1.KV{Key: k, Value: v})
 	}
 	return true
 }

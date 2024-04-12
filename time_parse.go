@@ -4,7 +4,7 @@ import (
 	"time"
 )
 
-var formats = []string{
+var TimeFormats = []string{
 	"2006-01-02 15:04:05.999999999 -0700 MST",
 	"2006-01-02 15:04:05",
 	"2006-01-02T15:04:05-0700",
@@ -48,7 +48,7 @@ func tryParseTime(value interface{}) (time.Time, bool) {
 	var err error
 	switch value.(type) {
 	case string:
-		for _, layout := range formats {
+		for _, layout := range TimeFormats {
 			t, err = time.Parse(layout, value.(string))
 			if err == nil {
 				return t, true

@@ -5,7 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/humanlogio/humanlog/internal/pkg/model"
+	typesv1 "github.com/humanlogio/api/go/types/v1"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // Zap Development logs are made up of the following separated by whitespace
@@ -28,17 +29,17 @@ var zapDevDCLogsPrefixRe = regexp.MustCompile("^(?P<timestamp>\\d{4}-\\d{2}-\\d{
 // time package which is worrisome but this pattern does work.
 const someRFC = "2006-01-02T15:04:05.000-0700"
 
-func tryZapDevPrefix(d []byte, ev *model.Structured, handler *JSONHandler) bool {
+func tryZapDevPrefix(d []byte, ev *typesv1.StructuredLogEvent, handler *JSONHandler) bool {
 	if matches := zapDevLogsPrefixRe.FindSubmatch(d); matches != nil {
 		if handler.TryHandle(matches[5], ev) {
 			t, err := time.Parse(someRFC, string(matches[1]))
 			if err != nil {
 				return false
 			}
-			ev.Time = t
-			ev.Level = strings.ToLower(string(matches[2]))
+			ev.Timestamp = timestamppb.New(t)
+			ev.Lvl = strings.ToLower(string(matches[2]))
 			ev.Msg = string(matches[4])
-			ev.KVs = append(ev.KVs, model.KV{
+			ev.Kvs = append(ev.Kvs, &typesv1.KV{
 				Key: "caller", Value: string(matches[3]),
 			})
 			return true
@@ -51,19 +52,19 @@ func tryZapDevPrefix(d []byte, ev *model.Structured, handler *JSONHandler) bool 
 // time package which is worrisome but this pattern does work.
 const someOtherRFC = "2006-01-02T15:04:05.000Z"
 
-func tryZapDevDCPrefix(d []byte, ev *model.Structured, handler *JSONHandler) bool {
+func tryZapDevDCPrefix(d []byte, ev *typesv1.StructuredLogEvent, handler *JSONHandler) bool {
 	if matches := zapDevDCLogsPrefixRe.FindSubmatch(d); matches != nil {
 		if handler.TryHandle(matches[5], ev) {
 			t, err := time.Parse(someOtherRFC, string(matches[1]))
 			if err != nil {
 				return false
 			}
-			ev.Time = t
-			ev.Level = strings.ToLower(string(matches[2]))
+			ev.Timestamp = timestamppb.New(t)
+			ev.Lvl = strings.ToLower(string(matches[2]))
 			ev.Msg = string(matches[4])
-			ev.KVs = append(
-				ev.KVs,
-				model.KV{Key: "caller", Value: string(matches[3])},
+			ev.Kvs = append(
+				ev.Kvs,
+				&typesv1.KV{Key: "caller", Value: string(matches[3])},
 			)
 			return true
 		}

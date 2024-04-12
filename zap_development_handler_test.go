@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/humanlogio/humanlog/internal/pkg/model"
+	typesv1 "github.com/humanlogio/api/go/types/v1"
 )
 
 var logLinesByLevel = map[string][]byte{
@@ -198,7 +198,7 @@ func Test_tryZapDevPrefix(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			ev := new(model.Structured)
+			ev := new(typesv1.StructuredLogEvent)
 			m := tryZapDevPrefix(test.logLine, ev, &JSONHandler{Opts: DefaultOptions()})
 
 			if m != test.wantMatch {
@@ -209,11 +209,11 @@ func Test_tryZapDevPrefix(t *testing.T) {
 				return
 			}
 
-			if !test.wantTime.Equal(ev.Time) {
-				t.Errorf("want %v, got %v; want != got", test.wantTime, ev.Time)
+			if !test.wantTime.Equal(ev.Timestamp.AsTime()) {
+				t.Errorf("want %v, got %v; want != got", test.wantTime, ev.Timestamp.AsTime())
 			}
-			if ev.Level != test.wantLevel {
-				t.Errorf("want %q, got %q; want != got", test.wantLevel, ev.Level)
+			if ev.Lvl != test.wantLevel {
+				t.Errorf("want %q, got %q; want != got", test.wantLevel, ev.Lvl)
 			}
 			if ev.Msg != test.wantMessage {
 				t.Errorf("want %q, got %q; want != got", test.wantMessage, ev.Msg)
@@ -226,8 +226,8 @@ func Test_tryZapDevPrefix(t *testing.T) {
 	}
 }
 
-func findFieldValue(ev *model.Structured, field string) string {
-	for _, kv := range ev.KVs {
+func findFieldValue(ev *typesv1.StructuredLogEvent, field string) string {
+	for _, kv := range ev.Kvs {
 		if kv.Key == field {
 			return kv.Value
 		}
@@ -428,7 +428,7 @@ func Test_tryZapDevDCPrefix(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			ev := new(model.Structured)
+			ev := new(typesv1.StructuredLogEvent)
 			m := tryZapDevDCPrefix(test.logLine, ev, &JSONHandler{Opts: DefaultOptions()})
 
 			if m != test.wantMatch {
@@ -439,11 +439,11 @@ func Test_tryZapDevDCPrefix(t *testing.T) {
 				return
 			}
 
-			if !test.wantTime.Equal(ev.Time) {
-				t.Errorf("want %v, got %v; want != got", test.wantTime, ev.Time)
+			if !test.wantTime.Equal(ev.Timestamp.AsTime()) {
+				t.Errorf("want %v, got %v; want != got", test.wantTime, ev.Timestamp.AsTime())
 			}
-			if ev.Level != test.wantLevel {
-				t.Errorf("want %q, got %q; want != got", test.wantLevel, ev.Level)
+			if ev.Lvl != test.wantLevel {
+				t.Errorf("want %q, got %q; want != got", test.wantLevel, ev.Lvl)
 			}
 			if ev.Msg != test.wantMessage {
 				t.Errorf("want %q, got %q; want != got", test.wantMessage, ev.Msg)

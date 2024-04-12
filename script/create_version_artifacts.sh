@@ -76,17 +76,22 @@ function get_project_name() {
     jq < dist/metadata.json -r '.project_name'
 }
 
+function get_channel() {
+    echo "latest"
+}
+
 function main() {
     owner=humanlogio
     project=$(get_project_name)
     tag=$(get_version)
+    channel=$(get_channel)
 
     list_archives | handle_archive
 
     apictl create published-version \
             --project ${project} \
-            --channel latest \
+            --channel ${channel} \
             --version $(get_version)
 }
 
-main 
+main

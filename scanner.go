@@ -5,10 +5,10 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"time"
 
-	"github.com/humanlogio/humanlog/internal/pkg/model"
+	typesv1 "github.com/humanlogio/api/go/types/v1"
 	"github.com/humanlogio/humanlog/pkg/sink"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // Scan reads JSON-structured lines from src and prettify them onto dst. If
@@ -24,8 +24,8 @@ func Scan(ctx context.Context, src io.Reader, sink sink.Sink, opts *HandlerOptio
 	logfmtEntry := LogfmtHandler{Opts: opts}
 	jsonEntry := JSONHandler{Opts: opts}
 
-	ev := new(model.Event)
-	data := new(model.Structured)
+	ev := new(typesv1.LogEvent)
+	data := new(typesv1.StructuredLogEvent)
 	ev.Structured = data
 
 	for in.Scan() {
@@ -36,11 +36,9 @@ func Scan(ctx context.Context, src io.Reader, sink sink.Sink, opts *HandlerOptio
 		if ev.Structured == nil {
 			ev.Structured = data
 		}
-		data.Time = time.Time{}
-		data.Msg = ""
-		data.Level = ""
-		data.KVs = data.KVs[:0]
+		data.Reset()
 		ev.Raw = lineData
+		ev.ParsedAt = timestamppb.Now()
 
 		// remove that pesky syslog crap
 		lineData = bytes.TrimPrefix(lineData, []byte("@cee: "))

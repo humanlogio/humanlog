@@ -1,0 +1,44 @@
+project_name: humanlog-dev
+version: 2
+before:
+  hooks:
+    - go mod tidy
+    - go generate ./...
+builds:
+  - main: ./cmd/humanlog/
+    binary: humanlog
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w -X main.versionMajor={{.Major}} -X main.versionMinor={{.Minor}} -X main.versionPatch={{.Patch}} -X main.versionPrerelease={{.Prerelease}} -X main.versionBuild={{.ShortCommit}} -X main.defaultApiAddr="https://api.humanlog.dev"
+    goos:
+      # - windows
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+release:
+  github:
+    owner: humanlogio
+    name: humanlog
+  target_commitish: "{{ .Commit }}"
+  prerelease: true
+archives:
+  - name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        format: zip
+checksum:
+  name_template: "checksums.txt"
+snapshot:
+  version_template: "{{ incpatch .Version }}-next.{{ .Timestamp }}.{{ .ShortCommit }}"
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+# modelines, feel free to remove those if you don't want/use them:
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+# vim: set ts=2 sw=2 tw=0 fo=cnqoj
