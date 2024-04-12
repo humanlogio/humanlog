@@ -5,9 +5,9 @@
 package cliupdatev1connect
 
 import (
+	connect "connectrpc.com/connect"
 	context "context"
 	errors "errors"
-	connect_go "github.com/bufbuild/connect-go"
 	v1 "github.com/humanlogio/api/go/svc/cliupdate/v1"
 	http "net/http"
 	strings "strings"
@@ -18,16 +18,35 @@ import (
 // generated with a version of connect newer than the one compiled into your binary. You can fix the
 // problem by either regenerating this code with an older version of connect or updating the connect
 // version compiled into your binary.
-const _ = connect_go.IsAtLeastVersion0_1_0
+const _ = connect.IsAtLeastVersion1_13_0
 
 const (
 	// UpdateServiceName is the fully-qualified name of the UpdateService service.
 	UpdateServiceName = "svc.cliupdate.v1.UpdateService"
 )
 
+// These constants are the fully-qualified names of the RPCs defined in this package. They're
+// exposed at runtime as Spec.Procedure and as the final two segments of the HTTP route.
+//
+// Note that these are different from the fully-qualified method names used by
+// google.golang.org/protobuf/reflect/protoreflect. To convert from these constants to
+// reflection-formatted method names, remove the leading slash and convert the remaining slash to a
+// period.
+const (
+	// UpdateServiceGetNextUpdateProcedure is the fully-qualified name of the UpdateService's
+	// GetNextUpdate RPC.
+	UpdateServiceGetNextUpdateProcedure = "/svc.cliupdate.v1.UpdateService/GetNextUpdate"
+)
+
+// These variables are the protoreflect.Descriptor objects for the RPCs defined in this package.
+var (
+	updateServiceServiceDescriptor             = v1.File_svc_cliupdate_v1_service_proto.Services().ByName("UpdateService")
+	updateServiceGetNextUpdateMethodDescriptor = updateServiceServiceDescriptor.Methods().ByName("GetNextUpdate")
+)
+
 // UpdateServiceClient is a client for the svc.cliupdate.v1.UpdateService service.
 type UpdateServiceClient interface {
-	GetNextUpdate(context.Context, *connect_go.Request[v1.GetNextUpdateRequest]) (*connect_go.Response[v1.GetNextUpdateResponse], error)
+	GetNextUpdate(context.Context, *connect.Request[v1.GetNextUpdateRequest]) (*connect.Response[v1.GetNextUpdateResponse], error)
 }
 
 // NewUpdateServiceClient constructs a client for the svc.cliupdate.v1.UpdateService service. By
@@ -37,30 +56,31 @@ type UpdateServiceClient interface {
 //
 // The URL supplied here should be the base URL for the Connect or gRPC server (for example,
 // http://api.acme.com or https://acme.com/grpc).
-func NewUpdateServiceClient(httpClient connect_go.HTTPClient, baseURL string, opts ...connect_go.ClientOption) UpdateServiceClient {
+func NewUpdateServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...connect.ClientOption) UpdateServiceClient {
 	baseURL = strings.TrimRight(baseURL, "/")
 	return &updateServiceClient{
-		getNextUpdate: connect_go.NewClient[v1.GetNextUpdateRequest, v1.GetNextUpdateResponse](
+		getNextUpdate: connect.NewClient[v1.GetNextUpdateRequest, v1.GetNextUpdateResponse](
 			httpClient,
-			baseURL+"/svc.cliupdate.v1.UpdateService/GetNextUpdate",
-			opts...,
+			baseURL+UpdateServiceGetNextUpdateProcedure,
+			connect.WithSchema(updateServiceGetNextUpdateMethodDescriptor),
+			connect.WithClientOptions(opts...),
 		),
 	}
 }
 
 // updateServiceClient implements UpdateServiceClient.
 type updateServiceClient struct {
-	getNextUpdate *connect_go.Client[v1.GetNextUpdateRequest, v1.GetNextUpdateResponse]
+	getNextUpdate *connect.Client[v1.GetNextUpdateRequest, v1.GetNextUpdateResponse]
 }
 
 // GetNextUpdate calls svc.cliupdate.v1.UpdateService.GetNextUpdate.
-func (c *updateServiceClient) GetNextUpdate(ctx context.Context, req *connect_go.Request[v1.GetNextUpdateRequest]) (*connect_go.Response[v1.GetNextUpdateResponse], error) {
+func (c *updateServiceClient) GetNextUpdate(ctx context.Context, req *connect.Request[v1.GetNextUpdateRequest]) (*connect.Response[v1.GetNextUpdateResponse], error) {
 	return c.getNextUpdate.CallUnary(ctx, req)
 }
 
 // UpdateServiceHandler is an implementation of the svc.cliupdate.v1.UpdateService service.
 type UpdateServiceHandler interface {
-	GetNextUpdate(context.Context, *connect_go.Request[v1.GetNextUpdateRequest]) (*connect_go.Response[v1.GetNextUpdateResponse], error)
+	GetNextUpdate(context.Context, *connect.Request[v1.GetNextUpdateRequest]) (*connect.Response[v1.GetNextUpdateResponse], error)
 }
 
 // NewUpdateServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -68,19 +88,26 @@ type UpdateServiceHandler interface {
 //
 // By default, handlers support the Connect, gRPC, and gRPC-Web protocols with the binary Protobuf
 // and JSON codecs. They also support gzip compression.
-func NewUpdateServiceHandler(svc UpdateServiceHandler, opts ...connect_go.HandlerOption) (string, http.Handler) {
-	mux := http.NewServeMux()
-	mux.Handle("/svc.cliupdate.v1.UpdateService/GetNextUpdate", connect_go.NewUnaryHandler(
-		"/svc.cliupdate.v1.UpdateService/GetNextUpdate",
+func NewUpdateServiceHandler(svc UpdateServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
+	updateServiceGetNextUpdateHandler := connect.NewUnaryHandler(
+		UpdateServiceGetNextUpdateProcedure,
 		svc.GetNextUpdate,
-		opts...,
-	))
-	return "/svc.cliupdate.v1.UpdateService/", mux
+		connect.WithSchema(updateServiceGetNextUpdateMethodDescriptor),
+		connect.WithHandlerOptions(opts...),
+	)
+	return "/svc.cliupdate.v1.UpdateService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case UpdateServiceGetNextUpdateProcedure:
+			updateServiceGetNextUpdateHandler.ServeHTTP(w, r)
+		default:
+			http.NotFound(w, r)
+		}
+	})
 }
 
 // UnimplementedUpdateServiceHandler returns CodeUnimplemented from all methods.
 type UnimplementedUpdateServiceHandler struct{}
 
-func (UnimplementedUpdateServiceHandler) GetNextUpdate(context.Context, *connect_go.Request[v1.GetNextUpdateRequest]) (*connect_go.Response[v1.GetNextUpdateResponse], error) {
-	return nil, connect_go.NewError(connect_go.CodeUnimplemented, errors.New("svc.cliupdate.v1.UpdateService.GetNextUpdate is not implemented"))
+func (UnimplementedUpdateServiceHandler) GetNextUpdate(context.Context, *connect.Request[v1.GetNextUpdateRequest]) (*connect.Response[v1.GetNextUpdateResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("svc.cliupdate.v1.UpdateService.GetNextUpdate is not implemented"))
 }

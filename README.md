@@ -14,7 +14,7 @@ brew install humanlog
 ## On linux (and macOS)
 
 ```bash
-curl -L "https://humanlog.io/install.sh" | sh
+curl -sSL "https://humanlog.io/install.sh" | sh
 ```
 
 ## Otherwise

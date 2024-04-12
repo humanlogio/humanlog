@@ -3,13 +3,15 @@ package sink
 import (
 	"context"
 
-	"github.com/humanlogio/humanlog/internal/pkg/model"
+	typesv1 "github.com/humanlogio/api/go/types/v1"
 )
 
 type Sink interface {
-	Receive(ctx context.Context, ev *model.Event) error
+	Receive(ctx context.Context, ev *typesv1.LogEvent) error
+	Flush(ctx context.Context) error
 }
 
 type BatchSink interface {
-	ReceiveBatch(ctx context.Context, evs []model.Event) error
+	ReceiveBatch(ctx context.Context, evs []*typesv1.LogEvent) error
+	Flush(ctx context.Context) error
 }

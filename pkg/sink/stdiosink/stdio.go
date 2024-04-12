@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/fatih/color"
+	typesv1 "github.com/humanlogio/api/go/types/v1"
 	"github.com/humanlogio/humanlog/internal/pkg/config"
-	"github.com/humanlogio/humanlog/internal/pkg/model"
 	"github.com/humanlogio/humanlog/pkg/sink"
 )
 
@@ -118,7 +118,11 @@ func NewStdio(w io.Writer, opts StdioOpts) *Stdio {
 	}
 }
 
-func (std *Stdio) Receive(ctx context.Context, ev *model.Event) error {
+func (std *Stdio) Flush(ctx context.Context) error {
+	return nil
+}
+
+func (std *Stdio) Receive(ctx context.Context, ev *typesv1.LogEvent) error {
 	if ev.Structured == nil {
 		std.lastRaw = true
 		std.lastLevel = ""
@@ -154,9 +158,9 @@ func (std *Stdio) Receive(ctx context.Context, ev *model.Event) error {
 		msg = msgColor.Sprint(data.Msg)
 	}
 
-	lvl := strings.ToUpper(data.Level)[:imin(4, len(data.Level))]
+	lvl := strings.ToUpper(data.Lvl)[:imin(4, len(data.Lvl))]
 	var level string
-	switch strings.ToLower(data.Level) {
+	switch strings.ToLower(data.Lvl) {
 	case "debug":
 		level = std.opts.Palette.DebugLevelColor.Sprint(lvl)
 	case "info":
@@ -179,7 +183,7 @@ func (std *Stdio) Receive(ctx context.Context, ev *model.Event) error {
 	}
 
 	_, _ = fmt.Fprintf(out, "%s |%s| %s\t %s",
-		timeColor.Sprint(data.Time.Format(std.opts.TimeFormat)),
+		timeColor.Sprint(data.Timestamp.AsTime().Format(std.opts.TimeFormat)),
 		level,
 		msg,
 		strings.Join(std.joinKVs(data, "="), "\t "),
@@ -195,22 +199,22 @@ func (std *Stdio) Receive(ctx context.Context, ev *model.Event) error {
 		return err
 	}
 
-	kvs := make(map[string]string, len(data.KVs))
-	for _, kv := range data.KVs {
+	kvs := make(map[string]string, len(data.Kvs))
+	for _, kv := range data.Kvs {
 		kvs[kv.Key] = kv.Value
 	}
 	std.lastRaw = false
-	std.lastLevel = ev.Structured.Level
+	std.lastLevel = ev.Structured.Lvl
 	std.lastKVs = kvs
 	return nil
 }
 
-func (std *Stdio) joinKVs(data *model.Structured, sep string) []string {
-	wasSameLevel := std.lastLevel == data.Level
+func (std *Stdio) joinKVs(data *typesv1.StructuredLogEvent, sep string) []string {
+	wasSameLevel := std.lastLevel == data.Lvl
 	skipUnchanged := !std.lastRaw && std.opts.SkipUnchanged && wasSameLevel
 
-	kv := make([]string, 0, len(data.KVs))
-	for _, pair := range data.KVs {
+	kv := make([]string, 0, len(data.Kvs))
+	for _, pair := range data.Kvs {
 		k, v := pair.Key, pair.Value
 		if !std.opts.shouldShowKey(k) {
 			continue

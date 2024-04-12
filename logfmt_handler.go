@@ -6,7 +6,8 @@ import (
 	"time"
 
 	"github.com/go-logfmt/logfmt"
-	"github.com/humanlogio/humanlog/internal/pkg/model"
+	typesv1 "github.com/humanlogio/api/go/types/v1"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // LogfmtHandler can handle logs emmited by logrus.TextFormatter loggers.
@@ -27,7 +28,7 @@ func (h *LogfmtHandler) clear() {
 }
 
 // CanHandle tells if this line can be handled by this handler.
-func (h *LogfmtHandler) TryHandle(d []byte, out *model.Structured) bool {
+func (h *LogfmtHandler) TryHandle(d []byte, out *typesv1.StructuredLogEvent) bool {
 	if !bytes.ContainsRune(d, '=') {
 		return false
 	}
@@ -35,11 +36,11 @@ func (h *LogfmtHandler) TryHandle(d []byte, out *model.Structured) bool {
 	if !h.UnmarshalLogfmt(d) {
 		return false
 	}
-	out.Time = h.Time
+	out.Timestamp = timestamppb.New(h.Time)
 	out.Msg = h.Message
-	out.Level = h.Level
+	out.Lvl = h.Level
 	for k, v := range h.Fields {
-		out.KVs = append(out.KVs, model.KV{Key: k, Value: v})
+		out.Kvs = append(out.Kvs, &typesv1.KV{Key: k, Value: v})
 	}
 	return true
 }

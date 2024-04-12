@@ -25,7 +25,7 @@ var logLevel = func() loglevel {
 	case "error":
 		return errorlvl
 	default:
-		return errorlvl
+		return infolvl
 	}
 }()
 

@@ -9,18 +9,27 @@ import (
 	"time"
 
 	"github.com/blang/semver"
+	typesv1 "github.com/humanlogio/api/go/types/v1"
 )
 
 var DefaultState = State{
 	Version: 1,
 }
 
-func GetDefaultStateFilepath() (string, error) {
+func GetDefaultStateDirpath() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return "", fmt.Errorf("$HOME not set, can't determine a state file path")
+		return "", fmt.Errorf("$HOME not set, can't determine a state dir path")
 	}
 	stateDirpath := filepath.Join(home, ".state", "humanlog")
+	return stateDirpath, nil
+}
+
+func GetDefaultStateFilepath() (string, error) {
+	stateDirpath, err := GetDefaultStateDirpath()
+	if err != nil {
+		return "", err
+	}
 	stateFilepath := filepath.Join(stateDirpath, "state.json")
 	dfi, err := os.Stat(stateDirpath)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -101,6 +110,13 @@ type State struct {
 	MachineID                    *int64          `json:"machine_id"`
 	LatestKnownVersion           *semver.Version `json:"latest_known_version,omitempty"`
 	LastestKnownVersionUpdatedAt *time.Time      `json:"latest_known_version_updated_at"`
+
+	IngestionToken *typesv1.AccountToken `json:"ingestion_token,omitempty"`
+
+	// preferences set in the CLI/TUI when querying
+	CurrentOrgID     *int64 `json:"current_org_id,omitempty"`
+	CurrentAccountID *int64 `json:"current_account_id,omitempty"`
+	CurrentMachineID *int64 `json:"current_machine_id,omitempty"`
 
 	// unexported
 	path string

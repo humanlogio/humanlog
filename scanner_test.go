@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/humanlogio/humanlog/internal/pkg/model"
+	typesv1 "github.com/humanlogio/api/go/types/v1"
 	"github.com/humanlogio/humanlog/pkg/sink/bufsink"
 	"github.com/stretchr/testify/require"
 )
@@ -14,8 +14,8 @@ func TestScannerLongLine(t *testing.T) {
 	data := `{"msg":"` + strings.Repeat("a", 1023*1024) + `"}`
 	ctx := context.Background()
 	src := strings.NewReader(data)
-	want := []model.Event{
-		{Raw: []byte(data), Structured: &model.Structured{Msg: strings.Repeat("a", 1023*1024)}},
+	want := []*typesv1.LogEvent{
+		{Raw: []byte(data), Structured: &typesv1.StructuredLogEvent{Msg: strings.Repeat("a", 1023*1024)}},
 	}
 	sink := bufsink.NewSizedBufferedSink(100, nil)
 	err := Scan(ctx, src, sink, DefaultOptions())

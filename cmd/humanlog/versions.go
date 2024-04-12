@@ -5,13 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"runtime"
 	"time"
 
+	"connectrpc.com/connect"
 	"github.com/blang/semver"
-	"github.com/bufbuild/connect-go"
 	"github.com/fatih/color"
 	cliupdatepb "github.com/humanlogio/api/go/svc/cliupdate/v1"
 	"github.com/humanlogio/api/go/svc/cliupdate/v1/cliupdatev1connect"
@@ -19,6 +20,7 @@ import (
 	"github.com/humanlogio/humanlog/internal/pkg/config"
 	"github.com/humanlogio/humanlog/internal/pkg/selfupdate"
 	"github.com/humanlogio/humanlog/internal/pkg/state"
+	"github.com/humanlogio/humanlog/pkg/auth"
 	"github.com/mattn/go-isatty"
 	"github.com/urfave/cli"
 )
@@ -43,10 +45,6 @@ func shouldPromptAboutUpdate() bool {
 		return false
 	}
 	return true
-}
-
-var httpClient = &http.Client{
-	Transport: &http.Transport{},
 }
 
 func reqMeta(st *state.State) *types.ReqMeta {
@@ -97,8 +95,12 @@ const versionCmdName = "version"
 
 func versionCmd(
 	getCtx func(cctx *cli.Context) context.Context,
+	getLogger func(cctx *cli.Context) *slog.Logger,
 	getCfg func(cctx *cli.Context) *config.Config,
 	getState func(cctx *cli.Context) *state.State,
+	getTokenSource func(cctx *cli.Context) *auth.UserRefreshableTokenSource,
+	getAPIUrl func(cctx *cli.Context) string,
+	getHTTPClient func(*cli.Context) *http.Client,
 ) cli.Command {
 	return cli.Command{
 		Name:  versionCmdName,
@@ -109,9 +111,13 @@ func versionCmd(
 				Usage: "checks whether a newer version is available",
 				Action: func(cctx *cli.Context) error {
 					ctx := getCtx(cctx)
+					ll := getLogger(cctx)
 					cfg := getCfg(cctx)
 					state := getState(cctx)
-					nextVersion, nextArtifact, hasUpdate, err := checkForUpdate(ctx, cfg, state)
+					tokenSource := getTokenSource(cctx)
+					apiURL := getAPIUrl(cctx)
+					httpClient := getHTTPClient(cctx)
+					nextVersion, nextArtifact, hasUpdate, err := checkForUpdate(ctx, ll, cfg, state, apiURL, httpClient, tokenSource)
 					if err != nil {
 						return err
 					}
@@ -135,9 +141,13 @@ func versionCmd(
 				Usage: "self-update to the latest version",
 				Action: func(cctx *cli.Context) error {
 					ctx := getCtx(cctx)
+					ll := getLogger(cctx)
 					cfg := getCfg(cctx)
 					state := getState(cctx)
-					_, _, hasUpdate, err := checkForUpdate(ctx, cfg, state)
+					tokenSource := getTokenSource(cctx)
+					apiURL := getAPIUrl(cctx)
+					httpClient := getHTTPClient(cctx)
+					_, _, hasUpdate, err := checkForUpdate(ctx, ll, cfg, state, apiURL, httpClient, tokenSource)
 					if err != nil {
 						return err
 					}
@@ -152,8 +162,6 @@ func versionCmd(
 	}
 }
 
-const apiURL = "https://api.humanlog.io"
-
 type checkForUpdateReq struct {
 	arch    string
 	os      string
@@ -165,13 +173,14 @@ type checkForUpdateRes struct {
 	hasUpdate bool
 }
 
-func checkForUpdate(ctx context.Context, cfg *config.Config, state *state.State) (v *types.Version, a *types.VersionArtifact, hasUpdate bool, err error) {
+func checkForUpdate(ctx context.Context, ll *slog.Logger, cfg *config.Config, state *state.State, apiURL string, httpClient *http.Client, tokenSource *auth.UserRefreshableTokenSource) (v *types.Version, a *types.VersionArtifact, hasUpdate bool, err error) {
 	currentSV, err := version.AsSemver()
 	if err != nil {
 		return nil, nil, false, err
 	}
-
-	updateClient := cliupdatev1connect.NewUpdateServiceClient(httpClient, apiURL)
+	var clOpts []connect.ClientOption
+	clOpts = append(clOpts, connect.WithInterceptors(auth.NewRefreshedUserAuthInterceptor(ll, tokenSource)))
+	updateClient := cliupdatev1connect.NewUpdateServiceClient(httpClient, apiURL, clOpts...)
 	res, err := updateClient.GetNextUpdate(ctx, connect.NewRequest(&cliupdatepb.GetNextUpdateRequest{
 		ProjectName:            "humanlog",
 		CurrentVersion:         version,
@@ -196,11 +205,11 @@ func checkForUpdate(ctx context.Context, cfg *config.Config, state *state.State)
 	return msg.NextVersion, msg.NextArtifact, currentSV.LT(nextSV), nil
 }
 
-func asyncCheckForUpdate(ctx context.Context, req *checkForUpdateReq, cfg *config.Config, state *state.State) <-chan *checkForUpdateRes {
+func asyncCheckForUpdate(ctx context.Context, ll *slog.Logger, cfg *config.Config, state *state.State, apiURL string, httpClient *http.Client, tokenSource *auth.UserRefreshableTokenSource) <-chan *checkForUpdateRes {
 	out := make(chan *checkForUpdateRes, 1)
 	go func() {
 		defer close(out)
-		nextVersion, _, hasUpdate, err := checkForUpdate(ctx, cfg, state)
+		nextVersion, _, hasUpdate, err := checkForUpdate(ctx, ll, cfg, state, apiURL, httpClient, tokenSource)
 		if err != nil {
 			if errors.Is(errors.Unwrap(err), context.Canceled) {
 				return
