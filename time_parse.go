@@ -61,13 +61,15 @@ func tryParseTime(value interface{}) (time.Time, bool) {
 	var t time.Time
 	switch v := value.(type) {
 	case string:
-		for _, layout := range TimeFormats {
-			t, err := time.Parse(layout, v)
+		for i, layout := range TimeFormats {
+			t, err := time.Parse(layout, value.(string))
 			if err == nil {
+				if dynamicReordering {
+					TimeFormats = moveToFront(i, TimeFormats)
+				}
 				t = fixTimebeforeUnixZero(t)
 				return t, true
 			}
-
 		}
 		// try to parse unix time number from string
 		floatVal, err := strconv.ParseFloat(v, 64)
