@@ -4,7 +4,54 @@ import (
 	"fmt"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
+
+func TestMoveToFront(t *testing.T) {
+	t.Run("already front", func(t *testing.T) {
+		in := []string{
+			"a",
+			"b",
+			"c",
+		}
+		want := []string{
+			"a",
+			"b",
+			"c",
+		}
+		got := moveToFront(0, in)
+		require.Equal(t, want, got)
+	})
+	t.Run("middle", func(t *testing.T) {
+		in := []string{
+			"a",
+			"b",
+			"c",
+		}
+		want := []string{
+			"b",
+			"a",
+			"c",
+		}
+		got := moveToFront(1, in)
+		require.Equal(t, want, got)
+	})
+	t.Run("last", func(t *testing.T) {
+		in := []string{
+			"a",
+			"b",
+			"c",
+		}
+		want := []string{
+			"c",
+			"a",
+			"b",
+		}
+		got := moveToFront(2, in)
+		require.Equal(t, want, got)
+	})
+}
 
 func TestTimeParseFloat64(t *testing.T) {
 	t.Run("nanoseconds", func(t *testing.T) {
