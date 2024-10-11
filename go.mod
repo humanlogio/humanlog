@@ -65,5 +65,3 @@ require (
 	golang.org/x/text v0.18.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-replace github.com/humanlogio/api/go => /Users/antoine/code/src/github.com/humanlogio/api/go/
