@@ -26,7 +26,7 @@ jobs:
         with:
           distribution: goreleaser
           version: latest
-          args: release --clean --config .goreleaser-dev.yaml
+          args: release --clean --draft --snapshot --config .goreleaser-dev.yaml
         env:
           GITHUB_TOKEN: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
       - run: echo "${HOME}/.humanlog/bin" >> $GITHUB_PATH
