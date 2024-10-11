@@ -111,7 +111,7 @@ github.com/google/uuid
 # github.com/gsterjov/go-libsecret v0.0.0-20161001094733-a6f4afe4910c
 ## explicit
 github.com/gsterjov/go-libsecret
-# github.com/humanlogio/api/go v0.0.0-20231208063410-e088b7d026d1 => /Users/antoine/code/src/github.com/humanlogio/api/go/
+# github.com/humanlogio/api/go v0.0.0-20241011070935-7bb04da206c8
 ## explicit; go 1.19
 github.com/humanlogio/api/go/pkg/lang
 github.com/humanlogio/api/go/svc/account/v1
@@ -186,8 +186,8 @@ github.com/rs/cors/internal
 # github.com/russross/blackfriday/v2 v2.1.0
 ## explicit
 github.com/russross/blackfriday/v2
-# github.com/stretchr/testify v1.8.4
-## explicit; go 1.20
+# github.com/stretchr/testify v1.9.0
+## explicit; go 1.17
 github.com/stretchr/testify/assert
 github.com/stretchr/testify/require
 # github.com/urfave/cli v1.22.14
@@ -281,4 +281,3 @@ google.golang.org/protobuf/types/known/timestamppb
 # gopkg.in/yaml.v3 v3.0.1
 ## explicit
 gopkg.in/yaml.v3
-# github.com/humanlogio/api/go => /Users/antoine/code/src/github.com/humanlogio/api/go/
