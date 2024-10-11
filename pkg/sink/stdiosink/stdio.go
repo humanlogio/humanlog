@@ -35,6 +35,7 @@ type StdioOpts struct {
 	SkipUnchanged  bool
 	SortLongest    bool
 	TimeFormat     string
+	TimeZone       *time.Location
 	TruncateLength int
 	Truncates      bool
 
@@ -48,6 +49,7 @@ var DefaultStdioOpts = StdioOpts{
 	SkipUnchanged:  true,
 	SortLongest:    true,
 	TimeFormat:     time.Stamp,
+	TimeZone:       time.Local,
 	TruncateLength: 15,
 	Truncates:      true,
 
@@ -82,6 +84,13 @@ func StdioOptsFrom(cfg config.Config) (StdioOpts, []error) {
 	}
 	if cfg.TimeFormat != nil {
 		opts.TimeFormat = *cfg.TimeFormat
+	}
+	if cfg.TimeZone != nil {
+		var err error
+		opts.TimeZone, err = time.LoadLocation(*cfg.TimeZone)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("invalid --time-zone=%q: %v", *cfg.TimeZone, err))
+		}
 	}
 	if cfg.ColorMode != nil {
 		colorMode, err := config.GrokColorMode(*cfg.ColorMode)
@@ -181,9 +190,18 @@ func (std *Stdio) Receive(ctx context.Context, ev *typesv1.LogEvent) error {
 	} else {
 		timeColor = std.opts.Palette.TimeDarkBgColor
 	}
-
+	var timestr string
+	ts := data.Timestamp.AsTime()
+	if ts.IsZero() {
+		timestr = "<no time>"
+	} else {
+		if std.opts.TimeZone != nil {
+			ts = ts.In(std.opts.TimeZone)
+		}
+		timestr = timeColor.Sprint(ts.Format(std.opts.TimeFormat))
+	}
 	_, _ = fmt.Fprintf(out, "%s |%s| %s\t %s",
-		timeColor.Sprint(data.Timestamp.AsTime().Format(std.opts.TimeFormat)),
+		timestr,
 		level,
 		msg,
 		strings.Join(std.joinKVs(data, "="), "\t "),

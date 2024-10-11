@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -27,15 +26,15 @@ func TestHarness(t *testing.T) {
 		}
 		testCase := de.Name()
 		t.Run(testCase, func(t *testing.T) {
-			input, err := ioutil.ReadFile(filepath.Join(root, de.Name(), "input"))
+			input, err := os.ReadFile(filepath.Join(root, de.Name(), "input"))
 			if err != nil {
 				t.Fatalf("reading input: %v", err)
 			}
-			want, err := ioutil.ReadFile(filepath.Join(root, de.Name(), "want"))
+			want, err := os.ReadFile(filepath.Join(root, de.Name(), "want"))
 			if err != nil {
 				t.Fatalf("reading expected output: %v", err)
 			}
-			cfgjson, err := ioutil.ReadFile(filepath.Join(root, de.Name(), "config.json"))
+			cfgjson, err := os.ReadFile(filepath.Join(root, de.Name(), "config.json"))
 			if err != nil {
 				t.Fatalf("reading config: %v", err)
 			}
@@ -45,7 +44,7 @@ func TestHarness(t *testing.T) {
 			}
 			gotw := bytes.NewBuffer(nil)
 			sinkOpts, errs := stdiosink.StdioOptsFrom(cfg)
-			if len(errs) > 1 {
+			if len(errs) > 0 {
 				t.Fatalf("errs=%v", errs)
 			}
 			s := stdiosink.NewStdio(gotw, sinkOpts)
@@ -87,11 +86,11 @@ func TestHarness(t *testing.T) {
 				t.Errorf("got  %q", gotPart)
 			}
 
-			dir, err := ioutil.TempDir(os.TempDir(), "humanlog-tests-*")
+			dir, err := os.MkdirTemp(os.TempDir(), "humanlog-tests-*")
 			if err != nil {
 				t.Fatal(err)
 			}
-			gotf, err := ioutil.TempFile(dir, de.Name())
+			gotf, err := os.CreateTemp(dir, de.Name())
 			if err != nil {
 				t.Fatal(err)
 			}

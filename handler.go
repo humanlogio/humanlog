@@ -1,6 +1,8 @@
 package humanlog
 
 import (
+	"time"
+
 	"github.com/humanlogio/humanlog/internal/pkg/config"
 	"github.com/kr/logfmt"
 )
@@ -17,6 +19,7 @@ var DefaultOptions = func() *HandlerOptions {
 		TimeFields:    []string{"time", "ts", "@timestamp", "timestamp", "Timestamp"},
 		MessageFields: []string{"message", "msg", "Body"},
 		LevelFields:   []string{"level", "lvl", "loglevel", "severity", "SeverityText"},
+		timeNow:       time.Now,
 	}
 	return opts
 }
@@ -25,6 +28,8 @@ type HandlerOptions struct {
 	TimeFields    []string
 	MessageFields []string
 	LevelFields   []string
+
+	timeNow func() time.Time
 }
 
 var _ = HandlerOptionsFrom(config.DefaultConfig) // ensure it's valid
