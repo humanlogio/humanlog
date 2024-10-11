@@ -18,7 +18,7 @@ require (
 	github.com/fatih/color v1.16.0
 	github.com/go-logfmt/logfmt v0.5.1
 	github.com/google/uuid v1.6.0
-	github.com/humanlogio/api/go v0.0.0-20231208063410-e088b7d026d1
+	github.com/humanlogio/api/go v0.0.0-20241011070935-7bb04da206c8
 	github.com/kr/logfmt v0.0.0-20210122060352-19f9bcb100e6
 	github.com/lrstanley/bubblezone v0.0.0-20240914071701-b48c55a5e78e
 	github.com/matoous/go-nanoid v1.5.0
@@ -26,7 +26,7 @@ require (
 	github.com/mattn/go-isatty v0.0.20
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
 	github.com/rs/cors v1.11.0
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.9.0
 	github.com/urfave/cli v1.22.14
 	golang.org/x/exp v0.0.0-20231110203233-9a3e6036ecaa
 	golang.org/x/net v0.23.0
