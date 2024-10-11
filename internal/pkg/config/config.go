@@ -89,6 +89,7 @@ type Config struct {
 	ColorMode           *string      `json:"color-mode"`
 	TruncateLength      *int         `json:"truncate-length"`
 	TimeFormat          *string      `json:"time-format"`
+	TimeZone            *string      `json:"time-zone"`
 	Palette             *TextPalette `json:"palette"`
 	Interrupt           *bool        `json:"interrupt"`
 	SkipCheckForUpdates *bool        `json:"skip_check_updates"`
@@ -148,6 +149,9 @@ func (cfg Config) populateEmpty(other *Config) *Config {
 	if out.TimeFormat == nil && other.TimeFormat != nil {
 		out.TimeFormat = other.TimeFormat
 	}
+	if out.TimeZone == nil && other.TimeZone != nil {
+		out.TimeZone = other.TimeZone
+	}
 	if out.Palette == nil && other.Palette != nil {
 		out.Palette = other.Palette
 	}
@@ -156,6 +160,9 @@ func (cfg Config) populateEmpty(other *Config) *Config {
 	}
 	if out.SkipCheckForUpdates == nil && other.SkipCheckForUpdates != nil {
 		out.SkipCheckForUpdates = other.SkipCheckForUpdates
+	}
+	if out.ExperimentalFeatures == nil && other.ExperimentalFeatures != nil {
+		out.ExperimentalFeatures = other.ExperimentalFeatures
 	}
 	return &out
 }

@@ -24,5 +24,6 @@
   "color-mode": "off",
   "truncate-length": 15,
   "time-format": "Jan _2 15:04:05",
+  "time-zone": "UTC",
   "palette": null
 }

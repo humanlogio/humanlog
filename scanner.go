@@ -38,7 +38,7 @@ func Scan(ctx context.Context, src io.Reader, sink sink.Sink, opts *HandlerOptio
 		}
 		data.Reset()
 		ev.Raw = lineData
-		ev.ParsedAt = timestamppb.Now()
+		ev.ParsedAt = timestamppb.New(opts.timeNow())
 
 		// remove that pesky syslog crap
 		lineData = bytes.TrimPrefix(lineData, []byte("@cee: "))
