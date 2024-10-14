@@ -34,5 +34,5 @@ jobs:
       - run: ./script/create_version_artifacts.sh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          HMAC_KEY_ID: ${{ secrets.HMAC_KEY_ID }}
-          HMAC_PRIVATE_KEY: ${{ secrets.HMAC_PRIVATE_KEY }}
+          HMAC_KEY_ID: ${{ secrets.DEV_HMAC_KEY_ID }}
+          HMAC_PRIVATE_KEY: ${{ secrets.DEV_HMAC_PRIVATE_KEY }}
