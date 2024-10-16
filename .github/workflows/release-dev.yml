@@ -33,6 +33,7 @@ jobs:
       - run: curl https://humanlog.dev/install_apictl.sh | bash
       - run: ./script/create_version_artifacts.sh
         env:
+          CHANNEL: "dev"
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HMAC_KEY_ID: ${{ secrets.DEV_HMAC_KEY_ID }}
           HMAC_PRIVATE_KEY: ${{ secrets.DEV_HMAC_PRIVATE_KEY }}
