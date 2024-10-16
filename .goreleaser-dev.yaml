@@ -1,4 +1,4 @@
-project_name: humanlog-dev
+project_name: humanlog
 version: 2
 before:
   hooks:
