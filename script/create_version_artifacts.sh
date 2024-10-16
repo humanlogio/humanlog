@@ -77,7 +77,8 @@ function get_project_name() {
 }
 
 function get_channel() {
-    echo "latest"
+    local channel=${CHANNEL:-main}
+    echo ${channel}
 }
 
 function main() {
