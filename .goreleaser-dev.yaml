@@ -4,13 +4,15 @@ before:
   hooks:
     - go mod tidy
     - go generate ./...
+    - mkdir -p dist-extra
+    - script/write_version_info.sh "{{.Major}}" "{{.Minor}}" "{{.Patch}}" "next.{{ .CommitTimestamp }}" "{{.ShortCommit}}" "https://humanlog-binaries.sfo3.cdn.digitaloceanspaces.com/humanlog-binaries/{{ .ProjectName }}/dev/{{ .CommitTimestamp }}/{{ .ShortCommit }}"
 builds:
   - main: ./cmd/humanlog/
     binary: humanlog
     env:
       - CGO_ENABLED=0
     ldflags:
-      - -s -w -X main.versionMajor={{.Major}} -X main.versionMinor={{.Minor}} -X main.versionPatch={{.Patch}} -X main.versionPrerelease={{.Prerelease}} -X main.versionBuild={{.ShortCommit}} -X main.defaultApiAddr="https://api.humanlog.dev"
+      - -s -w -X main.versionMajor={{.Major}} -X main.versionMinor={{.Minor}} -X main.versionPatch={{.Patch}} -X main.versionPrerelease=next.{{ .CommitTimestamp }} -X main.versionBuild={{.ShortCommit}} -X main.defaultApiAddr="https://api.humanlog.dev"
     goos:
       # - windows
       - darwin
@@ -19,26 +21,24 @@ builds:
       - amd64
       - arm64
 release:
-  github:
-    owner: humanlogio
-    name: humanlog
-  target_commitish: "{{ .Commit }}"
-  prerelease: true
+  disable: true
+blobs:
+  - provider: s3
+    endpoint: https://humanlog-binaries.sfo3.digitaloceanspaces.com
+    region: sfo3
+    bucket: humanlog-binaries
+    directory: "{{ .ProjectName }}/dev/{{ .CommitTimestamp }}/{{ .ShortCommit }}"
+    include_meta: true
+    acl: public-read
+    cache_control:
+      - max-age=9999
+      - public
 archives:
-  - name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+  - name_template: "{{ .ProjectName }}_{{ incpatch .Version }}-next.{{ .CommitTimestamp }}+{{ .ShortCommit }}_{{ .Os }}_{{ .Arch }}"
     format_overrides:
       - goos: windows
         format: zip
-checksum:
-  name_template: "checksums.txt"
-snapshot:
-  version_template: "{{ incpatch .Version }}-next.{{ .Timestamp }}.{{ .ShortCommit }}"
-changelog:
-  sort: asc
-  filters:
-    exclude:
-      - "^docs:"
-      - "^test:"
+
 # modelines, feel free to remove those if you don't want/use them:
 # yaml-language-server: $schema=https://goreleaser.com/static/schema.json
 # vim: set ts=2 sw=2 tw=0 fo=cnqoj

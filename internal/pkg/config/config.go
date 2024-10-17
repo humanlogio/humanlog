@@ -98,8 +98,9 @@ type Config struct {
 }
 
 type Features struct {
-	SendLogsToCloud      *bool `json:"send_logs_to_cloud"`
-	ServeLocalhostOnPort *int  `json:"serve_localhost_on_port"`
+	ReleaseChannel       *string `json:"release_channel"`
+	SendLogsToCloud      *bool   `json:"send_logs_to_cloud"`
+	ServeLocalhostOnPort *int    `json:"serve_localhost_on_port"`
 }
 
 func (cfg Config) populateEmpty(other *Config) *Config {

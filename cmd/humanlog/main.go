@@ -18,6 +18,7 @@ import (
 	"github.com/99designs/keyring"
 	"github.com/aybabtme/rgbterm"
 	"github.com/blang/semver"
+	"github.com/charmbracelet/huh"
 	types "github.com/humanlogio/api/go/types/v1"
 	"github.com/humanlogio/humanlog"
 	"github.com/humanlogio/humanlog/internal/pkg/config"
@@ -40,7 +41,11 @@ var (
 	version           = func() *types.Version {
 		var prerelease []string
 		if versionPrerelease != "" {
-			prerelease = append(prerelease, versionPrerelease)
+			for _, pre := range strings.Split(versionPrerelease, ".") {
+				if pre != "" {
+					prerelease = append(prerelease, pre)
+				}
+			}
 		}
 		return &types.Version{
 			Major:       int32(mustatoi(versionMajor)),
@@ -228,6 +233,14 @@ func newApp() *cli.App {
 				ServiceName:            keyringName,
 				KeychainSynchronizable: true,
 				FileDir:                stateDir,
+				FilePasswordFunc: func(s string) (pwd string, err error) {
+					err = huh.NewInput().
+						EchoMode(huh.EchoModePassword).
+						Title("Saving humanlog.io credentials...").
+						Description("Choose a password to encrypt your credentials").
+						Value(&pwd).Run()
+					return pwd, err
+				},
 			})
 
 		}

@@ -178,6 +178,11 @@ func checkForUpdate(ctx context.Context, ll *slog.Logger, cfg *config.Config, st
 	if err != nil {
 		return nil, nil, false, err
 	}
+	var channelName *string
+	if cfg.ExperimentalFeatures != nil && cfg.ExperimentalFeatures.ReleaseChannel != nil {
+		channelName = cfg.ExperimentalFeatures.ReleaseChannel
+	}
+
 	var clOpts []connect.ClientOption
 	clOpts = append(clOpts, connect.WithInterceptors(auth.NewRefreshedUserAuthInterceptor(ll, tokenSource)))
 	updateClient := cliupdatev1connect.NewUpdateServiceClient(httpClient, apiURL, clOpts...)
@@ -187,6 +192,7 @@ func checkForUpdate(ctx context.Context, ll *slog.Logger, cfg *config.Config, st
 		MachineArchitecture:    runtime.GOARCH,
 		MachineOperatingSystem: runtime.GOOS,
 		Meta:                   reqMeta(state),
+		ReleaseChannelName:     channelName,
 	}))
 	if err != nil {
 		return nil, nil, false, err

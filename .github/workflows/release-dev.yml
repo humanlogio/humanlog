@@ -22,18 +22,21 @@ jobs:
         with:
           go-version: ">=1.23"
           cache: true
+      - run: echo "${HOME}/.humanlog/bin" >> $GITHUB_PATH
+      - run: curl https://humanlog.dev/install_apictl.sh | bash
       - uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
           version: latest
-          args: release --clean --draft --snapshot --config .goreleaser-dev.yaml
+          args: release --clean --draft --skip validate --config .goreleaser-dev.yaml
         env:
           GITHUB_TOKEN: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
-      - run: echo "${HOME}/.humanlog/bin" >> $GITHUB_PATH
-      - run: curl https://humanlog.dev/install_apictl.sh | bash
+          AWS_ACCESS_KEY_ID: ${{ secrets.S3_BINARIES_BUCKET_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_BINARIES_BUCKET_ACCESS_KEY }}
       - run: ./script/create_version_artifacts.sh
         env:
           CHANNEL: "dev"
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          API_URL: "https://api.humanlog.dev"
           HMAC_KEY_ID: ${{ secrets.DEV_HMAC_KEY_ID }}
           HMAC_PRIVATE_KEY: ${{ secrets.DEV_HMAC_PRIVATE_KEY }}
