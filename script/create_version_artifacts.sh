@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-set -euo pipefail
+set -euox pipefail
 
 root=$(git rev-parse --show-toplevel)
 
@@ -12,14 +12,17 @@ function handle_archive() {
     while read -r filename; read -r path; read -r goos; read -r goarch; do
         local url=$(get_archive_url ${filename})
         if [ -z "${url}" ]; then echo "no archive for ${filename}"; continue; fi
-        local sig=$(get_signature ${path})
 
-        apictl create version-artifact \
+        local sig=$(get_signature ${root}/${path})
+
+        apictl --api.url ${api_url} create version-artifact \
             --project ${project} \
             --major $(get_version_major) \
             --minor $(get_version_minor) \
             --patch $(get_version_patch) \
             --sha256 $(get_sha256sum ${path}) \
+            --pre $(get_prerelease) \
+            --build $(get_build) \
             --url ${url} \
             --os ${goos} \
             --arch ${goarch} \
@@ -49,8 +52,9 @@ function get_sha256sum() {
 }
 
 function get_signature() {
-    local filename=${1}
-    cat ${filename}.sig
+    local filename=${1}.sig
+    if [ -f "${filename}" ]; then cat < ${filename};
+    else echo "no-signature"; fi
 }
 
 function get_version_major() {
@@ -69,26 +73,36 @@ function get_version_patch() {
 }
 
 function get_version() {
-    jq < dist/metadata.json -r '.version'
+    jq < dist-extra/version.json -r '.version'
 }
 
 function get_project_name() {
     jq < dist/metadata.json -r '.project_name'
 }
 
+function get_prerelease() {
+    jq < dist-extra/version.json -r '.pre'
+}
+
+function get_build() {
+    jq < dist-extra/version.json -r '.build'
+}
+
 function get_channel() {
-    echo "latest"
+    local channel=${CHANNEL:-main}
+    echo ${channel}
 }
 
 function main() {
     owner=humanlogio
+    api_url=${API_URL:-"https://api.humanlog.io"}
     project=$(get_project_name)
     tag=$(get_version)
     channel=$(get_channel)
 
     list_archives | handle_archive
 
-    apictl create published-version \
+    apictl --api.url ${api_url} create published-version \
             --project ${project} \
             --channel ${channel} \
             --version $(get_version)

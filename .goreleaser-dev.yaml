@@ -1,16 +1,18 @@
-project_name: humanlog-dev
+project_name: humanlog
 version: 2
 before:
   hooks:
     - go mod tidy
     - go generate ./...
+    - mkdir -p dist-extra
+    - script/write_version_info.sh "{{.Major}}" "{{.Minor}}" "{{.Patch}}" "next.{{ .Timestamp }}" "{{.ShortCommit}}"
 builds:
   - main: ./cmd/humanlog/
     binary: humanlog
     env:
       - CGO_ENABLED=0
     ldflags:
-      - -s -w -X main.versionMajor={{.Major}} -X main.versionMinor={{.Minor}} -X main.versionPatch={{.Patch}} -X main.versionPrerelease={{.Prerelease}} -X main.versionBuild={{.ShortCommit}} -X main.defaultApiAddr="https://api.humanlog.dev"
+      - -s -w -X main.versionMajor={{.Major}} -X main.versionMinor={{.Minor}} -X main.versionPatch={{.Patch}} -X main.versionPrerelease=next.{{ .Timestamp }} -X main.versionBuild={{.ShortCommit}} -X main.defaultApiAddr="https://api.humanlog.dev"
     goos:
       # - windows
       - darwin
@@ -24,15 +26,23 @@ release:
     name: humanlog
   target_commitish: "{{ .Commit }}"
   prerelease: true
+  draft: true
+  replace_existing_draft: true
+  replace_existing_artifacts: true
+  name_template: "{{ incpatch .Version }}-next.{{ .Timestamp }}+{{ .ShortCommit }}"
+  header: |
+    ## very unstable dev build of humanlog ({{ .Date }})
+
+    Do not use. For folks iterating on humanlog and wanting to test their work.
 archives:
-  - name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+  - name_template: "{{ .ProjectName }}_{{ incpatch .Version }}-next.{{ .Timestamp }}+{{ .ShortCommit }}_{{ .Os }}_{{ .Arch }}"
     format_overrides:
       - goos: windows
         format: zip
 checksum:
   name_template: "checksums.txt"
 snapshot:
-  version_template: "{{ incpatch .Version }}-next.{{ .Timestamp }}.{{ .ShortCommit }}"
+  version_template: "{{ incpatch .Version }}-next.{{ .Timestamp }}+{{ .ShortCommit }}"
 changelog:
   sort: asc
   filters:
