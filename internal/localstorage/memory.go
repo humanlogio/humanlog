@@ -38,7 +38,7 @@ type SummarizedEvents struct {
 }
 
 func (str *MemStorage) Query(ctx context.Context, q *typesv1.LogQuery) ([]Cursor, error) {
-	if q.From.AsTime().After(q.To.AsTime()) {
+	if q.To != nil && q.From.AsTime().After(q.To.AsTime()) {
 		return nil, fmt.Errorf("invalid query, `to` is before `from`")
 	}
 
