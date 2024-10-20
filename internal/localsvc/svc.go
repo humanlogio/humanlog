@@ -155,6 +155,9 @@ func (svc *Service) SummarizeEvents(ctx context.Context, req *connect.Request[qr
 	if req.Msg.To == nil {
 		req.Msg.To = timestamppb.Now()
 	}
+	if req.Msg.BucketCount < 1 {
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("bucket count must be greater than 1"))
+	}
 	ll := svc.ll.With(
 		slog.Time("from", req.Msg.From.AsTime()),
 		slog.Time("to", req.Msg.From.AsTime()),
