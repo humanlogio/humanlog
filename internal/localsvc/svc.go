@@ -286,14 +286,16 @@ func (svc *Service) WatchQuery(ctx context.Context, req *connect.Request[qrv1.Wa
 			case leg := <-legc:
 				// try to append to an existing LEG first
 				for _, eleg := range legs {
-					if eleg.MachineId == leg.MachineId &&
+					if eleg != nil && leg != nil && eleg.MachineId == leg.MachineId &&
 						eleg.SessionId == leg.SessionId {
 						eleg.Logs = append(eleg.Logs, leg.Logs...)
 						continue wait_for_more_leg
 					}
 				}
 				// didn't have an existing LEG for it, add it
-				legs = append(legs, leg)
+				if leg != nil {
+					legs = append(legs, leg)
+				}
 			case <-sender.C:
 				err := stream.Send(&qrv1.WatchQueryResponse{
 					Events: legs,
