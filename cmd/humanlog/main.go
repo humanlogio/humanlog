@@ -28,6 +28,7 @@ import (
 	"github.com/humanlogio/humanlog/pkg/sink/stdiosink"
 	"github.com/humanlogio/humanlog/pkg/sink/teesink"
 	"github.com/mattn/go-colorable"
+	"github.com/mattn/go-isatty"
 	"github.com/urfave/cli"
 	"golang.org/x/net/http2"
 )
@@ -62,7 +63,8 @@ var (
 		}
 		return v
 	}()
-	defaultApiAddr = "https://api.humanlog.io"
+	defaultApiAddr      = "https://api.humanlog.io"
+	defaultBaseSiteAddr = "https://humanlog.io"
 )
 
 func fatalf(c *cli.Context, format string, args ...interface{}) {
@@ -180,6 +182,13 @@ func newApp() *cli.App {
 		EnvVar: "HUMANLOG_API_URL",
 		Hidden: true,
 	}
+	baseSiteServerAddr := cli.StringFlag{
+		Name:   "basesite",
+		Value:  defaultBaseSiteAddr,
+		Usage:  "address of the base site server",
+		EnvVar: "HUMANLOG_BASE_SITE_URL",
+		Hidden: true,
+	}
 
 	app := cli.NewApp()
 	app.Author = "humanlog.io"
@@ -218,10 +227,16 @@ func newApp() *cli.App {
 		promptedToUpdate *semver.Version
 		updateRes        <-chan *checkForUpdateRes
 		apiURL           = ""
+		baseSiteURL      = ""
 		keyringName      = "humanlog"
 
-		getCtx     = func(*cli.Context) context.Context { return ctx }
-		getLogger  = func(*cli.Context) *slog.Logger { return slog.New(slog.NewJSONHandler(os.Stderr, nil)) }
+		getCtx    = func(*cli.Context) context.Context { return ctx }
+		getLogger = func(*cli.Context) *slog.Logger {
+			return slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
+				AddSource: true,
+				Level:     slogLevel(),
+			}))
+		}
 		getCfg     = func(*cli.Context) *config.Config { return cfg }
 		getState   = func(*cli.Context) *state.State { return statefile }
 		getKeyring = func(cctx *cli.Context) (keyring.Keyring, error) {
@@ -249,7 +264,14 @@ func newApp() *cli.App {
 				return getKeyring(cctx)
 			})
 		}
-		getAPIUrl     = func(*cli.Context) string { logdebug("using api at %q", apiURL); return apiURL }
+		getAPIUrl      = func(*cli.Context) string { logdebug("using api at %q", apiURL); return apiURL }
+		getBaseSiteURL = func(*cli.Context) string {
+			if baseSiteURL == "" {
+				baseSiteURL = defaultBaseSiteAddr
+			}
+			logdebug("using basesite at %q", baseSiteURL)
+			return baseSiteURL
+		}
 		getHTTPClient = func(cctx *cli.Context) *http.Client {
 			u, _ := url.Parse(apiURL)
 			if host, _, _ := net.SplitHostPort(u.Host); host == "localhost" {
@@ -287,7 +309,11 @@ func newApp() *cli.App {
 		}
 		if c.String(apiServerAddr.Name) != "" {
 			apiURL = c.String(apiServerAddr.Name)
-			getLogger(c).Debug("contacting api at %q (due to flag")
+			logdebug("api URL set to %q (due to --%s flag or $%s env var)", apiURL, apiServerAddr.Name, apiServerAddr.EnvVar)
+		}
+		if c.String(baseSiteServerAddr.Name) != "" {
+			baseSiteURL = c.String(baseSiteServerAddr.Name)
+			logdebug("base site URL set to %q (due to --%s flag or $%s env var)", baseSiteURL, baseSiteServerAddr.Name, baseSiteServerAddr.EnvVar)
 		}
 
 		stateFilepath, err := state.GetDefaultStateFilepath()
@@ -309,7 +335,11 @@ func newApp() *cli.App {
 			}
 			ll := getLogger(c)
 			tokenSource := getTokenSource(c)
-			updateRes = asyncCheckForUpdate(ctx, ll, cfg, statefile, apiURL, httpClient, tokenSource)
+			var channelName *string
+			if cfg.ExperimentalFeatures != nil && cfg.ExperimentalFeatures.ReleaseChannel != nil {
+				channelName = cfg.ExperimentalFeatures.ReleaseChannel
+			}
+			updateRes = asyncCheckForUpdate(ctx, ll, cfg, statefile, apiURL, httpClient, tokenSource, channelName)
 		}
 
 		return nil
@@ -335,7 +365,7 @@ func newApp() *cli.App {
 	}
 	app.Commands = append(
 		app.Commands,
-		versionCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getHTTPClient),
+		versionCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getBaseSiteURL, getHTTPClient),
 		authCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getHTTPClient),
 		organizationCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getHTTPClient),
 		accountCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getHTTPClient),
@@ -413,13 +443,22 @@ func newApp() *cli.App {
 				// TODO(antoine): remove this codepath, it's redundant with the localhost port path
 				ll := getLogger(cctx)
 				apiURL := getAPIUrl(cctx)
-				remotesink, err := ingest(ctx, ll, cctx, apiURL, getCfg, getState, getTokenSource, getHTTPClient)
+
+				flushTimeout := 300 * time.Millisecond
+				ingestctx, ingestcancel := context.WithCancel(context.WithoutCancel(ctx))
+				go func() {
+					<-ctx.Done()
+					time.Sleep(2 * flushTimeout) // give it 2x timeout to flush before nipping the ctx entirely
+					ingestcancel()
+				}()
+				remotesink, err := ingest(ingestctx, ll, cctx, apiURL, getCfg, getState, getTokenSource, getHTTPClient)
 				if err != nil {
 					return fmt.Errorf("can't send logs: %v", err)
 				}
 				defer func() {
-					ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+					ctx, cancel := context.WithTimeout(context.Background(), flushTimeout)
 					defer cancel()
+					ll.DebugContext(ctx, "flushing remote ingestion sink for up to 300ms")
 					if err := remotesink.Flush(ctx); err != nil {
 						ll.ErrorContext(ctx, "couldn't flush buffered log", slog.Any("err", err))
 					} else {
@@ -438,7 +477,7 @@ func newApp() *cli.App {
 				ll := getLogger(cctx)
 				var machineID uint64
 				for state.MachineID == nil {
-					// no machine ID assigned, ensure machine gets onboarded via the loggin flow
+					// no machine ID assigned, ensure machine gets onboarded via the login flow
 					// TODO(antoine): if an account token exists, auto-onboard the machine. it's probably
 					// not an interactive session
 					_, err := ensureLoggedIn(ctx, cctx, state, getTokenSource(cctx), apiURL, getHTTPClient(cctx))
@@ -456,6 +495,7 @@ func newApp() *cli.App {
 				defer func() {
 					ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
 					defer cancel()
+					ll.DebugContext(ctx, "flushing localhost ingestion sink for up to 300ms")
 					if err := done(ctx); err != nil {
 						ll.ErrorContext(ctx, "couldn't flush buffered log (localhost)", slog.Any("err", err))
 					} else {
@@ -465,8 +505,24 @@ func newApp() *cli.App {
 			}
 		}
 
-		loginfo("reading stdin...")
-		if err := humanlog.Scan(ctx, os.Stdin, sink, handlerOpts); err != nil {
+		in := os.Stdin
+		if isatty.IsTerminal(in.Fd()) {
+			loginfo("reading stdin...")
+		}
+		go func() {
+			<-ctx.Done()
+			logdebug("requested to stop scanning")
+			time.Sleep(500 * time.Millisecond)
+			if isatty.IsTerminal(in.Fd()) {
+				loginfo("Patiently waiting for stdin to send EOF (Ctrl+D). This is you! I'm reading from a TTY!")
+			} else {
+				// forcibly stop scanning if stuck on stdin
+				logdebug("forcibly closing stdin")
+				in.Close()
+			}
+		}()
+
+		if err := humanlog.Scan(ctx, in, sink, handlerOpts); err != nil {
 			logerror("scanning caught an error: %v", err)
 		}
 

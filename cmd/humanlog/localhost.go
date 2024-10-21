@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"log/slog"
 	"net"
 	"net/http"
@@ -77,10 +76,11 @@ func startLocalhostServer(
 		if err != nil {
 			panic(err)
 		}
-		log.Printf("DEBUG: sending logs to localhost forwarder")
+		logdebug("sending logs to localhost forwarder")
 		client := ingestv1connect.NewIngestServiceClient(localhostHttpClient, addr.String())
-		localhostSink := logsvcsink.StartStreamSink(ctx, client, "local", machineID, 1<<20, 100*time.Millisecond, true)
+		localhostSink := logsvcsink.StartStreamSink(ctx, ll, client, "local", machineID, 1<<20, 100*time.Millisecond, true)
 		return localhostSink, func(ctx context.Context) error {
+			logdebug("flushing localhost sink")
 			return localhostSink.Flush(ctx)
 		}, nil
 	}
@@ -105,9 +105,9 @@ func startLocalhostServer(
 	})}
 
 	go func() {
-		log.Printf("localhost service available on %s, visit `https://humanlog.io` so see your logs", l.Addr().String())
+		loginfo("localhost service available on %s, visit `https://humanlog.io` so see your logs", l.Addr().String())
 		if err := srv.Serve(l); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Printf("failed to serve localhost service, giving up: %v", err)
+			logerror("failed to serve localhost service, giving up: %v", err)
 		}
 	}()
 

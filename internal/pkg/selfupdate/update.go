@@ -4,6 +4,7 @@ package selfupdate
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -14,7 +15,7 @@ import (
 	"github.com/cli/safeexec"
 )
 
-func UpgradeInPlace(ctx context.Context, stdout, stderr io.Writer, stdin io.Reader) error {
+func UpgradeInPlace(ctx context.Context, baseSiteURL string, channelName *string, stdout, stderr io.Writer, stdin io.Reader) error {
 	if runtime.GOOS == "windows" {
 		if err := renameCurrentBinaries(); err != nil {
 			return err
@@ -33,12 +34,15 @@ func UpgradeInPlace(ctx context.Context, stdout, stderr io.Writer, stdin io.Read
 		}
 	}
 
-	command := updateCommand()
+	command := updateCommand(baseSiteURL)
 
 	cmd := exec.Command(shellToUse, switchToUse, command)
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
 	cmd.Stdin = stdin
+	if channelName != nil {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("HUMANLOG_CHANNEL=%s", *channelName))
+	}
 	return cmd.Run()
 }
 
@@ -62,15 +66,15 @@ func isUnderHomebrew() bool {
 	return strings.HasPrefix(binary, brewBinPrefix)
 }
 
-func updateCommand() string {
+func updateCommand(baseSiteURL string) string {
 	if isUnderHomebrew() {
 		return "brew upgrade humanlog"
 	}
 
 	if runtime.GOOS == "windows" {
-		return "iwr https://humanlog.io/install.ps1 -useb | iex"
+		return fmt.Sprintf("iwr %s/install.ps1 -useb | iex", baseSiteURL)
 	} else {
-		return `curl -L "https://humanlog.io/install.sh" | sh`
+		return fmt.Sprintf(`curl -sSL "%s/install.sh" | sh`, baseSiteURL)
 	}
 }
 
