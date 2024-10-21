@@ -264,7 +264,13 @@ func newApp() *cli.App {
 				return getKeyring(cctx)
 			})
 		}
-		getAPIUrl      = func(*cli.Context) string { logdebug("using api at %q", apiURL); return apiURL }
+		getAPIUrl = func(*cli.Context) string {
+			if apiURL == "" {
+				apiURL = defaultApiAddr
+			}
+			logdebug("using api at %q", apiURL)
+			return apiURL
+		}
 		getBaseSiteURL = func(*cli.Context) string {
 			if baseSiteURL == "" {
 				baseSiteURL = defaultBaseSiteAddr

@@ -99,8 +99,8 @@ func versionCmd(
 	getCfg func(cctx *cli.Context) *config.Config,
 	getState func(cctx *cli.Context) *state.State,
 	getTokenSource func(cctx *cli.Context) *auth.UserRefreshableTokenSource,
-	getBaseSiteURL func(cctx *cli.Context) string,
 	getAPIUrl func(cctx *cli.Context) string,
+	getBaseSiteURL func(cctx *cli.Context) string,
 	getHTTPClient func(*cli.Context) *http.Client,
 ) cli.Command {
 	return cli.Command{

@@ -12,7 +12,7 @@ builds:
     env:
       - CGO_ENABLED=0
     ldflags:
-      - -s -w -X main.versionMajor={{.Major}} -X main.versionMinor={{.Minor}} -X main.versionPatch={{.Patch}} -X main.versionPrerelease=next.{{ .CommitTimestamp }} -X main.versionBuild={{.ShortCommit}} -X main.defaultApiAddr="https://api.humanlog.dev -X main.defaultBaseSiteAddr="https://humanlog.dev"
+      - -s -w -X main.versionMajor={{.Major}} -X main.versionMinor={{.Minor}} -X main.versionPatch={{.Patch}} -X main.versionPrerelease=next.{{ .CommitTimestamp }} -X main.versionBuild={{.ShortCommit}} -X main.defaultApiAddr=https://api.humanlog.dev -X main.defaultBaseSiteAddr=https://humanlog.dev
     goos:
       # - windows
       - darwin
