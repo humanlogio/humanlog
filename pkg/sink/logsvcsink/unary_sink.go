@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"time"
 
 	"connectrpc.com/connect"
@@ -21,6 +21,7 @@ var (
 )
 
 type ConnectUnarySink struct {
+	ll           *slog.Logger
 	name         string
 	eventsc      chan *typesv1.LogEvent
 	dropIfFull   bool
@@ -29,6 +30,7 @@ type ConnectUnarySink struct {
 
 func StartUnarySink(
 	ctx context.Context,
+	ll *slog.Logger,
 	client ingestv1connect.IngestServiceClient,
 	name string,
 	machineID uint64,
@@ -37,6 +39,10 @@ func StartUnarySink(
 	dropIfFull bool,
 ) *ConnectUnarySink {
 	snk := &ConnectUnarySink{
+		ll: ll.With(
+			slog.String("sink", name),
+			slog.Uint64("machine_id", machineID),
+		),
 		name:         name,
 		eventsc:      make(chan *typesv1.LogEvent, bufferSize),
 		dropIfFull:   dropIfFull,
@@ -58,7 +64,7 @@ func StartUnarySink(
 				return
 			}
 			if err != nil {
-				log.Printf("failed to send logs: %v", err)
+				ll.ErrorContext(ctx, "failed to send logs", slog.Any("err", err))
 			}
 			if time.Since(startedAt) < time.Second {
 				select {
@@ -90,7 +96,8 @@ func (snk *ConnectUnarySink) connectAndHandleBuffer(
 	sessionID uint64,
 	heartbeatEvery time.Duration,
 ) (lastBuffer []*typesv1.LogEvent, _ uint64, _ time.Duration, _ error) {
-	log.Print("contacting log ingestor")
+	ll := snk.ll
+	ll.DebugContext(ctx, "contacting log ingestor")
 	err := retry.Do(ctx, func(ctx context.Context) (bool, error) {
 		hbRes, err := client.GetHeartbeat(ctx, connect.NewRequest(&v1.GetHeartbeatRequest{MachineId: &machineID}))
 		if err != nil {
@@ -99,13 +106,13 @@ func (snk *ConnectUnarySink) connectAndHandleBuffer(
 		heartbeatEvery = hbRes.Msg.HeartbeatIn.AsDuration()
 		return false, nil
 	}, retry.UseCapSleep(time.Second), retry.UseLog(func(attempt float64, err error) {
-		log.Printf("can't reach humanlog.io, attempt %d: %v", int(attempt), err)
+		ll.WarnContext(ctx, "can't reach ingestion service", slog.Int("attempt", int(attempt)), slog.Any("err", err))
 	}))
 	if err != nil {
 		return buffered, sessionID, heartbeatEvery, fmt.Errorf("retry aborted: %w", err)
 	}
 
-	log.Print("ready to send logs")
+	ll.DebugContext(ctx, "ready to send logs")
 	heartbeater := time.NewTicker(heartbeatEvery)
 	defer heartbeater.Stop()
 	ticker := time.NewTicker(drainBufferFor)
@@ -159,7 +166,14 @@ func (snk *ConnectUnarySink) connectAndHandleBuffer(
 		start := time.Now()
 		res, err := client.Ingest(ctx, req)
 		dur := time.Since(start)
-		log.Printf("send: %s %v ms (err=%v) ev=%d", snk.name, dur.Milliseconds(), err, len(req.Msg.Events))
+		ll.DebugContext(ctx, "sent logs",
+			slog.String("sink", snk.name),
+			slog.Int64("send_ms", dur.Milliseconds()),
+			slog.Any("err", err),
+			slog.Int("ev_count", len(req.Msg.Events)),
+			slog.Int("buffer_size", bufferSize),
+			slog.Int64("drain_for_ms", drainBufferFor.Milliseconds()),
+		)
 		if err != nil {
 			return req.Msg.Events, sessionID, heartbeatEvery, err
 		}
@@ -182,13 +196,21 @@ func (snk *ConnectUnarySink) Receive(ctx context.Context, ev *typesv1.LogEvent) 
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
-			log.Print("dropping log event, buffer full")
+			snk.ll.WarnContext(ctx, "dropping log event, buffer full!")
 		}
 	} else {
 		select {
 		case snk.eventsc <- send:
 		case <-ctx.Done():
 			return ctx.Err()
+		default:
+			// would have blocked~
+			snk.ll.WarnContext(ctx, "blocking on log event, buffer full!")
+			select {
+			case snk.eventsc <- send:
+			case <-ctx.Done():
+				return ctx.Err()
+			}
 		}
 	}
 	return nil
@@ -197,9 +219,12 @@ func (snk *ConnectUnarySink) Receive(ctx context.Context, ev *typesv1.LogEvent) 
 // Flush can only be called once, calling it twice will panic.
 func (snk *ConnectUnarySink) Flush(ctx context.Context) error {
 	close(snk.eventsc)
+	snk.ll.DebugContext(ctx, "starting to flush")
 	select {
 	case <-snk.doneFlushing:
+		snk.ll.DebugContext(ctx, "done flushing")
 	case <-ctx.Done():
+		snk.ll.DebugContext(ctx, "unable to finish flushing")
 		return ctx.Err()
 	}
 	return nil

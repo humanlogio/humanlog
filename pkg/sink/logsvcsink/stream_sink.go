@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"time"
 
 	"connectrpc.com/connect"
@@ -21,6 +21,7 @@ var (
 )
 
 type ConnectStreamSink struct {
+	ll           *slog.Logger
 	name         string
 	eventsc      chan *typesv1.LogEvent
 	dropIfFull   bool
@@ -29,6 +30,7 @@ type ConnectStreamSink struct {
 
 func StartStreamSink(
 	ctx context.Context,
+	ll *slog.Logger,
 	client ingestv1connect.IngestServiceClient,
 	name string,
 	machineID uint64,
@@ -38,6 +40,10 @@ func StartStreamSink(
 ) *ConnectStreamSink {
 
 	snk := &ConnectStreamSink{
+		ll: ll.With(
+			slog.String("sink", name),
+			slog.Uint64("machine_id", machineID),
+		),
 		name:         name,
 		eventsc:      make(chan *typesv1.LogEvent, bufferSize),
 		dropIfFull:   dropIfFull,
@@ -59,7 +65,7 @@ func StartStreamSink(
 				return
 			}
 			if err != nil {
-				log.Printf("failed to send logs: %v", err)
+				ll.ErrorContext(ctx, "failed to send logs", slog.Any("err", err))
 			}
 			if time.Since(startedAt) < time.Second {
 				select {
@@ -91,7 +97,8 @@ func (snk *ConnectStreamSink) connectAndHandleBuffer(
 	sessionID uint64,
 	heartbeatEvery time.Duration,
 ) (lastBuffer []*typesv1.LogEvent, _ uint64, _ time.Duration, _ error) {
-	log.Print("contacting log ingestor")
+	ll := snk.ll
+	ll.DebugContext(ctx, "contacting log ingestor")
 	var stream *connect.ClientStreamForClient[v1.IngestStreamRequest, v1.IngestStreamResponse]
 	err := retry.Do(ctx, func(ctx context.Context) (bool, error) {
 
@@ -108,7 +115,7 @@ func (snk *ConnectStreamSink) connectAndHandleBuffer(
 		}
 		return false, nil
 	}, retry.UseCapSleep(time.Second), retry.UseLog(func(attempt float64, err error) {
-		log.Printf("can't reach humanlog.io, attempt %d: %v", int(attempt), err)
+		ll.WarnContext(ctx, "can't reach ingestion service", slog.Int("attempt", int(attempt)), slog.Any("err", err))
 	}))
 	if err != nil {
 		return buffered, sessionID, heartbeatEvery, fmt.Errorf("retry aborted: %w", err)
@@ -117,7 +124,7 @@ func (snk *ConnectStreamSink) connectAndHandleBuffer(
 	defer func() {
 		res, err := stream.CloseAndReceive()
 		if err != nil {
-			log.Printf("closing and receiving response for log ingestor session: %v", err)
+			ll.ErrorContext(ctx, "closing and receiving response for log ingestor session", slog.Any("err", err))
 			return
 		}
 		if res.Msg == nil {
@@ -131,7 +138,7 @@ func (snk *ConnectStreamSink) connectAndHandleBuffer(
 		}
 	}()
 
-	log.Print("ready to send logs")
+	ll.DebugContext(ctx, "ready to send logs")
 	heartbeater := time.NewTicker(heartbeatEvery)
 	defer heartbeater.Stop()
 	ticker := time.NewTicker(drainBufferFor)
@@ -181,7 +188,14 @@ func (snk *ConnectStreamSink) connectAndHandleBuffer(
 		start := time.Now()
 		err := stream.Send(req)
 		dur := time.Since(start)
-		log.Printf("send: %q %v ms (err=%v) ev=%d", snk.name, dur.Milliseconds(), err, len(req.Events))
+		ll.DebugContext(ctx, "sent logs",
+			slog.String("sink", snk.name),
+			slog.Int64("send_ms", dur.Milliseconds()),
+			slog.Any("err", err),
+			slog.Int("ev_count", len(req.Events)),
+			slog.Int("buffer_size", bufferSize),
+			slog.Int64("drain_for_ms", drainBufferFor.Milliseconds()),
+		)
 		if err != nil {
 			return req.Events, sessionID, heartbeatEvery, err
 		}
@@ -198,13 +212,21 @@ func (snk *ConnectStreamSink) Receive(ctx context.Context, ev *typesv1.LogEvent)
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
-			log.Print("dropping log event, buffer full")
+			snk.ll.WarnContext(ctx, "dropping log event, buffer full!")
 		}
 	} else {
 		select {
 		case snk.eventsc <- send:
 		case <-ctx.Done():
 			return ctx.Err()
+		default:
+			// would have blocked~
+			snk.ll.WarnContext(ctx, "blocking on log event, buffer full!")
+			select {
+			case snk.eventsc <- send:
+			case <-ctx.Done():
+				return ctx.Err()
+			}
 		}
 	}
 	return nil
@@ -213,9 +235,12 @@ func (snk *ConnectStreamSink) Receive(ctx context.Context, ev *typesv1.LogEvent)
 // Flush can only be called once, calling it twice will panic.
 func (snk *ConnectStreamSink) Flush(ctx context.Context) error {
 	close(snk.eventsc)
+	snk.ll.DebugContext(ctx, "starting to flush")
 	select {
 	case <-snk.doneFlushing:
+		snk.ll.DebugContext(ctx, "done flushing")
 	case <-ctx.Done():
+		snk.ll.DebugContext(ctx, "unable to finish flushing")
 		return ctx.Err()
 	}
 	return nil

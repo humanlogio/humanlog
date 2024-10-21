@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"time"
 
 	"connectrpc.com/connect"
@@ -21,14 +21,19 @@ var (
 )
 
 type ConnectBidiStreamSink struct {
+	ll           *slog.Logger
 	name         string
 	eventsc      chan *typesv1.LogEvent
 	dropIfFull   bool
 	doneFlushing chan struct{}
 }
 
-func StartBidiStreamSink(ctx context.Context, client ingestv1connect.IngestServiceClient, name string, machineID uint64, bufferSize int, drainBufferFor time.Duration, dropIfFull bool) *ConnectBidiStreamSink {
+func StartBidiStreamSink(ctx context.Context, ll *slog.Logger, client ingestv1connect.IngestServiceClient, name string, machineID uint64, bufferSize int, drainBufferFor time.Duration, dropIfFull bool) *ConnectBidiStreamSink {
 	snk := &ConnectBidiStreamSink{
+		ll: ll.With(
+			slog.String("sink", name),
+			slog.Uint64("machine_id", machineID),
+		),
 		name:         name,
 		eventsc:      make(chan *typesv1.LogEvent, bufferSize),
 		dropIfFull:   dropIfFull,
@@ -49,7 +54,7 @@ func StartBidiStreamSink(ctx context.Context, client ingestv1connect.IngestServi
 				return
 			}
 			if err != nil {
-				log.Printf("failed to send logs: %v", err)
+				ll.ErrorContext(ctx, "failed to send logs", slog.Any("err", err))
 			}
 			if time.Since(startedAt) < time.Second {
 				select {
@@ -80,7 +85,8 @@ func (snk *ConnectBidiStreamSink) connectAndHandleBuffer(
 	buffered []*typesv1.LogEvent,
 	resumeSessionID uint64,
 ) (lastBuffer []*typesv1.LogEvent, _ uint64, _ error) {
-	log.Print("contacting log ingestor")
+	ll := snk.ll
+	ll.DebugContext(ctx, "contacting log ingestor")
 	var stream *connect.BidiStreamForClient[v1.IngestBidiStreamRequest, v1.IngestBidiStreamResponse]
 	err := retry.Do(ctx, func(ctx context.Context) (bool, error) {
 		stream = client.IngestBidiStream(ctx)
@@ -90,13 +96,13 @@ func (snk *ConnectBidiStreamSink) connectAndHandleBuffer(
 		}
 		return false, nil
 	}, retry.UseCapSleep(time.Second), retry.UseLog(func(attempt float64, err error) {
-		log.Printf("can't reach humanlog.io, attempt %d: %v", int(attempt), err)
+		ll.WarnContext(ctx, "can't reach ingestion service", slog.Int("attempt", int(attempt)), slog.Any("err", err))
 	}))
 	if err != nil {
 		return buffered, resumeSessionID, fmt.Errorf("retry aborted: %w", err)
 	}
 
-	log.Print("receiving log ingestor session")
+	ll.DebugContext(ctx, "receiving log ingestor session")
 	res, err := stream.Receive()
 	if err != nil {
 		// nothing is buffered
@@ -107,7 +113,7 @@ func (snk *ConnectBidiStreamSink) connectAndHandleBuffer(
 		stream.CloseResponse()
 	}()
 
-	log.Print("ready to send logs")
+	ll.DebugContext(ctx, "ready to send logs")
 	resumeSessionID = res.SessionId
 	ticker := time.NewTicker(drainBufferFor)
 	ticker.Stop()
@@ -148,7 +154,14 @@ func (snk *ConnectBidiStreamSink) connectAndHandleBuffer(
 		start := time.Now()
 		err := stream.Send(req)
 		dur := time.Since(start)
-		log.Printf("send: %s %v ms (err=%v) ev=%d", snk.name, dur.Milliseconds(), err, len(req.Events))
+		ll.DebugContext(ctx, "sent logs",
+			slog.String("sink", snk.name),
+			slog.Int64("send_ms", dur.Milliseconds()),
+			slog.Any("err", err),
+			slog.Int("ev_count", len(req.Events)),
+			slog.Int("buffer_size", bufferSize),
+			slog.Int64("drain_for_ms", drainBufferFor.Milliseconds()),
+		)
 		if err != nil {
 			return req.Events, resumeSessionID, err
 		}
@@ -165,13 +178,21 @@ func (snk *ConnectBidiStreamSink) Receive(ctx context.Context, ev *typesv1.LogEv
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
-			log.Print("dropping log event, buffer full")
+			snk.ll.WarnContext(ctx, "dropping log event, buffer full!")
 		}
 	} else {
 		select {
 		case snk.eventsc <- send:
 		case <-ctx.Done():
 			return ctx.Err()
+		default:
+			// would have blocked~
+			snk.ll.WarnContext(ctx, "blocking on log event, buffer full!")
+			select {
+			case snk.eventsc <- send:
+			case <-ctx.Done():
+				return ctx.Err()
+			}
 		}
 	}
 	return nil
@@ -180,9 +201,12 @@ func (snk *ConnectBidiStreamSink) Receive(ctx context.Context, ev *typesv1.LogEv
 // Flush can only be called once, calling it twice will panic.
 func (snk *ConnectBidiStreamSink) Flush(ctx context.Context) error {
 	close(snk.eventsc)
+	snk.ll.DebugContext(ctx, "starting to flush")
 	select {
 	case <-snk.doneFlushing:
+		snk.ll.DebugContext(ctx, "done flushing")
 	case <-ctx.Done():
+		snk.ll.DebugContext(ctx, "unable to finish flushing")
 		return ctx.Err()
 	}
 	return nil

@@ -99,6 +99,7 @@ func versionCmd(
 	getCfg func(cctx *cli.Context) *config.Config,
 	getState func(cctx *cli.Context) *state.State,
 	getTokenSource func(cctx *cli.Context) *auth.UserRefreshableTokenSource,
+	getBaseSiteURL func(cctx *cli.Context) string,
 	getAPIUrl func(cctx *cli.Context) string,
 	getHTTPClient func(*cli.Context) *http.Client,
 ) cli.Command {
@@ -117,7 +118,11 @@ func versionCmd(
 					tokenSource := getTokenSource(cctx)
 					apiURL := getAPIUrl(cctx)
 					httpClient := getHTTPClient(cctx)
-					nextVersion, nextArtifact, hasUpdate, err := checkForUpdate(ctx, ll, cfg, state, apiURL, httpClient, tokenSource)
+					var channelName *string
+					if cfg.ExperimentalFeatures != nil && cfg.ExperimentalFeatures.ReleaseChannel != nil {
+						channelName = cfg.ExperimentalFeatures.ReleaseChannel
+					}
+					nextVersion, nextArtifact, hasUpdate, err := checkForUpdate(ctx, ll, cfg, state, apiURL, httpClient, tokenSource, channelName)
 					if err != nil {
 						return err
 					}
@@ -146,8 +151,13 @@ func versionCmd(
 					state := getState(cctx)
 					tokenSource := getTokenSource(cctx)
 					apiURL := getAPIUrl(cctx)
+					baseSiteURL := getBaseSiteURL(cctx)
 					httpClient := getHTTPClient(cctx)
-					_, _, hasUpdate, err := checkForUpdate(ctx, ll, cfg, state, apiURL, httpClient, tokenSource)
+					var channelName *string
+					if cfg.ExperimentalFeatures != nil && cfg.ExperimentalFeatures.ReleaseChannel != nil {
+						channelName = cfg.ExperimentalFeatures.ReleaseChannel
+					}
+					_, _, hasUpdate, err := checkForUpdate(ctx, ll, cfg, state, apiURL, httpClient, tokenSource, channelName)
 					if err != nil {
 						return err
 					}
@@ -155,7 +165,7 @@ func versionCmd(
 						log.Printf("you're already running the latest version: v%v", semverVersion.String())
 						return nil
 					}
-					return selfupdate.UpgradeInPlace(ctx, os.Stdout, os.Stderr, os.Stdin)
+					return selfupdate.UpgradeInPlace(ctx, baseSiteURL, channelName, os.Stdout, os.Stderr, os.Stdin)
 				},
 			},
 		},
@@ -173,14 +183,10 @@ type checkForUpdateRes struct {
 	hasUpdate bool
 }
 
-func checkForUpdate(ctx context.Context, ll *slog.Logger, cfg *config.Config, state *state.State, apiURL string, httpClient *http.Client, tokenSource *auth.UserRefreshableTokenSource) (v *types.Version, a *types.VersionArtifact, hasUpdate bool, err error) {
+func checkForUpdate(ctx context.Context, ll *slog.Logger, cfg *config.Config, state *state.State, apiURL string, httpClient *http.Client, tokenSource *auth.UserRefreshableTokenSource, channelName *string) (v *types.Version, a *types.VersionArtifact, hasUpdate bool, err error) {
 	currentSV, err := version.AsSemver()
 	if err != nil {
 		return nil, nil, false, err
-	}
-	var channelName *string
-	if cfg.ExperimentalFeatures != nil && cfg.ExperimentalFeatures.ReleaseChannel != nil {
-		channelName = cfg.ExperimentalFeatures.ReleaseChannel
 	}
 
 	var clOpts []connect.ClientOption
@@ -211,11 +217,11 @@ func checkForUpdate(ctx context.Context, ll *slog.Logger, cfg *config.Config, st
 	return msg.NextVersion, msg.NextArtifact, currentSV.LT(nextSV), nil
 }
 
-func asyncCheckForUpdate(ctx context.Context, ll *slog.Logger, cfg *config.Config, state *state.State, apiURL string, httpClient *http.Client, tokenSource *auth.UserRefreshableTokenSource) <-chan *checkForUpdateRes {
+func asyncCheckForUpdate(ctx context.Context, ll *slog.Logger, cfg *config.Config, state *state.State, apiURL string, httpClient *http.Client, tokenSource *auth.UserRefreshableTokenSource, channelName *string) <-chan *checkForUpdateRes {
 	out := make(chan *checkForUpdateRes, 1)
 	go func() {
 		defer close(out)
-		nextVersion, _, hasUpdate, err := checkForUpdate(ctx, ll, cfg, state, apiURL, httpClient, tokenSource)
+		nextVersion, _, hasUpdate, err := checkForUpdate(ctx, ll, cfg, state, apiURL, httpClient, tokenSource, channelName)
 		if err != nil {
 			if errors.Is(errors.Unwrap(err), context.Canceled) {
 				return

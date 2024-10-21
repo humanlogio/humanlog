@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"log/slog"
 	"os"
 )
 
@@ -28,6 +29,21 @@ var logLevel = func() loglevel {
 		return infolvl
 	}
 }()
+
+func slogLevel() slog.Level {
+	switch logLevel {
+	case debuglvl:
+		return slog.LevelDebug
+	case infolvl:
+		return slog.LevelInfo
+	case warnlvl:
+		return slog.LevelWarn
+	case errorlvl:
+		return slog.LevelError
+	default:
+		return slog.LevelInfo
+	}
+}
 
 func logdebug(format string, args ...interface{}) {
 	if logLevel <= debuglvl {

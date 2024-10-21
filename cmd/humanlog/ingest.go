@@ -56,22 +56,22 @@ func ingest(
 
 	clOpts := []connect.ClientOption{
 		connect.WithInterceptors(
-			auth.NewAccountAuthInterceptor(state.IngestionToken),
+			auth.NewAccountAuthInterceptor(ll, state.IngestionToken),
 		),
 		connect.WithGRPC(),
 	}
 
 	client := ingestv1connect.NewIngestServiceClient(httpClient, apiAddr, clOpts...)
 	var snk sink.Sink
-	switch sinkType := os.Getenv("SINK_TYPE"); sinkType {
+	switch sinkType := os.Getenv("HUMANLOG_SINK_TYPE"); sinkType {
 	case "unary":
-		snk = logsvcsink.StartUnarySink(ctx, client, "api", uint64(*state.MachineID), 1<<20, 100*time.Millisecond, true)
+		snk = logsvcsink.StartUnarySink(ctx, ll, client, "api", uint64(*state.MachineID), 1<<20, 100*time.Millisecond, true)
 	case "bidi":
-		snk = logsvcsink.StartBidiStreamSink(ctx, client, "api", uint64(*state.MachineID), 1<<20, 100*time.Millisecond, true)
+		snk = logsvcsink.StartBidiStreamSink(ctx, ll, client, "api", uint64(*state.MachineID), 1<<20, 100*time.Millisecond, true)
 	case "stream":
 		fallthrough // use the stream sink as default, it's the best tradeoff for performance and compatibility
 	default:
-		snk = logsvcsink.StartStreamSink(ctx, client, "api", uint64(*state.MachineID), 1<<20, 100*time.Millisecond, true)
+		snk = logsvcsink.StartStreamSink(ctx, ll, client, "api", uint64(*state.MachineID), 1<<20, 100*time.Millisecond, true)
 	}
 
 	return snk, nil
