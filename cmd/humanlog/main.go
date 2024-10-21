@@ -18,7 +18,6 @@ import (
 	"github.com/99designs/keyring"
 	"github.com/aybabtme/rgbterm"
 	"github.com/blang/semver"
-	"github.com/charmbracelet/huh"
 	types "github.com/humanlogio/api/go/types/v1"
 	"github.com/humanlogio/humanlog"
 	"github.com/humanlogio/humanlog/internal/pkg/config"
@@ -249,12 +248,7 @@ func newApp() *cli.App {
 				KeychainSynchronizable: true,
 				FileDir:                stateDir,
 				FilePasswordFunc: func(s string) (pwd string, err error) {
-					err = huh.NewInput().
-						EchoMode(huh.EchoModePassword).
-						Title("Saving humanlog.io credentials...").
-						Description("Choose a password to encrypt your credentials").
-						Value(&pwd).Run()
-					return pwd, err
+					return "", nil
 				},
 			})
 
