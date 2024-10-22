@@ -32,6 +32,7 @@ func ingest(
 	getState func(*cli.Context) *state.State,
 	getTokenSource func(cctx *cli.Context) *auth.UserRefreshableTokenSource,
 	getHTTPClient func(*cli.Context) *http.Client,
+	notifyUnableToIngest func(error),
 ) (sink.Sink, error) {
 	state := getState(cctx)
 	tokenSource := getTokenSource(cctx)
@@ -65,13 +66,13 @@ func ingest(
 	var snk sink.Sink
 	switch sinkType := os.Getenv("HUMANLOG_SINK_TYPE"); sinkType {
 	case "unary":
-		snk = logsvcsink.StartUnarySink(ctx, ll, client, "api", uint64(*state.MachineID), 1<<20, 100*time.Millisecond, true)
+		snk = logsvcsink.StartUnarySink(ctx, ll, client, "api", uint64(*state.MachineID), 1<<20, 100*time.Millisecond, true, notifyUnableToIngest)
 	case "bidi":
-		snk = logsvcsink.StartBidiStreamSink(ctx, ll, client, "api", uint64(*state.MachineID), 1<<20, 100*time.Millisecond, true)
+		snk = logsvcsink.StartBidiStreamSink(ctx, ll, client, "api", uint64(*state.MachineID), 1<<20, 100*time.Millisecond, true, notifyUnableToIngest)
 	case "stream":
 		fallthrough // use the stream sink as default, it's the best tradeoff for performance and compatibility
 	default:
-		snk = logsvcsink.StartStreamSink(ctx, ll, client, "api", uint64(*state.MachineID), 1<<20, 100*time.Millisecond, true)
+		snk = logsvcsink.StartStreamSink(ctx, ll, client, "api", uint64(*state.MachineID), 1<<20, 100*time.Millisecond, true, notifyUnableToIngest)
 	}
 
 	return snk, nil

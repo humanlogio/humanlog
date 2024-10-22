@@ -444,6 +444,12 @@ func newApp() *cli.App {
 				ll := getLogger(cctx)
 				apiURL := getAPIUrl(cctx)
 
+				notifyUnableToIngest := func(err error) {
+					// TODO: notify using system notification?
+					logerror("configured to ingest, but unable to do so: %v", err)
+					os.Exit(1)
+				}
+
 				flushTimeout := 300 * time.Millisecond
 				ingestctx, ingestcancel := context.WithCancel(context.WithoutCancel(ctx))
 				go func() {
@@ -451,7 +457,7 @@ func newApp() *cli.App {
 					time.Sleep(2 * flushTimeout) // give it 2x timeout to flush before nipping the ctx entirely
 					ingestcancel()
 				}()
-				remotesink, err := ingest(ingestctx, ll, cctx, apiURL, getCfg, getState, getTokenSource, getHTTPClient)
+				remotesink, err := ingest(ingestctx, ll, cctx, apiURL, getCfg, getState, getTokenSource, getHTTPClient, notifyUnableToIngest)
 				if err != nil {
 					return fmt.Errorf("can't send logs: %v", err)
 				}

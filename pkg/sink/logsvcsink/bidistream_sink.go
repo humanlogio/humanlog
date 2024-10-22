@@ -2,6 +2,7 @@ package logsvcsink
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -28,7 +29,17 @@ type ConnectBidiStreamSink struct {
 	doneFlushing chan struct{}
 }
 
-func StartBidiStreamSink(ctx context.Context, ll *slog.Logger, client ingestv1connect.IngestServiceClient, name string, machineID uint64, bufferSize int, drainBufferFor time.Duration, dropIfFull bool) *ConnectBidiStreamSink {
+func StartBidiStreamSink(
+	ctx context.Context,
+	ll *slog.Logger,
+	client ingestv1connect.IngestServiceClient,
+	name string,
+	machineID uint64,
+	bufferSize int,
+	drainBufferFor time.Duration,
+	dropIfFull bool,
+	notifyUnableToIngest func(err error),
+) *ConnectBidiStreamSink {
 	snk := &ConnectBidiStreamSink{
 		ll: ll.With(
 			slog.String("sink", name),
@@ -51,6 +62,12 @@ func StartBidiStreamSink(ctx context.Context, ll *slog.Logger, client ingestv1co
 			buffered, resumeSessionID, err = snk.connectAndHandleBuffer(ctx, client, machineID, bufferSize, drainBufferFor, buffered, resumeSessionID)
 			if err == io.EOF {
 				close(snk.doneFlushing)
+				return
+			}
+			var cerr *connect.Error
+			if errors.As(err, &cerr) && cerr.Code() == connect.CodeResourceExhausted {
+				close(snk.doneFlushing)
+				notifyUnableToIngest(err)
 				return
 			}
 			if err != nil {
@@ -92,6 +109,10 @@ func (snk *ConnectBidiStreamSink) connectAndHandleBuffer(
 		stream = client.IngestBidiStream(ctx)
 		firstReq := &v1.IngestBidiStreamRequest{Events: buffered, MachineId: machineID, ResumeSessionId: resumeSessionID}
 		if err := stream.Send(firstReq); err != nil {
+			var cerr *connect.Error
+			if errors.As(err, &cerr) && cerr.Code() == connect.CodeResourceExhausted {
+				return false, cerr
+			}
 			return true, fmt.Errorf("creating ingestion stream: %w", err)
 		}
 		return false, nil

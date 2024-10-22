@@ -2,6 +2,7 @@ package logsvcsink
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -37,6 +38,7 @@ func StartStreamSink(
 	bufferSize int,
 	drainBufferFor time.Duration,
 	dropIfFull bool,
+	notifyUnableToIngest func(err error),
 ) *ConnectStreamSink {
 
 	snk := &ConnectStreamSink{
@@ -62,6 +64,12 @@ func StartStreamSink(
 			buffered, sessionID, heartbeatEvery, err = snk.connectAndHandleBuffer(ctx, client, machineID, bufferSize, drainBufferFor, buffered, sessionID, heartbeatEvery)
 			if err == io.EOF {
 				close(snk.doneFlushing)
+				return
+			}
+			var cerr *connect.Error
+			if errors.As(err, &cerr) && cerr.Code() == connect.CodeResourceExhausted {
+				close(snk.doneFlushing)
+				notifyUnableToIngest(err)
 				return
 			}
 			if err != nil {
@@ -96,7 +104,7 @@ func (snk *ConnectStreamSink) connectAndHandleBuffer(
 	buffered []*typesv1.LogEvent,
 	sessionID uint64,
 	heartbeatEvery time.Duration,
-) (lastBuffer []*typesv1.LogEvent, _ uint64, _ time.Duration, _ error) {
+) (lastBuffer []*typesv1.LogEvent, _ uint64, _ time.Duration, sendErr error) {
 	ll := snk.ll
 	ll.DebugContext(ctx, "contacting log ingestor")
 	var stream *connect.ClientStreamForClient[v1.IngestStreamRequest, v1.IngestStreamResponse]
@@ -104,6 +112,10 @@ func (snk *ConnectStreamSink) connectAndHandleBuffer(
 
 		hbRes, err := client.GetHeartbeat(ctx, connect.NewRequest(&v1.GetHeartbeatRequest{MachineId: &machineID}))
 		if err != nil {
+			var cerr *connect.Error
+			if errors.As(err, &cerr) && cerr.Code() == connect.CodeResourceExhausted {
+				return false, cerr
+			}
 			return true, fmt.Errorf("requesting heartbeat config from ingestor: %v", err)
 		}
 		heartbeatEvery = hbRes.Msg.HeartbeatIn.AsDuration()
@@ -124,6 +136,13 @@ func (snk *ConnectStreamSink) connectAndHandleBuffer(
 	defer func() {
 		res, err := stream.CloseAndReceive()
 		if err != nil {
+			var cerr *connect.Error
+			if errors.Is(sendErr, io.EOF) && errors.As(err, &cerr) && cerr.Code() == connect.CodeResourceExhausted {
+				sendErr = cerr
+				ll.ErrorContext(ctx, "no active plan, can't ingest logs", slog.Any("err", err))
+				return
+			}
+
 			ll.ErrorContext(ctx, "closing and receiving response for log ingestor session", slog.Any("err", err))
 			return
 		}
@@ -186,7 +205,7 @@ func (snk *ConnectStreamSink) connectAndHandleBuffer(
 			// until it's empty, then send what we have
 		}
 		start := time.Now()
-		err := stream.Send(req)
+		sendErr = stream.Send(req)
 		dur := time.Since(start)
 		ll.DebugContext(ctx, "sent logs",
 			slog.String("sink", snk.name),
@@ -196,8 +215,8 @@ func (snk *ConnectStreamSink) connectAndHandleBuffer(
 			slog.Int("buffer_size", bufferSize),
 			slog.Int64("drain_for_ms", drainBufferFor.Milliseconds()),
 		)
-		if err != nil {
-			return req.Events, sessionID, heartbeatEvery, err
+		if sendErr != nil {
+			return req.Events, sessionID, heartbeatEvery, sendErr
 		}
 		req.Events = req.Events[:0:len(req.Events)]
 	}

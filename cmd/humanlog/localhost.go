@@ -61,8 +61,13 @@ func startLocalhostServer(
 	localhostHttpClient *http.Client,
 	ownVersion *typesv1.Version,
 ) (localsink sink.Sink, done func(context.Context) error, err error) {
-	localhostAddr := net.JoinHostPort("localhost", strconv.Itoa(port))
 
+	notifyUnableToIngest := func(err error) {
+		ll.ErrorContext(ctx, "localhost ingestor is unable to ingest", slog.Any("err", err))
+		// TODO: take this as a hint to become the localhost ingestor
+	}
+
+	localhostAddr := net.JoinHostPort("localhost", strconv.Itoa(port))
 	l, err := net.Listen("tcp", localhostAddr)
 	if err != nil && !isEADDRINUSE(err) {
 		return nil, nil, fmt.Errorf("listening on host/port: %v", err)
@@ -78,7 +83,7 @@ func startLocalhostServer(
 		}
 		logdebug("sending logs to localhost forwarder")
 		client := ingestv1connect.NewIngestServiceClient(localhostHttpClient, addr.String())
-		localhostSink := logsvcsink.StartStreamSink(ctx, ll, client, "local", machineID, 1<<20, 100*time.Millisecond, true)
+		localhostSink := logsvcsink.StartStreamSink(ctx, ll, client, "local", machineID, 1<<20, 100*time.Millisecond, true, notifyUnableToIngest)
 		return localhostSink, func(ctx context.Context) error {
 			logdebug("flushing localhost sink")
 			return localhostSink.Flush(ctx)

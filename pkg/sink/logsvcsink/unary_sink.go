@@ -2,6 +2,7 @@ package logsvcsink
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -37,6 +38,7 @@ func StartUnarySink(
 	bufferSize int,
 	drainBufferFor time.Duration,
 	dropIfFull bool,
+	notifyUnableToIngest func(err error),
 ) *ConnectUnarySink {
 	snk := &ConnectUnarySink{
 		ll: ll.With(
@@ -61,6 +63,12 @@ func StartUnarySink(
 			buffered, sessionID, heartbeatEvery, err = snk.connectAndHandleBuffer(ctx, client, machineID, bufferSize, drainBufferFor, buffered, sessionID, heartbeatEvery)
 			if err == io.EOF {
 				close(snk.doneFlushing)
+				return
+			}
+			var cerr *connect.Error
+			if errors.As(err, &cerr) && cerr.Code() == connect.CodeResourceExhausted {
+				close(snk.doneFlushing)
+				notifyUnableToIngest(err)
 				return
 			}
 			if err != nil {
@@ -101,6 +109,10 @@ func (snk *ConnectUnarySink) connectAndHandleBuffer(
 	err := retry.Do(ctx, func(ctx context.Context) (bool, error) {
 		hbRes, err := client.GetHeartbeat(ctx, connect.NewRequest(&v1.GetHeartbeatRequest{MachineId: &machineID}))
 		if err != nil {
+			var cerr *connect.Error
+			if errors.As(err, &cerr) && cerr.Code() == connect.CodeResourceExhausted {
+				return false, cerr
+			}
 			return true, fmt.Errorf("requesting heartbeat config from ingestor: %v", err)
 		}
 		heartbeatEvery = hbRes.Msg.HeartbeatIn.AsDuration()
