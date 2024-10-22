@@ -18,6 +18,7 @@ import (
 	"github.com/99designs/keyring"
 	"github.com/aybabtme/rgbterm"
 	"github.com/blang/semver"
+	"github.com/charmbracelet/huh"
 	types "github.com/humanlogio/api/go/types/v1"
 	"github.com/humanlogio/humanlog"
 	"github.com/humanlogio/humanlog/internal/pkg/config"
@@ -64,6 +65,8 @@ var (
 	}()
 	defaultApiAddr      = "https://api.humanlog.io"
 	defaultBaseSiteAddr = "https://humanlog.io"
+
+	huhTheme = huh.ThemeCatppuccin()
 )
 
 func fatalf(c *cli.Context, format string, args ...interface{}) {
@@ -365,6 +368,7 @@ func newApp() *cli.App {
 	}
 	app.Commands = append(
 		app.Commands,
+		onboardingCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getBaseSiteURL, getHTTPClient),
 		versionCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getBaseSiteURL, getHTTPClient),
 		authCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getHTTPClient),
 		organizationCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getHTTPClient),
