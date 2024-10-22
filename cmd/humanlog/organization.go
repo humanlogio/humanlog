@@ -183,7 +183,7 @@ func organizationCmd(
 						err := huh.NewInput().
 							Title("How should this org be named?").
 							Value(&req.Name).
-							WithTheme(huh.ThemeCatppuccin()).
+							WithTheme(huhTheme).
 							Run()
 						if err != nil {
 							return fmt.Errorf("requesting name from user: %v", err)

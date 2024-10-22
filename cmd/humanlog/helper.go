@@ -51,7 +51,7 @@ func ensureLoggedIn(
 			Affirmative("Yes!").
 			Negative("No.").
 			Value(&confirms).
-			WithTheme(huh.ThemeCatppuccin()).
+			WithTheme(huhTheme).
 			Run()
 		if err != nil {
 			return nil, err
@@ -82,7 +82,7 @@ func ensureLoggedIn(
 				Affirmative("Yes!").
 				Negative("No.").
 				Value(&confirms).
-				WithTheme(huh.ThemeCatppuccin()).
+				WithTheme(huhTheme).
 				Run()
 			if err != nil {
 				return nil, err
@@ -225,7 +225,7 @@ func huhSelectOrganizations(ctx context.Context, client userv1connect.UserServic
 		Title(title).
 		Options(options...).
 		Value(&selected).
-		WithTheme(huh.ThemeCatppuccin()).
+		WithTheme(huhTheme).
 		Run()
 	if err != nil {
 		return -1, fmt.Errorf("prompting for org selection: %v", err)
@@ -281,7 +281,7 @@ func ensureAccountSelected(
 		Title("You have access to multiple accounts. Which one would you like to use?").
 		Options(options...).
 		Value(&selected).
-		WithTheme(huh.ThemeCatppuccin()).
+		WithTheme(huhTheme).
 		Run()
 	if err != nil {
 		return -1, fmt.Errorf("prompting for account selection: %v", err)
