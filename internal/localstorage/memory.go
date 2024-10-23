@@ -190,7 +190,10 @@ func (snk *MemStorageSink) receive(ev *typesv1.LogEvent) {
 	lastEv := snk.evs[len(snk.evs)-1]
 	if (lastEv.ParsedAt.Seconds > ev.ParsedAt.Seconds) ||
 		(lastEv.ParsedAt.Seconds == ev.ParsedAt.Seconds && lastEv.ParsedAt.Nanos > ev.ParsedAt.Nanos) {
-		panic("out of order inserts within same sink?")
+		panic(fmt.Sprintf("out of order inserts within same sink?\nlastEv:\n\t%#v\nev:\n\t%#v",
+			lastEv.ParsedAt,
+			ev.ParsedAt,
+		))
 	}
 	snk.evs = append(snk.evs, ev)
 
