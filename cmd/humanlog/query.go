@@ -41,8 +41,9 @@ func queryCmd(
 	getHTTPClient func(*cli.Context) *http.Client,
 ) cli.Command {
 	return cli.Command{
-		Name:  queryCmdName,
-		Usage: "Query your logs",
+		Hidden: hideUnreleasedFeatures == "true",
+		Name:   queryCmdName,
+		Usage:  "Query your logs",
 
 		Subcommands: []cli.Command{
 			{

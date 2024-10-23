@@ -40,6 +40,7 @@ func organizationCmd(
 	)
 
 	return cli.Command{
+		Hidden:    hideUnreleasedFeatures == "true",
 		Name:      organizationCmdName,
 		ShortName: "org",
 		Usage:     "Manage organizations for the current user.",

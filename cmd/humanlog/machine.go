@@ -26,8 +26,9 @@ func machineCmd(
 	getHTTPClient func(*cli.Context) *http.Client,
 ) cli.Command {
 	return cli.Command{
-		Name:  machineCmdName,
-		Usage: "Manage machines in the current account.",
+		Hidden: hideUnreleasedFeatures == "true",
+		Name:   machineCmdName,
+		Usage:  "Manage machines in the current account.",
 		Before: func(cctx *cli.Context) error {
 			ctx := getCtx(cctx)
 			state := getState(cctx)
