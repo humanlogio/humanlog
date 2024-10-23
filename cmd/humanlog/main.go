@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"log"
 	"log/slog"
@@ -15,10 +16,12 @@ import (
 	"strings"
 	"time"
 
+	"connectrpc.com/connect"
 	"github.com/99designs/keyring"
 	"github.com/aybabtme/rgbterm"
 	"github.com/blang/semver"
 	"github.com/charmbracelet/huh"
+	"github.com/gen2brain/beeep"
 	types "github.com/humanlogio/api/go/types/v1"
 	"github.com/humanlogio/humanlog"
 	"github.com/humanlogio/humanlog/internal/pkg/config"
@@ -452,11 +455,27 @@ func newApp() *cli.App {
 				// TODO(antoine): remove this codepath, it's redundant with the localhost port path
 				ll := getLogger(cctx)
 				apiURL := getAPIUrl(cctx)
-
 				notifyUnableToIngest := func(err error) {
 					// TODO: notify using system notification?
 					logerror("configured to ingest, but unable to do so: %v", err)
-					os.Exit(1)
+					msg := "Your logs are not being sent!"
+					var cerr *connect.Error
+					if errors.As(err, &cerr) {
+						if cerr.Code() == connect.CodeResourceExhausted {
+							msg += "\n\n- " + cerr.Message()
+						} else {
+							msg += "\n\n- " + cerr.Error()
+						}
+					} else {
+						msg += "\n\n" + "An unexpected error occured while trying to ingest your logs, see your terminal for details."
+						logerror("err=%T", err)
+					}
+
+					if err := beeep.Alert("humanlog has problems!", msg, ""); err != nil {
+						logerror("couldn't send desktop notification: %v", err)
+						beeep.Beep(3000, 1)
+						os.Exit(1)
+					}
 				}
 
 				flushTimeout := 300 * time.Millisecond
@@ -477,7 +496,7 @@ func newApp() *cli.App {
 					if err := remotesink.Flush(ctx); err != nil {
 						ll.ErrorContext(ctx, "couldn't flush buffered log", slog.Any("err", err))
 					} else {
-						ll.InfoContext(ctx, "done sending all logs")
+						ll.DebugContext(ctx, "done sending all logs")
 					}
 				}()
 				loginfo("saving to %s", apiURL)
@@ -514,7 +533,7 @@ func newApp() *cli.App {
 					if err := done(ctx); err != nil {
 						ll.ErrorContext(ctx, "couldn't flush buffered log (localhost)", slog.Any("err", err))
 					} else {
-						ll.InfoContext(ctx, "done sending all logs")
+						ll.DebugContext(ctx, "done sending all logs")
 					}
 				}()
 			}
