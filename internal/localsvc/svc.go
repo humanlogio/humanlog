@@ -221,10 +221,13 @@ func (svc *Service) WatchQuery(ctx context.Context, req *connect.Request[qrv1.Wa
 	ll := svc.ll.With(
 		slog.Any("query", req.Msg.GetQuery().String()),
 	)
+
+	ll.DebugContext(ctx, "running query through storage")
 	cursors, err := svc.storage.Query(ctx, req.Msg.Query)
 	if err != nil {
 		return connect.NewError(connect.CodeInternal, fmt.Errorf("querying local storage: %v", err))
 	}
+	ll.DebugContext(ctx, "received cursors", slog.Int("cursor_len", len(cursors)))
 
 	legc := make(chan *typesv1.LogEventGroup)
 
@@ -234,10 +237,15 @@ func (svc *Service) WatchQuery(ctx context.Context, req *connect.Request[qrv1.Wa
 			machineID, sessionID = cursor.IDs()
 			evs                  []*typesv1.LogEvent
 		)
+		ll := ll.With(
+			slog.Int64("machine_id", machineID),
+			slog.Int64("session_id", sessionID),
+		)
 		for cursor.Next(ctx) {
 			evs = append(evs, cursor.Event())
 			now := time.Now()
 			if now.Sub(lastSend) > 100*time.Millisecond {
+				ll.DebugContext(ctx, "cursor batch sent", slog.Int("batch_len", len(evs)))
 				lastSend = now
 				select {
 				case legc <- &typesv1.LogEventGroup{
@@ -251,6 +259,7 @@ func (svc *Service) WatchQuery(ctx context.Context, req *connect.Request[qrv1.Wa
 				evs = evs[:0]
 			}
 		}
+		ll.DebugContext(ctx, "cursor done, sending last batch", slog.Int("batch_len", len(evs)))
 		select {
 		case legc <- &typesv1.LogEventGroup{
 			MachineId: machineID,
@@ -281,6 +290,8 @@ func (svc *Service) WatchQuery(ctx context.Context, req *connect.Request[qrv1.Wa
 			legs   []*typesv1.LogEventGroup
 		)
 		defer sender.Stop()
+
+		ll.DebugContext(ctx, "accumulator: starting accumulation loop")
 	wait_for_more_leg:
 		for {
 			select {
@@ -288,31 +299,40 @@ func (svc *Service) WatchQuery(ctx context.Context, req *connect.Request[qrv1.Wa
 				return
 			case leg := <-legc:
 				// try to append to an existing LEG first
+				ll.DebugContext(ctx, "accumulator: received cursor batch")
 				for _, eleg := range legs {
 					if eleg != nil && leg != nil && eleg.MachineId == leg.MachineId &&
 						eleg.SessionId == leg.SessionId {
+						ll.DebugContext(ctx, "accumulator: appending to existing log event group")
 						eleg.Logs = append(eleg.Logs, leg.Logs...)
 						continue wait_for_more_leg
 					}
 				}
 				// didn't have an existing LEG for it, add it
 				if leg != nil {
+					ll.DebugContext(ctx, "accumulator: creating new log event group")
 					legs = append(legs, leg)
 				}
 			case <-sender.C:
+				if len(legs) < 1 {
+					continue
+				}
+				ll.DebugContext(ctx, "accumulator: sending watch query response")
 				err := stream.Send(&qrv1.WatchQueryResponse{
 					Events: legs,
 				})
 				legs = legs[:0]
 				if err != nil {
-					ll.ErrorContext(ctx, "failed to send response", slog.Any("err", err))
+					ll.ErrorContext(ctx, "accumulator: failed to send response", slog.Any("err", err))
 					return
 				}
 			}
 		}
 	}()
 
+	ll.DebugContext(ctx, "accumulator: streaming started")
 	err = eg.Wait()
+	ll.DebugContext(ctx, "accumulator: all data consumed, finishing")
 	close(legc)
 	if err != nil {
 		return connect.NewError(connect.CodeInternal, fmt.Errorf("streaming localhost log for query: %v", err))
@@ -321,5 +341,6 @@ func (svc *Service) WatchQuery(ctx context.Context, req *connect.Request[qrv1.Wa
 	case <-ctx.Done():
 	case <-doneSending:
 	}
+	ll.DebugContext(ctx, "accumulator: finished")
 	return nil
 }
