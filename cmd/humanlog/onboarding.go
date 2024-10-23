@@ -30,7 +30,7 @@ func onboardingCmd(
 		Usage:  "Onboarding humanlog after installs or updates",
 		Hidden: true,
 		Action: func(cctx *cli.Context) error {
-			var wantsSignup bool
+			wantsSignup := true
 			err := huh.NewConfirm().
 				Title("Welcome to humanlog. New features are coming up soon!").
 				Description("Would you like to sign-up to learn more?").
