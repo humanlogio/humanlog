@@ -34,8 +34,9 @@ func accountCmd(
 	getHTTPClient func(*cli.Context) *http.Client,
 ) cli.Command {
 	return cli.Command{
-		Name:  accountCmdName,
-		Usage: "Manage accounts for the current user or org.",
+		Hidden: hideUnreleasedFeatures == "true",
+		Name:   accountCmdName,
+		Usage:  "Manage accounts for the current user or org.",
 		Before: func(cctx *cli.Context) error {
 			ctx := getCtx(cctx)
 			state := getState(cctx)

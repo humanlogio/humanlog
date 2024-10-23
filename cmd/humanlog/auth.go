@@ -35,7 +35,7 @@ func authCmd(
 ) cli.Command {
 	return cli.Command{
 		Name:  authCmdName,
-		Usage: "Authenticate with humanlog.io",
+		Usage: "Login with humanlog.io",
 		Subcommands: cli.Commands{
 			{
 				Name: "login",

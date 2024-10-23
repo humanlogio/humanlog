@@ -63,8 +63,9 @@ var (
 		}
 		return v
 	}()
-	defaultApiAddr      = "https://api.humanlog.io"
-	defaultBaseSiteAddr = "https://humanlog.io"
+	defaultApiAddr         = "https://api.humanlog.io"
+	defaultBaseSiteAddr    = "https://humanlog.io"
+	hideUnreleasedFeatures = ""
 
 	huhTheme = huh.ThemeCatppuccin()
 )
@@ -194,14 +195,17 @@ func newApp() *cli.App {
 
 	app := cli.NewApp()
 	app.Author = "humanlog.io"
-	app.Email = "hi@humanlog.io"
+	app.Email = "antoine@webscale.lol"
 	app.Name = "humanlog"
 	app.Version = semverVersion.String()
 	app.Usage = "reads structured logs from stdin, makes them pretty on stdout!"
 	app.Description = `humanlog parses logs and makes them easier to read and search.
 
    When invoked with no argument, it consumes stdin and parses it,
-   attempts to make it prettier on stdout. It also allows searching
+   attempting to make detected logs prettier on stdout.`
+	if hideUnreleasedFeatures != "true" {
+		app.Description += `
+   It also allows searching
    the logs that were parsed, both in a TUI by pressing "s" or in a
    webapp by pressing "space".
 
@@ -209,6 +213,7 @@ func newApp() *cli.App {
    will be saved to humanlog.io for vizualization, searching and
    analysis.
 `
+	}
 
 	var (
 		ctx        context.Context
