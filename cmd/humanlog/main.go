@@ -381,8 +381,10 @@ func newApp() *cli.App {
 			signal.Ignore(os.Interrupt)
 		}
 
-		if len(*cfg.Skip) > 0 && len(*cfg.Keep) > 0 {
-			fatalf(cctx, "can only use one of %q and %q", skipFlag.Name, keepFlag.Name)
+		if cfg.Skip != nil && cfg.Keep != nil {
+			if len(*cfg.Skip) > 0 && len(*cfg.Keep) > 0 {
+				fatalf(cctx, "can only use one of %q and %q", skipFlag.Name, keepFlag.Name)
+			}
 		}
 
 		sinkOpts, errs := stdiosink.StdioOptsFrom(*cfg)
