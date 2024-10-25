@@ -46,24 +46,24 @@ func parseTimeFloat64(value float64) time.Time {
 func tryParseTime(value interface{}) (time.Time, bool) {
 	var t time.Time
 	var err error
-	switch value.(type) {
+	switch v := value.(type) {
 	case string:
 		for _, layout := range TimeFormats {
-			t, err = time.Parse(layout, value.(string))
+			t, err = time.Parse(layout, v)
 			if err == nil {
 				return t, true
 			}
 		}
 	case float32:
-		return parseTimeFloat64(float64(value.(float32))), true
+		return parseTimeFloat64(float64(v)), true
 	case float64:
-		return parseTimeFloat64(value.(float64)), true
+		return parseTimeFloat64(v), true
 	case int:
-		return parseTimeFloat64(float64(value.(int))), true
+		return parseTimeFloat64(float64(v)), true
 	case int32:
-		return parseTimeFloat64(float64(value.(int32))), true
+		return parseTimeFloat64(float64(v)), true
 	case int64:
-		return parseTimeFloat64(float64(value.(int64))), true
+		return parseTimeFloat64(float64(v)), true
 	}
 	return t, false
 }

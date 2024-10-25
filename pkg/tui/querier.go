@@ -23,12 +23,6 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-var axisStyle = lipgloss.NewStyle().
-	Foreground(lipgloss.Color("3")) // yellow
-
-var labelStyle = lipgloss.NewStyle().
-	Foreground(lipgloss.Color("6")) // cyan
-
 type QuerierModel struct {
 	appStyle    lipgloss.Style
 	ctx         context.Context
@@ -247,12 +241,12 @@ func sendQueryCmd(
 				msg := res.Msg()
 
 				for _, leg := range msg.Events {
-					enc.Encode(map[string]int64{
+					_ = enc.Encode(map[string]int64{
 						"machine": leg.MachineId,
 						"session": leg.SessionId,
 					})
 					for _, ev := range leg.Logs {
-						enc.Encode(ev)
+						_ = enc.Encode(ev)
 					}
 				}
 				sendMsg(&AppendLogsMsg{

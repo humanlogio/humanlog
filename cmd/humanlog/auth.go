@@ -3,13 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"log/slog"
 	"net/http"
 	"os"
 
 	"connectrpc.com/connect"
-	"github.com/fatih/color"
 	"github.com/humanlogio/api/go/svc/auth/v1/authv1connect"
 	userpb "github.com/humanlogio/api/go/svc/user/v1"
 	"github.com/humanlogio/api/go/svc/user/v1/userv1connect"
@@ -111,13 +109,4 @@ func authCmd(
 			},
 		},
 	}
-}
-
-func promptToLogin() {
-	log.Print(
-		color.YellowString("You are not logged in."),
-	)
-	log.Print(
-		color.YellowString("Run `%s` to log in.", color.New(color.Bold).Sprint("humanlog auth login")),
-	)
 }

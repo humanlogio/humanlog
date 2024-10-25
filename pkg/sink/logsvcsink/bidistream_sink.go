@@ -130,8 +130,8 @@ func (snk *ConnectBidiStreamSink) connectAndHandleBuffer(
 		return nil, resumeSessionID, fmt.Errorf("waiting for ingestion stream session ID: %w", err)
 	}
 	defer func() {
-		stream.CloseRequest()
-		stream.CloseResponse()
+		_ = stream.CloseRequest()
+		_ = stream.CloseResponse()
 	}()
 
 	ll.DebugContext(ctx, "ready to send logs")

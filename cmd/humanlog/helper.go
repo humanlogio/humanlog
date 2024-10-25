@@ -7,10 +7,8 @@ import (
 	"log"
 	"log/slog"
 	"net/http"
-	"net/http/httputil"
 	"os"
 	"runtime"
-	"strings"
 	"time"
 
 	"connectrpc.com/connect"
@@ -352,23 +350,4 @@ func printFact(key string, fact any) {
 		color.YellowString(key),
 		color.CyanString(fmt.Sprintf("%v", fact)),
 	)
-}
-
-type debugLogger struct {
-	rt http.RoundTripper
-}
-
-func (dl *debugLogger) RoundTrip(req *http.Request) (*http.Response, error) {
-	var rt string
-	if b, err := httputil.DumpRequestOut(req, true); err == nil {
-		rt += strings.Repeat("->", 20) + "\n" + string(b) + "\n"
-	}
-	res, err := dl.rt.RoundTrip(req)
-	if err != nil {
-		rt += strings.Repeat("<=", 20) + "\n" + strings.Repeat("\terror", 5) + "\n" + err.Error() + "\n"
-	} else if b, err := httputil.DumpResponse(res, true); err == nil {
-		rt += strings.Repeat("<=", 20) + "\n" + string(b) + "\n"
-	}
-	log.Print(rt)
-	return res, err
 }
