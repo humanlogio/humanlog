@@ -104,7 +104,8 @@ type Features struct {
 }
 
 func (cfg Config) populateEmpty(other *Config) *Config {
-	out := *(&cfg)
+	cpcfg := cfg
+	out := &cpcfg
 	if out.Skip == nil && out.Keep == nil {
 		// skip and keep are mutually exclusive, so these are
 		// either both set by default, or not at all
@@ -165,7 +166,7 @@ func (cfg Config) populateEmpty(other *Config) *Config {
 	if out.ExperimentalFeatures == nil && other.ExperimentalFeatures != nil {
 		out.ExperimentalFeatures = other.ExperimentalFeatures
 	}
-	return &out
+	return out
 }
 
 type TextPalette struct {

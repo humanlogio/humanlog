@@ -31,7 +31,7 @@ type State int
 var _ tea.Model = (*Modal)(nil)
 
 func NewModal(baseStyle lipgloss.Style, modes []*Mode, exitModeKey key.Binding) *Modal {
-	modeStyle := baseStyle.Copy().
+	modeStyle := baseStyle.
 		Align(lipgloss.Center).
 		Bold(true).
 		Background(lipgloss.Color("#b8bb26"))

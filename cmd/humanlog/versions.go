@@ -172,11 +172,6 @@ func versionCmd(
 	}
 }
 
-type checkForUpdateReq struct {
-	arch    string
-	os      string
-	current *types.Version
-}
 type checkForUpdateRes struct {
 	pb        *types.Version
 	sem       semver.Version

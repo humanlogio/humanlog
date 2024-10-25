@@ -2,7 +2,6 @@ package humanlog
 
 import (
 	"bytes"
-	"strconv"
 	"time"
 
 	"github.com/go-logfmt/logfmt"
@@ -99,16 +98,4 @@ func (h *LogfmtHandler) UnmarshalLogfmt(data []byte) bool {
 		}
 	}
 	return dec.Err() == nil
-}
-
-func (h *LogfmtHandler) setLevel(val []byte)   { h.Level = string(val) }
-func (h *LogfmtHandler) setMessage(val []byte) { h.Message = string(val) }
-func (h *LogfmtHandler) setTime(val []byte) (parsed bool) {
-	valStr := string(val)
-	if valFloat, err := strconv.ParseFloat(valStr, 64); err == nil {
-		h.Time, parsed = tryParseTime(valFloat)
-	} else {
-		h.Time, parsed = tryParseTime(string(val))
-	}
-	return
 }

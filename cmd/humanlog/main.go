@@ -75,7 +75,9 @@ var (
 
 func fatalf(c *cli.Context, format string, args ...interface{}) {
 	log.Printf(format, args...)
-	cli.ShowAppHelp(c)
+	if err := cli.ShowAppHelp(c); err != nil {
+		panic(err)
+	}
 	os.Exit(1)
 }
 
@@ -473,7 +475,9 @@ func newApp() *cli.App {
 
 					if err := beeep.Alert("humanlog has problems!", msg, ""); err != nil {
 						logerror("couldn't send desktop notification: %v", err)
-						beeep.Beep(3000, 1)
+						if err := beeep.Beep(3000, 1); err != nil {
+							logerror("can't even beeep :'( -> %w", err)
+						}
 						os.Exit(1)
 					}
 				}
