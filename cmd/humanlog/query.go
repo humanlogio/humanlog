@@ -3,25 +3,30 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"log/slog"
 	"net/http"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"connectrpc.com/connect"
 	"github.com/NimbleMarkets/ntcharts/canvas/runes"
 	"github.com/NimbleMarkets/ntcharts/linechart"
 	"github.com/NimbleMarkets/ntcharts/linechart/timeserieslinechart"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/term"
+	"github.com/crazy3lf/colorconv"
 	"github.com/humanlogio/api/go/svc/account/v1/accountv1connect"
 	"github.com/humanlogio/api/go/svc/organization/v1/organizationv1connect"
 	queryv1 "github.com/humanlogio/api/go/svc/query/v1"
 	"github.com/humanlogio/api/go/svc/query/v1/queryv1connect"
 	"github.com/humanlogio/api/go/svc/user/v1/userv1connect"
+	typesv1 "github.com/humanlogio/api/go/types/v1"
 	"github.com/humanlogio/humanlog/internal/pkg/config"
 	"github.com/humanlogio/humanlog/internal/pkg/state"
 	"github.com/humanlogio/humanlog/pkg/auth"
+	"github.com/humanlogio/humanlog/pkg/sink/stdiosink"
 	"github.com/humanlogio/humanlog/pkg/tui"
 	"github.com/urfave/cli"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -117,19 +122,36 @@ func queryApiSummarizeCmd(
 ) cli.Command {
 	fromFlag := cli.DurationFlag{Name: "since", Value: 365 * 24 * time.Hour}
 	toFlag := cli.DurationFlag{Name: "to", Value: 0}
+	localhost := cli.BoolFlag{Name: "localhost"}
 	return cli.Command{
 		Name:  "summarize",
-		Flags: []cli.Flag{fromFlag, toFlag},
+		Flags: []cli.Flag{localhost, fromFlag, toFlag},
 		Action: func(cctx *cli.Context) error {
 			ctx := getCtx(cctx)
 			state := getState(cctx)
-			ll := getLogger(cctx)
-			tokenSource := getTokenSource(cctx)
-			apiURL := getAPIUrl(cctx)
-			httpClient := getHTTPClient(cctx)
-			_, err := ensureLoggedIn(ctx, cctx, state, tokenSource, apiURL, httpClient)
-			if err != nil {
-				return err
+
+			var queryClient queryv1connect.QueryServiceClient
+			if !cctx.Bool(localhost.Name) {
+				ll := getLogger(cctx)
+				tokenSource := getTokenSource(cctx)
+				apiURL := getAPIUrl(cctx)
+				httpClient := getHTTPClient(cctx)
+				_, err := ensureLoggedIn(ctx, cctx, state, tokenSource, apiURL, httpClient)
+				if err != nil {
+					return err
+				}
+				clOpts := connect.WithInterceptors(
+					auth.Interceptors(ll, tokenSource)...,
+				)
+				queryClient = queryv1connect.NewQueryServiceClient(httpClient, apiURL, clOpts)
+			} else {
+				httpClient := getHTTPClient(cctx)
+				cfg := getCfg(cctx)
+				if cfg.ExperimentalFeatures == nil || cfg.ExperimentalFeatures.ServeLocalhostOnPort == nil {
+					return fmt.Errorf("localhost feature is not enabled or not configured, can't dial localhost")
+				}
+				addr := fmt.Sprintf("http://localhost:%d", *cfg.ExperimentalFeatures.ServeLocalhostOnPort)
+				queryClient = queryv1connect.NewQueryServiceClient(httpClient, addr)
 			}
 
 			termWidth, termHeight, err := term.GetSize(os.Stdout.Fd())
@@ -140,13 +162,8 @@ func queryApiSummarizeCmd(
 			from := now.Add(-cctx.Duration(fromFlag.Name))
 			to := now.Add(-cctx.Duration(toFlag.Name))
 
-			clOpts := connect.WithInterceptors(
-				auth.Interceptors(ll, tokenSource)...,
-			)
-			queryClient := queryv1connect.NewQueryServiceClient(httpClient, apiURL, clOpts)
-
 			res, err := queryClient.SummarizeEvents(ctx, connect.NewRequest(&queryv1.SummarizeEventsRequest{
-				AccountId:   *state.AccountID,
+				AccountId:   *state.CurrentAccountID,
 				BucketCount: 20,
 				From:        timestamppb.New(from),
 				To:          timestamppb.New(to),
@@ -215,11 +232,11 @@ func queryApiSummarizeCmd(
 				} else {
 					ts = t.Format(stepTimeFormat)
 				}
-				log.Printf("label: ts=%v", ts)
+				loginfo("label: ts=%v", ts)
 				return ts
 			})
 			for _, bucket := range buckets {
-				log.Printf("ts=%v   ev=%d", bucket.Ts.AsTime().Format(time.RFC3339Nano), bucket.GetEventCount())
+				loginfo("ts=%v   ev=%d", bucket.Ts.AsTime().Format(time.RFC3339Nano), bucket.GetEventCount())
 				tslc.Push(timeserieslinechart.TimePoint{
 					Time:  bucket.Ts.AsTime(),
 					Value: float64(bucket.GetEventCount()),
@@ -244,25 +261,162 @@ func queryApiWatchCmd(
 	getAPIUrl func(cctx *cli.Context) string,
 	getHTTPClient func(*cli.Context) *http.Client,
 ) cli.Command {
+	fromFlag := cli.DurationFlag{Name: "since", Value: 365 * 24 * time.Hour}
+	toFlag := cli.DurationFlag{Name: "to", Value: 0}
+	localhost := cli.BoolFlag{Name: "localhost"}
 	return cli.Command{
-		Name: "watch",
+		Name:  "watch",
+		Flags: []cli.Flag{localhost, fromFlag, toFlag},
 		Action: func(cctx *cli.Context) error {
 			ctx := getCtx(cctx)
+			cfg := getCfg(cctx)
 			state := getState(cctx)
-			tokenSource := getTokenSource(cctx)
-			apiURL := getAPIUrl(cctx)
-			httpClient := getHTTPClient(cctx)
-			_, err := ensureLoggedIn(ctx, cctx, state, tokenSource, apiURL, httpClient)
-			if err != nil {
-				return err
+			var queryClient queryv1connect.QueryServiceClient
+			if !cctx.Bool(localhost.Name) {
+				ll := getLogger(cctx)
+				tokenSource := getTokenSource(cctx)
+				apiURL := getAPIUrl(cctx)
+				httpClient := getHTTPClient(cctx)
+				_, err := ensureLoggedIn(ctx, cctx, state, tokenSource, apiURL, httpClient)
+				if err != nil {
+					return err
+				}
+				clOpts := connect.WithInterceptors(
+					auth.Interceptors(ll, tokenSource)...,
+				)
+				queryClient = queryv1connect.NewQueryServiceClient(httpClient, apiURL, clOpts)
+			} else {
+				httpClient := getHTTPClient(cctx)
+
+				if cfg.ExperimentalFeatures == nil || cfg.ExperimentalFeatures.ServeLocalhostOnPort == nil {
+					return fmt.Errorf("localhost feature is not enabled or not configured, can't dial localhost")
+				}
+				addr := fmt.Sprintf("http://localhost:%d", *cfg.ExperimentalFeatures.ServeLocalhostOnPort)
+				queryClient = queryv1connect.NewQueryServiceClient(httpClient, addr)
 			}
-			ll := getLogger(cctx)
-			clOpts := connect.WithInterceptors(
-				auth.Interceptors(ll, tokenSource)...,
-			)
-			queryClient := queryv1connect.NewQueryServiceClient(httpClient, apiURL, clOpts)
-			_ = queryClient
+			now := time.Now()
+			from := now.Add(-cctx.Duration(fromFlag.Name))
+			to := now.Add(-cctx.Duration(toFlag.Name))
+			sinkOpts, errs := stdiosink.StdioOptsFrom(*cfg)
+			if len(errs) > 0 {
+				for _, err := range errs {
+					logerror("config error: %v", err)
+				}
+			}
+
+			loginfo("from=%s", from)
+			loginfo("to=%s", to)
+			loginfo("query=%s", strings.Join(cctx.Args(), " "))
+
+			req := &queryv1.WatchQueryRequest{
+				AccountId: *state.CurrentAccountID,
+				Query: &typesv1.LogQuery{
+					From: timestamppb.New(from),
+					To:   timestamppb.New(to),
+				},
+			}
+			res, err := queryClient.WatchQuery(ctx, connect.NewRequest(req))
+			if err != nil {
+				return fmt.Errorf("calling WatchQuery: %v", err)
+			}
+			defer res.Close()
+
+			sink := stdiosink.NewStdio(os.Stdout, sinkOpts)
+
+			for res.Receive() {
+				events := res.Msg().Events
+				for _, leg := range events {
+					prefix := getPrefix(leg.MachineId, leg.SessionId)
+					postProcess := func(pattern string) string {
+						return prefix + pattern
+					}
+					for _, ev := range leg.Logs {
+						if err := sink.ReceiveWithPostProcess(ctx, ev, postProcess); err != nil {
+							return fmt.Errorf("printing log: %v", err)
+						}
+					}
+				}
+			}
+			if err := res.Err(); err != nil {
+				return fmt.Errorf("querying: %v", err)
+			}
 			return nil
 		},
 	}
+}
+
+type tuple struct{ m, s int64 }
+
+var colorPrefixes = map[tuple]string{}
+
+func getPrefix(machine, session int64) string {
+	prefix, ok := colorPrefixes[tuple{m: machine, s: session}]
+	if ok {
+		return prefix
+	}
+	s := lipgloss.NewStyle().
+		BorderStyle(lipgloss.DoubleBorder()).BorderRight(true)
+
+	mPrefix := s.Background(lipgloss.AdaptiveColor{
+		Light: int64toLightRGB(machine),
+		Dark:  int64toDarkRGB(machine),
+	}).Render(strconv.FormatInt(machine, 10))
+	sPrefix := s.Background(lipgloss.AdaptiveColor{
+		Light: int64toLightRGB(session),
+		Dark:  int64toDarkRGB(session),
+	}).Render(strconv.FormatInt(session, 10))
+
+	prefix = lipgloss.JoinHorizontal(lipgloss.Left, mPrefix, sPrefix)
+	colorPrefixes[tuple{m: machine, s: session}] = prefix
+	return prefix
+}
+
+func int64toDarkRGB(n int64) string {
+	// modified from https://stackoverflow.com/a/52746259
+	n = (374761397 + n*3266489917) & 0xffffffff
+	n = ((n ^ n>>15) * 2246822519) & 0xffffffff
+	n = ((n ^ n>>13) * 3266489917) & 0xffffffff
+	n = (n ^ n>>16) >> 8
+
+	hex := fmt.Sprintf("#%06x", n)
+
+	// clamp the brightness
+	r, g, b, err := colorconv.HexToRGB(hex)
+	if err != nil {
+		panic(err)
+	}
+	h, s, v := colorconv.RGBToHSV(r, g, b)
+	if v > 0.5 {
+		v -= 0.5
+	}
+	r, g, b, err = colorconv.HSVToRGB(h, s, v)
+	if err != nil {
+		panic(err)
+	}
+	return fmt.Sprintf("#%02x%02x%02x", r, g, b)
+}
+
+func int64toLightRGB(n int64) string {
+	// modified from https://stackoverflow.com/a/52746259
+	n = (374761397 + n*3266489917) & 0xffffffff
+	n = ((n ^ n>>15) * 2246822519) & 0xffffffff
+	n = ((n ^ n>>13) * 3266489917) & 0xffffffff
+	n = (n ^ n>>16) >> 8
+
+	hex := fmt.Sprintf("#%06x", n)
+
+	// clamp the brightness
+	r, g, b, err := colorconv.HexToRGB(hex)
+	if err != nil {
+		panic(err)
+	}
+	h, s, v := colorconv.RGBToHSV(r, g, b)
+	if v < 0.5 {
+		v += 0.5
+	}
+	r, g, b, err = colorconv.HSVToRGB(h, s, v)
+	if err != nil {
+		panic(err)
+	}
+	return fmt.Sprintf("#%02x%02x%02x", r, g, b)
 }

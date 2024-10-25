@@ -75,6 +75,9 @@ github.com/cli/safeexec
 # github.com/cpuguy83/go-md2man/v2 v2.0.2
 ## explicit; go 1.11
 github.com/cpuguy83/go-md2man/v2/md2man
+# github.com/crazy3lf/colorconv v1.2.0
+## explicit; go 1.17
+github.com/crazy3lf/colorconv
 # github.com/danieljoos/wincred v1.2.0
 ## explicit; go 1.18
 github.com/danieljoos/wincred
