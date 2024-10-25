@@ -1,17 +1,36 @@
 package huh
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os"
+	"sync"
+	"time"
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/paginator"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/huh/internal/selector"
 )
 
 const defaultWidth = 80
+
+// Internal ID management. Used during animating to ensure that frame messages
+// are received only by spinner components that sent them.
+var (
+	lastID int
+	idMtx  sync.Mutex
+)
+
+// Return the next ID we should use on the Model.
+func nextID() int {
+	idMtx.Lock()
+	defer idMtx.Unlock()
+	lastID++
+	return lastID
+}
 
 // FormState represents the current state of the form.
 type FormState int
@@ -30,22 +49,25 @@ const (
 // ErrUserAborted is the error returned when a user exits the form before submitting.
 var ErrUserAborted = errors.New("user aborted")
 
+// ErrTimeout is the error returned when the timeout is reached.
+var ErrTimeout = errors.New("timeout")
+
+// ErrTimeoutUnsupported is the error returned when timeout is used while in accessible mode.
+var ErrTimeoutUnsupported = errors.New("timeout is not supported in accessible mode")
+
 // Form is a collection of groups that are displayed one at a time on a "page".
 //
 // The form can navigate between groups and is complete once all the groups are
 // complete.
 type Form struct {
 	// collection of groups
-	groups []*Group
+	selector *selector.Selector[*Group]
 
 	results map[string]any
 
-	// navigation
-	paginator paginator.Model
-
 	// callbacks
-	submitCmd tea.Cmd
-	cancelCmd tea.Cmd
+	SubmitCmd tea.Cmd
+	CancelCmd tea.Cmd
 
 	State FormState
 
@@ -61,8 +83,10 @@ type Form struct {
 	width      int
 	height     int
 	keymap     *KeyMap
+	timeout    time.Duration
 	teaOptions []tea.ProgramOption
-	output     io.Writer
+
+	layout Layout
 }
 
 // NewForm returns a form with the given groups and default themes and
@@ -71,14 +95,13 @@ type Form struct {
 // Use With* methods to customize the form with options, such as setting
 // different themes and keybindings.
 func NewForm(groups ...*Group) *Form {
-	p := paginator.New()
-	p.SetTotalPages(len(groups))
+	selector := selector.NewSelector(groups)
 
 	f := &Form{
-		groups:    groups,
-		paginator: p,
-		keymap:    NewDefaultKeyMap(),
-		results:   make(map[string]any),
+		selector: selector,
+		keymap:   NewDefaultKeyMap(),
+		results:  make(map[string]any),
+		layout:   LayoutDefault,
 		teaOptions: []tea.ProgramOption{
 			tea.WithOutput(os.Stderr),
 		},
@@ -209,9 +232,10 @@ func (f *Form) WithAccessible(accessible bool) *Form {
 // This allows the form groups and field to show what keybindings are available
 // to the user.
 func (f *Form) WithShowHelp(v bool) *Form {
-	for _, group := range f.groups {
+	f.selector.Range(func(_ int, group *Group) bool {
 		group.WithShowHelp(v)
-	}
+		return true
+	})
 	return f
 }
 
@@ -220,9 +244,10 @@ func (f *Form) WithShowHelp(v bool) *Form {
 // This allows the form groups and fields to show errors when the Validate
 // function returns an error.
 func (f *Form) WithShowErrors(v bool) *Form {
-	for _, group := range f.groups {
+	f.selector.Range(func(_ int, group *Group) bool {
 		group.WithShowErrors(v)
-	}
+		return true
+	})
 	return f
 }
 
@@ -235,9 +260,10 @@ func (f *Form) WithTheme(theme *Theme) *Form {
 	if theme == nil {
 		return f
 	}
-	for _, group := range f.groups {
+	f.selector.Range(func(_ int, group *Group) bool {
 		group.WithTheme(theme)
-	}
+		return true
+	})
 	return f
 }
 
@@ -249,9 +275,10 @@ func (f *Form) WithKeyMap(keymap *KeyMap) *Form {
 		return f
 	}
 	f.keymap = keymap
-	for _, group := range f.groups {
+	f.selector.Range(func(_ int, group *Group) bool {
 		group.WithKeyMap(keymap)
-	}
+		return true
+	})
 	f.UpdateFieldPositions()
 	return f
 }
@@ -266,9 +293,11 @@ func (f *Form) WithWidth(width int) *Form {
 		return f
 	}
 	f.width = width
-	for _, group := range f.groups {
+	f.selector.Range(func(_ int, group *Group) bool {
+		width := f.layout.GroupWidth(f, group, width)
 		group.WithWidth(width)
-	}
+		return true
+	})
 	return f
 }
 
@@ -278,16 +307,28 @@ func (f *Form) WithHeight(height int) *Form {
 		return f
 	}
 	f.height = height
-	for _, group := range f.groups {
+	f.selector.Range(func(_ int, group *Group) bool {
 		group.WithHeight(height)
-	}
+		return true
+	})
 	return f
 }
 
 // WithOutput sets the io.Writer to output the form.
 func (f *Form) WithOutput(w io.Writer) *Form {
-	f.output = w
 	f.teaOptions = append(f.teaOptions, tea.WithOutput(w))
+	return f
+}
+
+// WithInput sets the io.Reader to the input form.
+func (f *Form) WithInput(r io.Reader) *Form {
+	f.teaOptions = append(f.teaOptions, tea.WithInput(r))
+	return f
+}
+
+// WithTimeout sets the duration for the form to be killed.
+func (f *Form) WithTimeout(t time.Duration) *Form {
+	f.timeout = t
 	return f
 }
 
@@ -297,47 +338,59 @@ func (f *Form) WithProgramOptions(opts ...tea.ProgramOption) *Form {
 	return f
 }
 
+// WithLayout sets the layout on a form.
+//
+// This allows customization of the form group layout.
+func (f *Form) WithLayout(layout Layout) *Form {
+	f.layout = layout
+	return f
+}
+
 // UpdateFieldPositions sets the position on all the fields.
 func (f *Form) UpdateFieldPositions() *Form {
 	firstGroup := 0
-	lastGroup := len(f.groups) - 1
+	lastGroup := f.selector.Total() - 1
 
 	// determine the first non-hidden group.
-	for g := range f.groups {
+	f.selector.Range(func(_ int, g *Group) bool {
 		if !f.isGroupHidden(g) {
-			break
+			return false
 		}
 		firstGroup++
-	}
+		return true
+	})
 
 	// determine the last non-hidden group.
-	for g := len(f.groups) - 1; g > 0; g-- {
+	f.selector.ReverseRange(func(_ int, g *Group) bool {
 		if !f.isGroupHidden(g) {
-			break
+			return false
 		}
 		lastGroup--
-	}
+		return true
+	})
 
-	for g, group := range f.groups {
+	f.selector.Range(func(g int, group *Group) bool {
 		// determine the first non-skippable field.
 		var firstField int
-		for _, field := range group.fields {
-			if !field.Skip() || len(group.fields) == 1 {
-				break
+		group.selector.Range(func(_ int, field Field) bool {
+			if !field.Skip() || group.selector.Total() == 1 {
+				return false
 			}
 			firstField++
-		}
+			return true
+		})
 
 		// determine the last non-skippable field.
 		var lastField int
-		for i := len(group.fields) - 1; i > 0; i-- {
+		group.selector.ReverseRange(func(i int, field Field) bool {
 			lastField = i
-			if !group.fields[i].Skip() || len(group.fields) == 1 {
-				break
+			if !field.Skip() || group.selector.Total() == 1 {
+				return false
 			}
-		}
+			return true
+		})
 
-		for i, field := range group.fields {
+		group.selector.Range(func(i int, field Field) bool {
 			field.WithPosition(FieldPosition{
 				Group:      g,
 				Field:      i,
@@ -346,25 +399,28 @@ func (f *Form) UpdateFieldPositions() *Form {
 				FirstGroup: firstGroup,
 				LastGroup:  lastGroup,
 			})
-		}
-	}
+			return true
+		})
+
+		return true
+	})
 	return f
 }
 
 // Errors returns the current groups' errors.
 func (f *Form) Errors() []error {
-	return f.groups[f.paginator.Page].Errors()
+	return f.selector.Selected().Errors()
 }
 
 // Help returns the current groups' help.
 func (f *Form) Help() help.Model {
-	return f.groups[f.paginator.Page].help
+	return f.selector.Selected().help
 }
 
 // KeyBinds returns the current fields' keybinds.
 func (f *Form) KeyBinds() []key.Binding {
-	group := f.groups[f.paginator.Page]
-	return group.fields[group.paginator.Page].KeyBinds()
+	group := f.selector.Selected()
+	return group.selector.Selected().KeyBinds()
 }
 
 // Get returns a result from the form.
@@ -381,7 +437,7 @@ func (f *Form) GetString(key string) string {
 	return v
 }
 
-// GetInt returns a result as a string from the form.
+// GetInt returns a result as a int from the form.
 func (f *Form) GetInt(key string) int {
 	v, ok := f.results[key].(int)
 	if !ok {
@@ -425,12 +481,16 @@ func (f *Form) PrevField() tea.Cmd {
 
 // Init initializes the form.
 func (f *Form) Init() tea.Cmd {
-	cmds := make([]tea.Cmd, len(f.groups))
-	for i, group := range f.groups {
+	cmds := make([]tea.Cmd, f.selector.Total())
+	f.selector.Range(func(i int, group *Group) bool {
+		if i == 0 {
+			group.active = true
+		}
 		cmds[i] = group.Init()
-	}
+		return true
+	})
 
-	if f.isGroupHidden(f.paginator.Page) {
+	if f.isGroupHidden(f.selector.Selected()) {
 		cmds = append(cmds, nextGroup)
 	}
 
@@ -444,37 +504,39 @@ func (f *Form) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return f, nil
 	}
 
-	page := f.paginator.Page
-	group := f.groups[page]
+	group := f.selector.Selected()
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		if f.width > 0 {
 			break
 		}
-		for _, group := range f.groups {
-			group.WithWidth(msg.Width)
-		}
+		f.selector.Range(func(_ int, group *Group) bool {
+			width := f.layout.GroupWidth(f, group, msg.Width)
+			group.WithWidth(width)
+			return true
+		})
 		if f.height > 0 {
 			break
 		}
-		for _, group := range f.groups {
+		f.selector.Range(func(_ int, group *Group) bool {
 			if group.fullHeight() > msg.Height {
 				group.WithHeight(msg.Height)
 			}
-		}
+			return true
+		})
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, f.keymap.Quit):
 			f.aborted = true
 			f.quitting = true
 			f.State = StateAborted
-			return f, f.cancelCmd
+			return f, f.CancelCmd
 		}
 
 	case nextFieldMsg:
 		// Form is progressing to the next field, let's save the value of the current field.
-		field := group.fields[group.paginator.Page]
+		field := group.selector.Selected()
 		f.results[field.GetKey()] = field.GetValue()
 
 	case nextGroupMsg:
@@ -485,43 +547,45 @@ func (f *Form) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		submit := func() (tea.Model, tea.Cmd) {
 			f.quitting = true
 			f.State = StateCompleted
-			return f, f.submitCmd
+			return f, f.SubmitCmd
 		}
 
-		if f.paginator.OnLastPage() {
+		if f.selector.OnLast() {
 			return submit()
 		}
 
-		for i := f.paginator.Page + 1; i < f.paginator.TotalPages; i++ {
-			if !f.isGroupHidden(i) {
-				f.paginator.Page = i
+		for i := f.selector.Index() + 1; i < f.selector.Total(); i++ {
+			if !f.isGroupHidden(f.selector.Get(i)) {
+				f.selector.SetIndex(i)
 				break
 			}
 			// all subsequent groups are hidden, so we must act as
 			// if we were in the last one.
-			if i == f.paginator.TotalPages-1 {
+			if i == f.selector.Total()-1 {
 				return submit()
 			}
 		}
-		return f, f.groups[f.paginator.Page].Init()
+		f.selector.Selected().active = true
+		return f, f.selector.Selected().Init()
 
 	case prevGroupMsg:
 		if len(group.Errors()) > 0 {
 			return f, nil
 		}
 
-		for i := f.paginator.Page - 1; i >= 0; i-- {
-			if !f.isGroupHidden(i) {
-				f.paginator.Page = i
+		for i := f.selector.Index() - 1; i >= 0; i-- {
+			if !f.isGroupHidden(f.selector.Get(i)) {
+				f.selector.SetIndex(i)
 				break
 			}
 		}
 
-		return f, f.groups[f.paginator.Page].Init()
+		f.selector.Selected().active = true
+		return f, f.selector.Selected().Init()
 	}
 
 	m, cmd := group.Update(msg)
-	f.groups[page] = m.(*Group)
+	f.selector.Set(f.selector.Index(), m.(*Group))
 
 	// A user input a key, this could hide or show other groups,
 	// let's update all of their positions.
@@ -533,8 +597,8 @@ func (f *Form) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return f, cmd
 }
 
-func (f *Form) isGroupHidden(page int) bool {
-	hide := f.groups[page].hide
+func (f *Form) isGroupHidden(group *Group) bool {
+	hide := group.hide
 	if hide == nil {
 		return false
 	}
@@ -547,15 +611,20 @@ func (f *Form) View() string {
 		return ""
 	}
 
-	return f.groups[f.paginator.Page].View()
+	return f.layout.View(f)
 }
 
 // Run runs the form.
 func (f *Form) Run() error {
-	f.submitCmd = tea.Quit
-	f.cancelCmd = tea.Quit
+	return f.RunWithContext(context.Background())
+}
 
-	if len(f.groups) == 0 {
+// RunWithContext runs the form with the given context.
+func (f *Form) RunWithContext(ctx context.Context) error {
+	f.SubmitCmd = tea.Quit
+	f.CancelCmd = tea.Quit
+
+	if f.selector.Total() == 0 {
 		return nil
 	}
 
@@ -563,27 +632,48 @@ func (f *Form) Run() error {
 		return f.runAccessible()
 	}
 
-	return f.run()
+	return f.run(ctx)
 }
 
 // run runs the form in normal mode.
-func (f *Form) run() error {
+func (f *Form) run(ctx context.Context) error {
+	if f.timeout > 0 {
+		ctx, cancel := context.WithTimeout(ctx, f.timeout)
+		defer cancel()
+		f.teaOptions = append(f.teaOptions, tea.WithContext(ctx), tea.WithReportFocus())
+	} else {
+		f.teaOptions = append(f.teaOptions, tea.WithContext(ctx), tea.WithReportFocus())
+	}
+
 	m, err := tea.NewProgram(f, f.teaOptions...).Run()
 	if m.(*Form).aborted {
-		err = ErrUserAborted
+		return ErrUserAborted
 	}
-	return err
+	if errors.Is(err, tea.ErrProgramKilled) {
+		return ErrTimeout
+	}
+	if err != nil {
+		return fmt.Errorf("huh: %w", err)
+	}
+	return nil
 }
 
 // runAccessible runs the form in accessible mode.
 func (f *Form) runAccessible() error {
-	for _, group := range f.groups {
-		for _, field := range group.fields {
+	// Timeouts are not supported in this mode.
+	if f.timeout > 0 {
+		return ErrTimeoutUnsupported
+	}
+
+	f.selector.Range(func(_ int, group *Group) bool {
+		group.selector.Range(func(_ int, field Field) bool {
 			field.Init()
 			field.Focus()
 			_ = field.WithAccessible(true).Run()
-		}
-	}
+			return true
+		})
+		return true
+	})
 
 	return nil
 }

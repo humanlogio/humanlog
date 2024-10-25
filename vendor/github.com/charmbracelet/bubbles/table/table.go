@@ -3,6 +3,7 @@ package table
 import (
 	"strings"
 
+	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
@@ -13,6 +14,7 @@ import (
 // Model defines a state for the table widget.
 type Model struct {
 	KeyMap KeyMap
+	Help   help.Model
 
 	cols   []Column
 	rows   []Row
@@ -35,7 +37,7 @@ type Column struct {
 }
 
 // KeyMap defines keybindings. It satisfies to the help.KeyMap interface, which
-// is used to render the menu.
+// is used to render the help menu.
 type KeyMap struct {
 	LineUp       key.Binding
 	LineDown     key.Binding
@@ -45,6 +47,19 @@ type KeyMap struct {
 	HalfPageDown key.Binding
 	GotoTop      key.Binding
 	GotoBottom   key.Binding
+}
+
+// ShortHelp implements the KeyMap interface.
+func (km KeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{km.LineUp, km.LineDown}
+}
+
+// FullHelp implements the KeyMap interface.
+func (km KeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{km.LineUp, km.LineDown, km.GotoTop, km.GotoBottom},
+		{km.PageUp, km.PageDown, km.HalfPageUp, km.HalfPageDown},
+	}
 }
 
 // DefaultKeyMap returns a default set of keybindings.
@@ -121,6 +136,7 @@ func New(opts ...Option) Model {
 		viewport: viewport.New(0, 20),
 
 		KeyMap: DefaultKeyMap(),
+		Help:   help.New(),
 		styles: DefaultStyles(),
 	}
 
@@ -150,7 +166,7 @@ func WithRows(rows []Row) Option {
 // WithHeight sets the height of the table.
 func WithHeight(h int) Option {
 	return func(m *Model) {
-		m.viewport.Height = h
+		m.viewport.Height = h - lipgloss.Height(m.headersView())
 	}
 }
 
@@ -238,6 +254,13 @@ func (m Model) View() string {
 	return m.headersView() + "\n" + m.viewport.View()
 }
 
+// HelpView is a helper method for rendering the help menu from the keymap.
+// Note that this view is not rendered by default and you must call it
+// manually in your application, where applicable.
+func (m Model) HelpView() string {
+	return m.Help.View(m.KeyMap)
+}
+
 // UpdateViewport updates the list content based on the previously defined
 // columns and rows.
 func (m *Model) UpdateViewport() {
@@ -276,6 +299,11 @@ func (m Model) Rows() []Row {
 	return m.rows
 }
 
+// Columns returns the current columns.
+func (m Model) Columns() []Column {
+	return m.cols
+}
+
 // SetRows sets a new rows state.
 func (m *Model) SetRows(r []Row) {
 	m.rows = r
@@ -296,7 +324,7 @@ func (m *Model) SetWidth(w int) {
 
 // SetHeight sets the height of the viewport of the table.
 func (m *Model) SetHeight(h int) {
-	m.viewport.Height = h
+	m.viewport.Height = h - lipgloss.Height(m.headersView())
 	m.UpdateViewport()
 }
 
@@ -329,7 +357,7 @@ func (m *Model) MoveUp(n int) {
 	case m.start == 0:
 		m.viewport.SetYOffset(clamp(m.viewport.YOffset, 0, m.cursor))
 	case m.start < m.viewport.Height:
-		m.viewport.SetYOffset(clamp(m.viewport.YOffset+n, 0, m.cursor))
+		m.viewport.YOffset = (clamp(clamp(m.viewport.YOffset+n, 0, m.cursor), 0, m.viewport.Height))
 	case m.viewport.YOffset >= 1:
 		m.viewport.YOffset = clamp(m.viewport.YOffset+n, 1, m.viewport.Height)
 	}
@@ -343,9 +371,9 @@ func (m *Model) MoveDown(n int) {
 	m.UpdateViewport()
 
 	switch {
-	case m.end == len(m.rows):
+	case m.end == len(m.rows) && m.viewport.YOffset > 0:
 		m.viewport.SetYOffset(clamp(m.viewport.YOffset-n, 1, m.viewport.Height))
-	case m.cursor > (m.end-m.start)/2:
+	case m.cursor > (m.end-m.start)/2 && m.viewport.YOffset > 0:
 		m.viewport.SetYOffset(clamp(m.viewport.YOffset-n, 1, m.cursor))
 	case m.viewport.YOffset > 1:
 	case m.cursor > m.viewport.YOffset+m.viewport.Height-1:
@@ -380,26 +408,32 @@ func (m *Model) FromValues(value, separator string) {
 }
 
 func (m Model) headersView() string {
-	var s = make([]string, 0, len(m.cols))
+	s := make([]string, 0, len(m.cols))
 	for _, col := range m.cols {
+		if col.Width <= 0 {
+			continue
+		}
 		style := lipgloss.NewStyle().Width(col.Width).MaxWidth(col.Width).Inline(true)
 		renderedCell := style.Render(runewidth.Truncate(col.Title, col.Width, "…"))
 		s = append(s, m.styles.Header.Render(renderedCell))
 	}
-	return lipgloss.JoinHorizontal(lipgloss.Left, s...)
+	return lipgloss.JoinHorizontal(lipgloss.Top, s...)
 }
 
-func (m *Model) renderRow(rowID int) string {
-	var s = make([]string, 0, len(m.cols))
-	for i, value := range m.rows[rowID] {
+func (m *Model) renderRow(r int) string {
+	s := make([]string, 0, len(m.cols))
+	for i, value := range m.rows[r] {
+		if m.cols[i].Width <= 0 {
+			continue
+		}
 		style := lipgloss.NewStyle().Width(m.cols[i].Width).MaxWidth(m.cols[i].Width).Inline(true)
 		renderedCell := m.styles.Cell.Render(style.Render(runewidth.Truncate(value, m.cols[i].Width, "…")))
 		s = append(s, renderedCell)
 	}
 
-	row := lipgloss.JoinHorizontal(lipgloss.Left, s...)
+	row := lipgloss.JoinHorizontal(lipgloss.Top, s...)
 
-	if rowID == m.cursor {
+	if r == m.cursor {
 		return m.styles.Selected.Render(row)
 	}
 

@@ -3,6 +3,7 @@ package textarea
 import (
 	"crypto/sha256"
 	"fmt"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -14,13 +15,13 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	rw "github.com/mattn/go-runewidth"
 	"github.com/rivo/uniseg"
 )
 
 const (
 	minHeight        = 1
-	minWidth         = 2
 	defaultHeight    = 6
 	defaultWidth     = 40
 	defaultCharLimit = 400
@@ -29,8 +30,10 @@ const (
 )
 
 // Internal messages for clipboard operations.
-type pasteMsg string
-type pasteErrMsg struct{ error }
+type (
+	pasteMsg    string
+	pasteErrMsg struct{ error }
+)
 
 // KeyMap is the key bindings for different actions within the textarea.
 type KeyMap struct {
@@ -63,30 +66,30 @@ type KeyMap struct {
 // DefaultKeyMap is the default set of key bindings for navigating and acting
 // upon the textarea.
 var DefaultKeyMap = KeyMap{
-	CharacterForward:        key.NewBinding(key.WithKeys("right", "ctrl+f")),
-	CharacterBackward:       key.NewBinding(key.WithKeys("left", "ctrl+b")),
-	WordForward:             key.NewBinding(key.WithKeys("alt+right", "alt+f")),
-	WordBackward:            key.NewBinding(key.WithKeys("alt+left", "alt+b")),
-	LineNext:                key.NewBinding(key.WithKeys("down", "ctrl+n")),
-	LinePrevious:            key.NewBinding(key.WithKeys("up", "ctrl+p")),
-	DeleteWordBackward:      key.NewBinding(key.WithKeys("alt+backspace", "ctrl+w")),
-	DeleteWordForward:       key.NewBinding(key.WithKeys("alt+delete", "alt+d")),
-	DeleteAfterCursor:       key.NewBinding(key.WithKeys("ctrl+k")),
-	DeleteBeforeCursor:      key.NewBinding(key.WithKeys("ctrl+u")),
-	InsertNewline:           key.NewBinding(key.WithKeys("enter", "ctrl+m")),
-	DeleteCharacterBackward: key.NewBinding(key.WithKeys("backspace", "ctrl+h")),
-	DeleteCharacterForward:  key.NewBinding(key.WithKeys("delete", "ctrl+d")),
-	LineStart:               key.NewBinding(key.WithKeys("home", "ctrl+a")),
-	LineEnd:                 key.NewBinding(key.WithKeys("end", "ctrl+e")),
-	Paste:                   key.NewBinding(key.WithKeys("ctrl+v")),
-	InputBegin:              key.NewBinding(key.WithKeys("alt+<", "ctrl+home")),
-	InputEnd:                key.NewBinding(key.WithKeys("alt+>", "ctrl+end")),
+	CharacterForward:        key.NewBinding(key.WithKeys("right", "ctrl+f"), key.WithHelp("right", "character forward")),
+	CharacterBackward:       key.NewBinding(key.WithKeys("left", "ctrl+b"), key.WithHelp("left", "character backward")),
+	WordForward:             key.NewBinding(key.WithKeys("alt+right", "alt+f"), key.WithHelp("alt+right", "word forward")),
+	WordBackward:            key.NewBinding(key.WithKeys("alt+left", "alt+b"), key.WithHelp("alt+left", "word backward")),
+	LineNext:                key.NewBinding(key.WithKeys("down", "ctrl+n"), key.WithHelp("down", "next line")),
+	LinePrevious:            key.NewBinding(key.WithKeys("up", "ctrl+p"), key.WithHelp("up", "previous line")),
+	DeleteWordBackward:      key.NewBinding(key.WithKeys("alt+backspace", "ctrl+w"), key.WithHelp("alt+backspace", "delete word backward")),
+	DeleteWordForward:       key.NewBinding(key.WithKeys("alt+delete", "alt+d"), key.WithHelp("alt+delete", "delete word forward")),
+	DeleteAfterCursor:       key.NewBinding(key.WithKeys("ctrl+k"), key.WithHelp("ctrl+k", "delete after cursor")),
+	DeleteBeforeCursor:      key.NewBinding(key.WithKeys("ctrl+u"), key.WithHelp("ctrl+u", "delete before cursor")),
+	InsertNewline:           key.NewBinding(key.WithKeys("enter", "ctrl+m"), key.WithHelp("enter", "insert newline")),
+	DeleteCharacterBackward: key.NewBinding(key.WithKeys("backspace", "ctrl+h"), key.WithHelp("backspace", "delete character backward")),
+	DeleteCharacterForward:  key.NewBinding(key.WithKeys("delete", "ctrl+d"), key.WithHelp("delete", "delete character forward")),
+	LineStart:               key.NewBinding(key.WithKeys("home", "ctrl+a"), key.WithHelp("home", "line start")),
+	LineEnd:                 key.NewBinding(key.WithKeys("end", "ctrl+e"), key.WithHelp("end", "line end")),
+	Paste:                   key.NewBinding(key.WithKeys("ctrl+v"), key.WithHelp("ctrl+v", "paste")),
+	InputBegin:              key.NewBinding(key.WithKeys("alt+<", "ctrl+home"), key.WithHelp("alt+<", "input begin")),
+	InputEnd:                key.NewBinding(key.WithKeys("alt+>", "ctrl+end"), key.WithHelp("alt+>", "input end")),
 
-	CapitalizeWordForward: key.NewBinding(key.WithKeys("alt+c")),
-	LowercaseWordForward:  key.NewBinding(key.WithKeys("alt+l")),
-	UppercaseWordForward:  key.NewBinding(key.WithKeys("alt+u")),
+	CapitalizeWordForward: key.NewBinding(key.WithKeys("alt+c"), key.WithHelp("alt+c", "capitalize word forward")),
+	LowercaseWordForward:  key.NewBinding(key.WithKeys("alt+l"), key.WithHelp("alt+l", "lowercase word forward")),
+	UppercaseWordForward:  key.NewBinding(key.WithKeys("alt+u"), key.WithHelp("alt+u", "uppercase word forward")),
 
-	TransposeCharacterBackward: key.NewBinding(key.WithKeys("ctrl+t")),
+	TransposeCharacterBackward: key.NewBinding(key.WithKeys("ctrl+t"), key.WithHelp("ctrl+t", "transpose character backward")),
 }
 
 // LineInfo is a helper for keeping track of line information regarding
@@ -130,6 +133,37 @@ type Style struct {
 	Placeholder      lipgloss.Style
 	Prompt           lipgloss.Style
 	Text             lipgloss.Style
+}
+
+func (s Style) computedCursorLine() lipgloss.Style {
+	return s.CursorLine.Inherit(s.Base).Inline(true)
+}
+
+func (s Style) computedCursorLineNumber() lipgloss.Style {
+	return s.CursorLineNumber.
+		Inherit(s.CursorLine).
+		Inherit(s.Base).
+		Inline(true)
+}
+
+func (s Style) computedEndOfBuffer() lipgloss.Style {
+	return s.EndOfBuffer.Inherit(s.Base).Inline(true)
+}
+
+func (s Style) computedLineNumber() lipgloss.Style {
+	return s.LineNumber.Inherit(s.Base).Inline(true)
+}
+
+func (s Style) computedPlaceholder() lipgloss.Style {
+	return s.Placeholder.Inherit(s.Base).Inline(true)
+}
+
+func (s Style) computedPrompt() lipgloss.Style {
+	return s.Prompt.Inherit(s.Base).Inline(true)
+}
+
+func (s Style) computedText() lipgloss.Style {
+	return s.Text.Inherit(s.Base).Inline(true)
 }
 
 // line is the input to the text wrapping function. This is stored in a struct
@@ -232,9 +266,6 @@ type Model struct {
 	// vertically such that we can maintain the same navigating position.
 	lastCharOffset int
 
-	// lineNumberFormat is the format string used to display line numbers.
-	lineNumberFormat string
-
 	// viewport is the vertically-scrollable viewport of the multi-line text
 	// input.
 	viewport *viewport.Model
@@ -260,16 +291,15 @@ func New() Model {
 		FocusedStyle:         focusedStyle,
 		BlurredStyle:         blurredStyle,
 		cache:                memoization.NewMemoCache[line, [][]rune](defaultMaxHeight),
-		EndOfBufferCharacter: '~',
+		EndOfBufferCharacter: ' ',
 		ShowLineNumbers:      true,
 		Cursor:               cur,
 		KeyMap:               DefaultKeyMap,
 
-		value:            make([][]rune, minHeight, defaultMaxHeight),
-		focus:            false,
-		col:              0,
-		row:              0,
-		lineNumberFormat: "%3v ",
+		value: make([][]rune, minHeight, defaultMaxHeight),
+		focus: false,
+		col:   0,
+		row:   0,
 
 		viewport: &vp,
 	}
@@ -605,8 +635,7 @@ func (m *Model) transposeLeft() {
 	if m.col >= len(m.value[m.row]) {
 		m.SetCursor(m.col - 1)
 	}
-	m.value[m.row][m.col-1], m.value[m.row][m.col] =
-		m.value[m.row][m.col], m.value[m.row][m.col-1]
+	m.value[m.row][m.col-1], m.value[m.row][m.col] = m.value[m.row][m.col], m.value[m.row][m.col-1]
 	if m.col < len(m.value[m.row]) {
 		m.SetCursor(m.col + 1)
 	}
@@ -738,10 +767,7 @@ func (m *Model) wordRight() {
 
 func (m *Model) doWordRight(fn func(charIdx int, pos int)) {
 	// Skip spaces forward.
-	for {
-		if m.col < len(m.value[m.row]) && !unicode.IsSpace(m.value[m.row][m.col]) {
-			break
-		}
+	for m.col >= len(m.value[m.row]) || unicode.IsSpace(m.value[m.row][m.col]) {
 		if m.row == len(m.value)-1 && m.col == len(m.value[m.row]) {
 			// End of text.
 			break
@@ -862,32 +888,40 @@ func (m *Model) moveToEnd() {
 // It is important that the width of the textarea be exactly the given width
 // and no more.
 func (m *Model) SetWidth(w int) {
-	if m.MaxWidth > 0 {
-		m.viewport.Width = clamp(w, minWidth, m.MaxWidth)
-	} else {
-		m.viewport.Width = max(w, minWidth)
-	}
-
-	// Since the width of the textarea input is dependent on the width of the
-	// prompt and line numbers, we need to calculate it by subtracting.
-	inputWidth := w
-	if m.ShowLineNumbers {
-		inputWidth -= uniseg.StringWidth(fmt.Sprintf(m.lineNumberFormat, 0))
-	}
-
-	// Account for base style borders and padding.
-	inputWidth -= m.style.Base.GetHorizontalFrameSize()
-
+	// Update prompt width only if there is no prompt function as SetPromptFunc
+	// updates the prompt width when it is called.
 	if m.promptFunc == nil {
 		m.promptWidth = uniseg.StringWidth(m.Prompt)
 	}
 
-	inputWidth -= m.promptWidth
-	if m.MaxWidth > 0 {
-		m.width = clamp(inputWidth, minWidth, m.MaxWidth)
-	} else {
-		m.width = max(inputWidth, minWidth)
+	// Add base style borders and padding to reserved outer width.
+	reservedOuter := m.style.Base.GetHorizontalFrameSize()
+
+	// Add prompt width to reserved inner width.
+	reservedInner := m.promptWidth
+
+	// Add line number width to reserved inner width.
+	if m.ShowLineNumbers {
+		const lnWidth = 4 // Up to 3 digits for line number plus 1 margin.
+		reservedInner += lnWidth
 	}
+
+	// Input width must be at least one more than the reserved inner and outer
+	// width. This gives us a minimum input width of 1.
+	minWidth := reservedInner + reservedOuter + 1
+	inputWidth := max(w, minWidth)
+
+	// Input width must be no more than maximum width.
+	if m.MaxWidth > 0 {
+		inputWidth = min(inputWidth, m.MaxWidth)
+	}
+
+	// Since the width of the viewport and input area is dependent on the width of
+	// borders, prompt and line numbers, we need to calculate it by subtracting
+	// the reserved width from them.
+
+	m.viewport.Width = inputWidth - reservedOuter
+	m.width = inputWidth - reservedOuter - reservedInner
 }
 
 // SetPromptFunc supersedes the Prompt field and sets a dynamic prompt
@@ -1058,44 +1092,57 @@ func (m Model) View() string {
 	if m.Value() == "" && m.row == 0 && m.col == 0 && m.Placeholder != "" {
 		return m.placeholderView()
 	}
-	m.Cursor.TextStyle = m.style.CursorLine
+	m.Cursor.TextStyle = m.style.computedCursorLine()
 
-	var s strings.Builder
-	var style lipgloss.Style
-	lineInfo := m.LineInfo()
-
-	var newLines int
+	var (
+		s                strings.Builder
+		style            lipgloss.Style
+		newLines         int
+		widestLineNumber int
+		lineInfo         = m.LineInfo()
+	)
 
 	displayLine := 0
 	for l, line := range m.value {
 		wrappedLines := m.memoizedWrap(line, m.width)
 
 		if m.row == l {
-			style = m.style.CursorLine
+			style = m.style.computedCursorLine()
 		} else {
-			style = m.style.Text
+			style = m.style.computedText()
 		}
 
 		for wl, wrappedLine := range wrappedLines {
 			prompt := m.getPromptString(displayLine)
-			prompt = m.style.Prompt.Render(prompt)
+			prompt = m.style.computedPrompt().Render(prompt)
 			s.WriteString(style.Render(prompt))
 			displayLine++
 
+			var ln string
 			if m.ShowLineNumbers {
 				if wl == 0 {
 					if m.row == l {
-						s.WriteString(style.Render(m.style.CursorLineNumber.Render(fmt.Sprintf(m.lineNumberFormat, l+1))))
+						ln = style.Render(m.style.computedCursorLineNumber().Render(m.formatLineNumber(l + 1)))
+						s.WriteString(ln)
 					} else {
-						s.WriteString(style.Render(m.style.LineNumber.Render(fmt.Sprintf(m.lineNumberFormat, l+1))))
+						ln = style.Render(m.style.computedLineNumber().Render(m.formatLineNumber(l + 1)))
+						s.WriteString(ln)
 					}
 				} else {
 					if m.row == l {
-						s.WriteString(style.Render(m.style.CursorLineNumber.Render(fmt.Sprintf(m.lineNumberFormat, " "))))
+						ln = style.Render(m.style.computedCursorLineNumber().Render(m.formatLineNumber(" ")))
+						s.WriteString(ln)
 					} else {
-						s.WriteString(style.Render(m.style.LineNumber.Render(fmt.Sprintf(m.lineNumberFormat, " "))))
+						ln = style.Render(m.style.computedLineNumber().Render(m.formatLineNumber(" ")))
+						s.WriteString(ln)
 					}
 				}
+			}
+
+			// Note the widest line number for padding purposes later.
+			lnw := lipgloss.Width(ln)
+			if lnw > widestLineNumber {
+				widestLineNumber = lnw
 			}
 
 			strwidth := uniseg.StringWidth(string(wrappedLine))
@@ -1134,19 +1181,29 @@ func (m Model) View() string {
 	// To do this we can simply pad out a few extra new lines in the view.
 	for i := 0; i < m.height; i++ {
 		prompt := m.getPromptString(displayLine)
-		prompt = m.style.Prompt.Render(prompt)
+		prompt = m.style.computedPrompt().Render(prompt)
 		s.WriteString(prompt)
 		displayLine++
 
-		if m.ShowLineNumbers {
-			lineNumber := m.style.EndOfBuffer.Render((fmt.Sprintf(m.lineNumberFormat, string(m.EndOfBufferCharacter))))
-			s.WriteString(lineNumber)
-		}
+		// Write end of buffer content
+		leftGutter := string(m.EndOfBufferCharacter)
+		rightGapWidth := m.Width() - lipgloss.Width(leftGutter) + widestLineNumber
+		rightGap := strings.Repeat(" ", max(0, rightGapWidth))
+		s.WriteString(m.style.computedEndOfBuffer().Render(leftGutter + rightGap))
 		s.WriteRune('\n')
 	}
 
 	m.viewport.SetContent(s.String())
 	return m.style.Base.Render(m.viewport.View())
+}
+
+// formatLineNumber formats the line number for display dynamically based on
+// the maximum number of lines
+func (m Model) formatLineNumber(x any) string {
+	// XXX: ultimately we should use a max buffer height, which has yet to be
+	// implemented.
+	digits := len(strconv.Itoa(m.MaxHeight))
+	return fmt.Sprintf(" %*v ", digits, x)
 }
 
 func (m Model) getPromptString(displayLine int) (prompt string) {
@@ -1166,36 +1223,71 @@ func (m Model) getPromptString(displayLine int) (prompt string) {
 func (m Model) placeholderView() string {
 	var (
 		s     strings.Builder
-		p     = rw.Truncate(m.Placeholder, m.width, "...")
-		style = m.style.Placeholder.Inline(true)
+		p     = m.Placeholder
+		style = m.style.computedPlaceholder()
 	)
 
-	prompt := m.getPromptString(0)
-	prompt = m.style.Prompt.Render(prompt)
-	s.WriteString(m.style.CursorLine.Render(prompt))
+	// word wrap lines
+	pwordwrap := ansi.Wordwrap(p, m.width, "")
+	// wrap lines (handles lines that could not be word wrapped)
+	pwrap := ansi.Hardwrap(pwordwrap, m.width, true)
+	// split string by new lines
+	plines := strings.Split(strings.TrimSpace(pwrap), "\n")
 
-	if m.ShowLineNumbers {
-		s.WriteString(m.style.CursorLine.Render(m.style.CursorLineNumber.Render((fmt.Sprintf(m.lineNumberFormat, 1)))))
-	}
+	for i := 0; i < m.height; i++ {
+		lineStyle := m.style.computedPlaceholder()
+		lineNumberStyle := m.style.computedLineNumber()
+		if len(plines) > i {
+			lineStyle = m.style.computedCursorLine()
+			lineNumberStyle = m.style.computedCursorLineNumber()
+		}
 
-	m.Cursor.TextStyle = m.style.Placeholder
-	m.Cursor.SetChar(string(p[0]))
-	s.WriteString(m.style.CursorLine.Render(m.Cursor.View()))
-
-	// The rest of the placeholder text
-	s.WriteString(m.style.CursorLine.Render(style.Render(p[1:] + strings.Repeat(" ", max(0, m.width-uniseg.StringWidth(p))))))
-
-	// The rest of the new lines
-	for i := 1; i < m.height; i++ {
-		s.WriteRune('\n')
+		// render prompt
 		prompt := m.getPromptString(i)
-		prompt = m.style.Prompt.Render(prompt)
-		s.WriteString(prompt)
+		prompt = m.style.computedPrompt().Render(prompt)
+		s.WriteString(lineStyle.Render(prompt))
 
+		// when show line numbers enabled:
+		// - render line number for only the cursor line
+		// - indent other placeholder lines
+		// this is consistent with vim with line numbers enabled
 		if m.ShowLineNumbers {
-			eob := m.style.EndOfBuffer.Render((fmt.Sprintf(m.lineNumberFormat, string(m.EndOfBufferCharacter))))
+			var ln string
+
+			switch {
+			case i == 0:
+				ln = strconv.Itoa(i + 1)
+				fallthrough
+			case len(plines) > i:
+				s.WriteString(lineStyle.Render(lineNumberStyle.Render(m.formatLineNumber(ln))))
+			default:
+			}
+		}
+
+		switch {
+		// first line
+		case i == 0:
+			// first character of first line as cursor with character
+			m.Cursor.TextStyle = m.style.computedPlaceholder()
+			m.Cursor.SetChar(string(plines[0][0]))
+			s.WriteString(lineStyle.Render(m.Cursor.View()))
+
+			// the rest of the first line
+			s.WriteString(lineStyle.Render(style.Render(plines[0][1:] + strings.Repeat(" ", max(0, m.width-uniseg.StringWidth(plines[0]))))))
+		// remaining lines
+		case len(plines) > i:
+			// current line placeholder text
+			if len(plines) > i {
+				s.WriteString(lineStyle.Render(style.Render(plines[i] + strings.Repeat(" ", max(0, m.width-uniseg.StringWidth(plines[i]))))))
+			}
+		default:
+			// end of line buffer character
+			eob := m.style.computedEndOfBuffer().Render(string(m.EndOfBufferCharacter))
 			s.WriteString(eob)
 		}
+
+		// terminate with new line
+		s.WriteRune('\n')
 	}
 
 	m.viewport.SetContent(s.String())
