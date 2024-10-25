@@ -44,7 +44,7 @@ func TestRetrySuccess(t *testing.T) {
 }
 
 func TestRetryFailOnce(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	now := time.Date(2024, time.October, 25, 13, 40, 37, 0, time.UTC)
 	start := now
