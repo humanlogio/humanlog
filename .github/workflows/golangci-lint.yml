@@ -1,0 +1,34 @@
+name: golangci-lint
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+
+permissions:
+  contents: read
+  checks: write
+
+jobs:
+  golangci:
+    strategy:
+      matrix:
+        go: [stable]
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    name: lint
+    runs-on: ${{ matrix.os }}
+    steps:
+
+      - uses: actions/checkout@v4
+        with:
+            fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.60
