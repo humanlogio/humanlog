@@ -22,6 +22,7 @@ release:
   github:
     owner: humanlogio
     name: humanlog
+  replace_existing_artifacts: true
 archives:
   - name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     format_overrides:
