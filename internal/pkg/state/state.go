@@ -105,20 +105,24 @@ func WriteStateFile(path string, state *State) error {
 }
 
 type State struct {
-	Version                      int             `json:"version"`
-	AccountID                    *int64          `json:"account_id"`
-	MachineID                    *int64          `json:"machine_id"`
+	// to convert across old vs. new version of `type State struct`
+	Version int `json:"version"`
+
+	// set for ingestion purpose
+	AccountID      *int64                `json:"account_id"`
+	MachineID      *int64                `json:"machine_id"`
+	IngestionToken *typesv1.AccountToken `json:"ingestion_token,omitempty"`
+
+	// update mechanism
 	LatestKnownVersion           *semver.Version `json:"latest_known_version,omitempty"`
 	LastestKnownVersionUpdatedAt *time.Time      `json:"latest_known_version_updated_at"`
-
-	IngestionToken *typesv1.AccountToken `json:"ingestion_token,omitempty"`
 
 	// preferences set in the CLI/TUI when querying
 	CurrentOrgID     *int64 `json:"current_org_id,omitempty"`
 	CurrentAccountID *int64 `json:"current_account_id,omitempty"`
 	CurrentMachineID *int64 `json:"current_machine_id,omitempty"`
 
-	// unexported
+	// unexported, the filepath where the `State` get's serialized and saved to
 	path string
 }
 
@@ -140,6 +144,15 @@ func (cfg State) populateEmpty(other *State) *State {
 	}
 	if out.LastestKnownVersionUpdatedAt == nil && other.LastestKnownVersionUpdatedAt != nil {
 		out.LastestKnownVersionUpdatedAt = other.LastestKnownVersionUpdatedAt
+	}
+	if out.CurrentOrgID == nil && other.CurrentOrgID != nil {
+		out.CurrentOrgID = other.CurrentOrgID
+	}
+	if out.CurrentAccountID == nil && other.CurrentAccountID != nil {
+		out.CurrentAccountID = other.CurrentAccountID
+	}
+	if out.CurrentMachineID == nil && other.CurrentMachineID != nil {
+		out.CurrentMachineID = other.CurrentMachineID
 	}
 	return &out
 }

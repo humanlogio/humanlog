@@ -17,6 +17,7 @@ require (
 	github.com/charmbracelet/lipgloss v0.13.0
 	github.com/charmbracelet/x/term v0.2.0
 	github.com/cli/safeexec v1.0.1
+	github.com/crazy3lf/colorconv v1.2.0
 	github.com/fatih/color v1.16.0
 	github.com/gen2brain/beeep v0.0.0-20240516210008-9c006672e7f4
 	github.com/go-logfmt/logfmt v0.5.1

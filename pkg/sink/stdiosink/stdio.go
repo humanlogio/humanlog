@@ -132,6 +132,10 @@ func (std *Stdio) Flush(ctx context.Context) error {
 }
 
 func (std *Stdio) Receive(ctx context.Context, ev *typesv1.LogEvent) error {
+	return std.ReceiveWithPostProcess(ctx, ev, nil)
+}
+
+func (std *Stdio) ReceiveWithPostProcess(ctx context.Context, ev *typesv1.LogEvent, postProcess func(string) string) error {
 	if ev.Structured == nil {
 		std.lastRaw = true
 		std.lastLevel = ""
@@ -200,7 +204,12 @@ func (std *Stdio) Receive(ctx context.Context, ev *typesv1.LogEvent) error {
 		}
 		timestr = timeColor.Sprint(ts.Format(std.opts.TimeFormat))
 	}
-	_, _ = fmt.Fprintf(out, "%s |%s| %s\t %s",
+
+	pattern := "%s |%s| %s\t %s"
+	if postProcess != nil {
+		pattern = postProcess(pattern)
+	}
+	_, _ = fmt.Fprintf(out, pattern,
 		timestr,
 		level,
 		msg,
