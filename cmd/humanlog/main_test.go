@@ -1,21 +1,31 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
-	"strings"
 	"testing"
+
+	"github.com/humanlogio/humanlog/internal/pkg/config"
+	"github.com/stretchr/testify/require"
 )
 
 func TestApplyConfigFromConfigFile_when_one_of_skip_or_keep_is_given(t *testing.T) {
 
-	wd, _ := os.Getwd()
-	dirs := strings.Split(wd, "/")
-	root := strings.Join(dirs[:len(dirs)-2], "/")
-	configFilePath := root + "/test/cases/00065-apply-config/config.json"
-	t.Logf("config file path: %v", configFilePath)
+	cfg := config.Config{
+		Skip: ptr([]string{"foo", "bar"}),
+	}
 
-	args := []string{"program-path"}
-	args = append(args, "--config", configFilePath)
+	dir := t.TempDir()
+	f, err := os.CreateTemp(dir, "00065-apply-config.json")
+	require.NoError(t, err)
+
+	err = json.NewEncoder(f).Encode(cfg)
+	require.NoError(t, err)
+
+	err = f.Close()
+	require.NoError(t, err)
+
+	args := []string{"program-path", "--config", f.Name()}
 
 	app := newApp()
 	if err := app.Run(args); err != nil {
