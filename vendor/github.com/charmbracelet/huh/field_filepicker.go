@@ -17,9 +17,9 @@ import (
 
 // FilePicker is a form file file field.
 type FilePicker struct {
-	value  *string
-	key    string
-	picker filepicker.Model
+	accessor Accessor[string]
+	key      string
+	picker   filepicker.Model
 
 	// state
 	focused bool
@@ -52,7 +52,7 @@ func NewFilePicker() *FilePicker {
 	}
 
 	return &FilePicker{
-		value:    new(string),
+		accessor: &EmbeddedAccessor[string]{},
 		validate: func(string) error { return nil },
 		picker:   fp,
 	}
@@ -61,6 +61,9 @@ func NewFilePicker() *FilePicker {
 // CurrentDirectory sets the directory of the file field.
 func (f *FilePicker) CurrentDirectory(directory string) *FilePicker {
 	f.picker.CurrentDirectory = directory
+	if cmd := f.picker.Init(); cmd != nil {
+		f.picker, _ = f.picker.Update(cmd())
+	}
 	return f
 }
 
@@ -102,7 +105,12 @@ func (f *FilePicker) DirAllowed(v bool) *FilePicker {
 
 // Value sets the value of the file field.
 func (f *FilePicker) Value(value *string) *FilePicker {
-	f.value = value
+	return f.Accessor(NewPointerAccessor(value))
+}
+
+// Accessor sets the accessor of the file field.
+func (f *FilePicker) Accessor(accessor Accessor[string]) *FilePicker {
+	f.accessor = accessor
 	return f
 }
 
@@ -178,7 +186,7 @@ func (f *FilePicker) Focus() tea.Cmd {
 func (f *FilePicker) Blur() tea.Cmd {
 	f.focused = false
 	f.setPicking(false)
-	f.err = f.validate(*f.value)
+	f.err = f.validate(f.accessor.Get())
 	return nil
 }
 
@@ -207,7 +215,7 @@ func (f *FilePicker) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return f, f.picker.Init()
 		case key.Matches(msg, f.keymap.Close):
 			f.setPicking(false)
-			return f, nil
+			return f, NextField
 		case key.Matches(msg, f.keymap.Next):
 			f.setPicking(false)
 			return f, NextField
@@ -221,7 +229,7 @@ func (f *FilePicker) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	f.picker, cmd = f.picker.Update(msg)
 	didSelect, file := f.picker.DidSelectFile(msg)
 	if didSelect {
-		*f.value = file
+		f.accessor.Set(file)
 		f.setPicking(false)
 		return f, NextField
 	}
@@ -259,8 +267,8 @@ func (f *FilePicker) View() string {
 	if f.picking {
 		sb.WriteString(strings.TrimSuffix(f.picker.View(), "\n"))
 	} else {
-		if *f.value != "" {
-			sb.WriteString(styles.SelectedOption.Render(*f.value))
+		if f.accessor.Get() != "" {
+			sb.WriteString(styles.SelectedOption.Render(f.accessor.Get()))
 		} else {
 			sb.WriteString(styles.TextInput.Placeholder.Render("No file selected."))
 		}
@@ -320,8 +328,8 @@ func (f *FilePicker) runAccessible() error {
 		return f.validate(s)
 	}
 
-	*f.value = accessibility.PromptString("File: ", validateFile)
-	fmt.Println(styles.SelectedOption.Render(*f.value + "\n"))
+	f.accessor.Set(accessibility.PromptString("File: ", validateFile))
+	fmt.Println(styles.SelectedOption.Render(f.accessor.Get() + "\n"))
 	return nil
 }
 
@@ -403,5 +411,5 @@ func (f *FilePicker) GetKey() string {
 
 // GetValue returns the value of the field.
 func (f *FilePicker) GetValue() any {
-	return *f.value
+	return f.accessor.Get()
 }

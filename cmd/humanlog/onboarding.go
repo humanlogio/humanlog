@@ -31,12 +31,12 @@ func onboardingCmd(
 		Hidden: true,
 		Action: func(cctx *cli.Context) error {
 			wantsSignup := true
-			err := huh.NewConfirm().
-				Title("Welcome to humanlog. New features are coming up soon!").
+			err := huh.NewConfirm().Title("Welcome to humanlog. New features are coming up soon!").
 				Description("Would you like to sign-up to learn more?").
 				Affirmative("Yes!").
 				Negative("No.").
 				Value(&wantsSignup).
+				WithAccessible(accessibleTUI).
 				WithTheme(huhTheme).Run()
 			if err != nil {
 				return err
