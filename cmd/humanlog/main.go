@@ -70,7 +70,14 @@ var (
 	defaultBaseSiteAddr    = "https://humanlog.io"
 	hideUnreleasedFeatures = ""
 
-	huhTheme = huh.ThemeCatppuccin()
+	huhTheme = func() *huh.Theme {
+		base := huh.ThemeCatppuccin()
+		base.Focused.FocusedButton = base.Focused.FocusedButton.Bold(true).Underline(true)
+		base.Focused.BlurredButton = base.Focused.BlurredButton.Bold(false).Underline(false).Strikethrough(true)
+		base.Blurred.FocusedButton = base.Focused.FocusedButton.Bold(true).Underline(true)
+		base.Blurred.BlurredButton = base.Focused.BlurredButton.Bold(false).Underline(false).Strikethrough(true)
+		return base
+	}()
 )
 
 func fatalf(c *cli.Context, format string, args ...interface{}) {
@@ -82,10 +89,6 @@ func fatalf(c *cli.Context, format string, args ...interface{}) {
 }
 
 func main() {
-	huhTheme.Focused.FocusedButton = huhTheme.Focused.FocusedButton.Bold(true).Underline(true)
-	huhTheme.Focused.BlurredButton = huhTheme.Focused.BlurredButton.Bold(false).Underline(false).Strikethrough(true)
-	huhTheme.Blurred.FocusedButton = huhTheme.Focused.FocusedButton.Bold(true).Underline(true)
-	huhTheme.Blurred.BlurredButton = huhTheme.Focused.BlurredButton.Bold(false).Underline(false).Strikethrough(true)
 	app := newApp()
 
 	prefix := rgbterm.FgString(app.Name+"> ", 99, 99, 99)
