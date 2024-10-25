@@ -82,6 +82,10 @@ func fatalf(c *cli.Context, format string, args ...interface{}) {
 }
 
 func main() {
+	huhTheme.Focused.FocusedButton = huhTheme.Focused.FocusedButton.Bold(true).Underline(true)
+	huhTheme.Focused.BlurredButton = huhTheme.Focused.BlurredButton.Bold(false).Underline(false).Strikethrough(true)
+	huhTheme.Blurred.FocusedButton = huhTheme.Focused.FocusedButton.Bold(true).Underline(true)
+	huhTheme.Blurred.BlurredButton = huhTheme.Focused.BlurredButton.Bold(false).Underline(false).Strikethrough(true)
 	app := newApp()
 
 	prefix := rgbterm.FgString(app.Name+"> ", 99, 99, 99)
