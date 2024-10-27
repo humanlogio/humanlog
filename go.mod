@@ -22,7 +22,7 @@ require (
 	github.com/gen2brain/beeep v0.0.0-20240516210008-9c006672e7f4
 	github.com/go-logfmt/logfmt v0.5.1
 	github.com/google/uuid v1.6.0
-	github.com/humanlogio/api/go v0.0.0-20241011070935-7bb04da206c8
+	github.com/humanlogio/api/go v0.0.0-20241027163319-aa04487ea614
 	github.com/kr/logfmt v0.0.0-20210122060352-19f9bcb100e6
 	github.com/lrstanley/bubblezone v0.0.0-20240914071701-b48c55a5e78e
 	github.com/matoous/go-nanoid v1.5.0
@@ -75,5 +75,3 @@ require (
 	golang.org/x/text v0.18.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-replace github.com/humanlogio/api/go => /Users/antoine/code/src/github.com/humanlogio/api/go
