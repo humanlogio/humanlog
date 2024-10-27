@@ -293,7 +293,7 @@ func newApp() *cli.App {
 			logdebug("using basesite at %q", baseSiteURL)
 			return baseSiteURL
 		}
-		getHTTPClient = func(cctx *cli.Context) *http.Client {
+		getHTTPClient = func(cctx *cli.Context, apiURL string) *http.Client {
 			u, _ := url.Parse(apiURL)
 			if host, _, _ := net.SplitHostPort(u.Host); host == "localhost" {
 				getLogger(cctx).Debug("using localhost client")
@@ -507,7 +507,7 @@ func newApp() *cli.App {
 					ctx, cancel := context.WithTimeout(context.Background(), flushTimeout)
 					defer cancel()
 					ll.DebugContext(ctx, "flushing remote ingestion sink for up to 300ms")
-					if err := remotesink.Flush(ctx); err != nil {
+					if err := remotesink.Close(ctx); err != nil {
 						ll.ErrorContext(ctx, "couldn't flush buffered log", slog.Any("err", err))
 					} else {
 						ll.DebugContext(ctx, "done sending all logs")
@@ -528,7 +528,7 @@ func newApp() *cli.App {
 					// no machine ID assigned, ensure machine gets onboarded via the login flow
 					// TODO(antoine): if an account token exists, auto-onboard the machine. it's probably
 					// not an interactive session
-					_, err := ensureLoggedIn(ctx, cctx, state, getTokenSource(cctx), apiURL, getHTTPClient(cctx))
+					_, err := ensureLoggedIn(ctx, cctx, state, getTokenSource(cctx), apiURL, getHTTPClient(cctx, apiURL))
 					if err != nil {
 						return fmt.Errorf("this feature requires a valid machine ID, which requires an account. failed to login: %v", err)
 					}
@@ -539,17 +539,17 @@ func newApp() *cli.App {
 					loginfo("starting experimental localhost service: %v", err)
 				} else {
 					sink = teesink.NewTeeSink(sink, localhostSink)
+					defer func() {
+						ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+						defer cancel()
+						ll.DebugContext(ctx, "flushing localhost ingestion sink for up to 300ms")
+						if err := done(ctx); err != nil {
+							ll.ErrorContext(ctx, "couldn't flush buffered log (localhost)", slog.Any("err", err))
+						} else {
+							ll.DebugContext(ctx, "done sending all logs")
+						}
+					}()
 				}
-				defer func() {
-					ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
-					defer cancel()
-					ll.DebugContext(ctx, "flushing localhost ingestion sink for up to 300ms")
-					if err := done(ctx); err != nil {
-						ll.ErrorContext(ctx, "couldn't flush buffered log (localhost)", slog.Any("err", err))
-					} else {
-						ll.DebugContext(ctx, "done sending all logs")
-					}
-				}()
 			}
 		}
 

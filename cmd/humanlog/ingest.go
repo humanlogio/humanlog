@@ -27,20 +27,20 @@ func ingest(
 	ctx context.Context,
 	ll *slog.Logger,
 	cctx *cli.Context,
-	apiAddr string,
+	apiURL string,
 	getCfg func(*cli.Context) *config.Config,
 	getState func(*cli.Context) *state.State,
 	getTokenSource func(cctx *cli.Context) *auth.UserRefreshableTokenSource,
-	getHTTPClient func(*cli.Context) *http.Client,
+	getHTTPClient func(*cli.Context, string) *http.Client,
 	notifyUnableToIngest func(error),
 ) (sink.Sink, error) {
 	state := getState(cctx)
 	tokenSource := getTokenSource(cctx)
-	httpClient := getHTTPClient(cctx)
+	httpClient := getHTTPClient(cctx, apiURL)
 
 	if state.IngestionToken == nil || time.Now().After(state.IngestionToken.ExpiresAt.AsTime()) {
 		// we need to create an account token
-		accountToken, err := createIngestionToken(ctx, ll, cctx, state, tokenSource, apiAddr, httpClient)
+		accountToken, err := createIngestionToken(ctx, ll, cctx, state, tokenSource, apiURL, httpClient)
 		if err != nil {
 			return nil, fmt.Errorf("no ingestion token configured, and couldn't generate one: %v", err)
 		}
@@ -62,7 +62,7 @@ func ingest(
 		connect.WithGRPC(),
 	}
 
-	client := ingestv1connect.NewIngestServiceClient(httpClient, apiAddr, clOpts...)
+	client := ingestv1connect.NewIngestServiceClient(httpClient, apiURL, clOpts...)
 	var snk sink.Sink
 	switch sinkType := os.Getenv("HUMANLOG_SINK_TYPE"); sinkType {
 	case "unary":

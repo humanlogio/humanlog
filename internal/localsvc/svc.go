@@ -86,27 +86,29 @@ func (svc *Service) IngestStream(ctx context.Context, req *connect.ClientStream[
 
 	// get the first message which has the metadata to start ingesting
 	if !req.Receive() {
-		msg := req.Msg()
-		machineID = int64(msg.MachineId)
-		sessionID = int64(msg.SessionId)
-		if sessionID == 0 {
-			sessionID = time.Now().UnixNano()
-		}
-		if machineID == 0 && svc.state.MachineID != nil {
-			machineID = int64(*svc.state.MachineID)
-		}
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("must contain at least a first request"))
+	}
+	msg := req.Msg()
+	machineID = int64(msg.MachineId)
+	sessionID = int64(msg.SessionId)
+	if sessionID == 0 {
+		sessionID = time.Now().UnixNano()
+	}
+	if machineID == 0 && svc.state.MachineID != nil {
+		machineID = int64(*svc.state.MachineID)
 	}
 	ll = ll.With(
 		slog.Int64("machine_id", machineID),
 		slog.Int64("session_id", sessionID),
 	)
+	ll.DebugContext(ctx, "receiving data from stream")
 	snk, heartbeatIn, err := svc.storage.SinkFor(machineID, sessionID)
 	if err != nil {
 		ll.ErrorContext(ctx, "obtaining sink for stream", slog.Any("err", err))
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("obtaining sink for stream: %v", err))
 	}
 	defer func() {
-		if ferr := snk.Flush(ctx); ferr != nil {
+		if ferr := snk.Close(ctx); ferr != nil {
 			if err == nil {
 				err = ferr
 			} else {
@@ -114,7 +116,14 @@ func (svc *Service) IngestStream(ctx context.Context, req *connect.ClientStream[
 			}
 		}
 	}()
+
 	if bsnk, ok := snk.(sink.BatchSink); ok {
+		// ingest the first message
+		if err := bsnk.ReceiveBatch(ctx, msg.Events); err != nil {
+			ll.ErrorContext(ctx, "ingesting event batch", slog.Any("err", err))
+			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("ingesting event batch: %v", err))
+		}
+		// then wait for more
 		for req.Receive() {
 			msg := req.Msg()
 			if err := bsnk.ReceiveBatch(ctx, msg.Events); err != nil {
@@ -123,6 +132,14 @@ func (svc *Service) IngestStream(ctx context.Context, req *connect.ClientStream[
 			}
 		}
 	} else {
+		// ingest the first message
+		for _, ev := range msg.Events {
+			if err := snk.Receive(ctx, ev); err != nil {
+				ll.ErrorContext(ctx, "ingesting event", slog.Any("err", err))
+				return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("ingesting event: %v", err))
+			}
+		}
+		// then wait for more
 		for req.Receive() {
 			msg := req.Msg()
 			for _, ev := range msg.Events {
@@ -189,7 +206,7 @@ func (svc *Service) SummarizeEvents(ctx context.Context, req *connect.Request[qr
 	}
 	ll = ll.With(slog.Duration("width", width))
 
-	for _, cursor := range cursors {
+	for cursor := range cursors {
 		for cursor.Next(ctx) {
 			ts := cursor.Event().ParsedAt.AsTime().Truncate(width)
 			loc, _ := slices.BinarySearchFunc(buckets, ts, func(a bucket, t time.Time) int {
@@ -199,6 +216,9 @@ func (svc *Service) SummarizeEvents(ctx context.Context, req *connect.Request[qr
 		}
 		if err := cursor.Err(); err != nil {
 			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("counting summary: %v", err))
+		}
+		if err := cursor.Close(); err != nil {
+			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("closing cursor: %v", err))
 		}
 	}
 	ll.DebugContext(ctx, "iterated all cursors")
@@ -218,9 +238,41 @@ func (svc *Service) SummarizeEvents(ctx context.Context, req *connect.Request[qr
 	return connect.NewResponse(out), nil
 }
 func (svc *Service) WatchQuery(ctx context.Context, req *connect.Request[qrv1.WatchQueryRequest], stream *connect.ServerStream[qrv1.WatchQueryResponse]) error {
+	query := req.Msg.GetQuery()
+
 	ll := svc.ll.With(
-		slog.Any("query", req.Msg.GetQuery().String()),
+		slog.String("query.query", query.Query),
 	)
+	if query.From != nil {
+		ll = ll.With(slog.String("query.from", query.From.AsTime().Format(time.RFC3339Nano)))
+	}
+	if query.To != nil {
+		ll = ll.With(slog.String("query.to", query.To.AsTime().Format(time.RFC3339Nano)))
+	}
+
+	// ticker := time.NewTicker(time.Second)
+	// defer ticker.Stop()
+	// for i := 0; ; i++ {
+	// 	select {
+	// 	case now := <-ticker.C:
+
+	// 		err := stream.Send(&qrv1.WatchQueryResponse{
+	// 			Events: []*typesv1.LogEventGroup{
+	// 				{
+	// 					MachineId: 1,
+	// 					SessionId: 1,
+	// 					Logs: []*typesv1.LogEvent{
+	// 						{ParsedAt: timestamppb.New(now), Raw: []byte(fmt.Sprintf("it's now %d o-clock", now.Hour()))},
+	// 					},
+	// 				},
+	// 			},
+	// 		})
+	// 		ll.DebugContext(ctx, "send a message group", slog.Any("err", err))
+
+	// 	case <-ctx.Done():
+	// 		return nil
+	// 	}
+	// }
 
 	ll.DebugContext(ctx, "running query through storage")
 	cursors, err := svc.storage.Query(ctx, req.Msg.Query)
@@ -232,6 +284,9 @@ func (svc *Service) WatchQuery(ctx context.Context, req *connect.Request[qrv1.Wa
 	legc := make(chan *typesv1.LogEventGroup)
 
 	iterateCursor := func(ctx context.Context, cursor localstorage.Cursor) error {
+		defer func() {
+			_ = cursor.Close()
+		}()
 		var (
 			lastSend             = time.Now()
 			machineID, sessionID = cursor.IDs()
@@ -259,7 +314,16 @@ func (svc *Service) WatchQuery(ctx context.Context, req *connect.Request[qrv1.Wa
 				evs = evs[:0]
 			}
 		}
+		if err := cursor.Err(); err != nil {
+			ll.ErrorContext(ctx, "failed to advance query cursor", slog.Any("err", err))
+		}
 		ll.DebugContext(ctx, "cursor done, sending last batch", slog.Int("batch_len", len(evs)))
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+
+		}
 		select {
 		case legc <- &typesv1.LogEventGroup{
 			MachineId: machineID,
@@ -271,13 +335,25 @@ func (svc *Service) WatchQuery(ctx context.Context, req *connect.Request[qrv1.Wa
 		return nil
 	}
 
+	allCursorsStarted := make(chan struct{})
+
 	cursorCtx, cancelCursors := context.WithCancel(ctx)
 	defer cancelCursors()
 	eg, cursorCtx := errgroup.WithContext(cursorCtx)
-	for _, cursor := range cursors {
-		cursor := cursor
-		eg.Go(func() error { return iterateCursor(cursorCtx, cursor) })
-	}
+	go func() {
+		defer close(allCursorsStarted)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case cursor, more := <-cursors:
+				if !more {
+					return
+				}
+				eg.Go(func() error { return iterateCursor(cursorCtx, cursor) })
+			}
+		}
+	}()
 
 	doneSending := make(chan struct{})
 	go func() {
@@ -292,14 +368,30 @@ func (svc *Service) WatchQuery(ctx context.Context, req *connect.Request[qrv1.Wa
 		defer sender.Stop()
 
 		ll.DebugContext(ctx, "accumulator: starting accumulation loop")
+		defer func() {
+			ll.DebugContext(ctx, "accumulator: done accumulating")
+			if len(legs) > 0 {
+				ll.DebugContext(ctx, "accumulator: trying to send final watch query response, may not work")
+				err = stream.Send(&qrv1.WatchQueryResponse{
+					Events: legs,
+				})
+				if err != nil {
+					ll.ErrorContext(ctx, "accumulator: failed to send response", slog.Any("err", err))
+					return
+				}
+			}
+		}()
 	wait_for_more_leg:
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case leg := <-legc:
+			case leg, more := <-legc:
+				if !more {
+					break wait_for_more_leg
+				}
 				// try to append to an existing LEG first
-				ll.DebugContext(ctx, "accumulator: received cursor batch")
+				ll.DebugContext(ctx, "accumulator: received cursor batch", slog.Int("leg_count", len(legs)))
 				for _, eleg := range legs {
 					if eleg != nil && leg != nil && eleg.MachineId == leg.MachineId &&
 						eleg.SessionId == leg.SessionId {
@@ -331,7 +423,11 @@ func (svc *Service) WatchQuery(ctx context.Context, req *connect.Request[qrv1.Wa
 	}()
 
 	ll.DebugContext(ctx, "accumulator: streaming started")
-	err = eg.Wait()
+	select {
+	case <-allCursorsStarted:
+		err = eg.Wait()
+	case <-ctx.Done():
+	}
 	ll.DebugContext(ctx, "accumulator: all data consumed, finishing")
 	close(legc)
 	if err != nil {

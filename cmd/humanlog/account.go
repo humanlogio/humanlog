@@ -31,7 +31,7 @@ func accountCmd(
 	getState func(cctx *cli.Context) *state.State,
 	getTokenSource func(cctx *cli.Context) *auth.UserRefreshableTokenSource,
 	getAPIUrl func(cctx *cli.Context) string,
-	getHTTPClient func(*cli.Context) *http.Client,
+	getHTTPClient func(cctx *cli.Context, apiURL string) *http.Client,
 ) cli.Command {
 	return cli.Command{
 		Hidden: hideUnreleasedFeatures == "true",
@@ -42,7 +42,7 @@ func accountCmd(
 			state := getState(cctx)
 			tokenSource := getTokenSource(cctx)
 			apiURL := getAPIUrl(cctx)
-			httpClient := getHTTPClient(cctx)
+			httpClient := getHTTPClient(cctx, apiURL)
 			_, err := ensureLoggedIn(ctx, cctx, state, tokenSource, apiURL, httpClient)
 			if err != nil {
 				return err
@@ -58,7 +58,7 @@ func accountCmd(
 					state := getState(cctx)
 					tokenSource := getTokenSource(cctx)
 					apiURL := getAPIUrl(cctx)
-					httpClient := getHTTPClient(cctx)
+					httpClient := getHTTPClient(cctx, apiURL)
 
 					accountName := cctx.Args().First()
 					if accountName == "" {
@@ -85,7 +85,7 @@ func accountCmd(
 					state := getState(cctx)
 					tokenSource := getTokenSource(cctx)
 					apiURL := getAPIUrl(cctx)
-					httpClient := getHTTPClient(cctx)
+					httpClient := getHTTPClient(cctx, apiURL)
 
 					orgID, err := ensureOrgSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient)
 					if err != nil {
@@ -124,7 +124,7 @@ func accountCmd(
 					state := getState(cctx)
 					tokenSource := getTokenSource(cctx)
 					apiURL := getAPIUrl(cctx)
-					httpClient := getHTTPClient(cctx)
+					httpClient := getHTTPClient(cctx, apiURL)
 
 					orgID, err := ensureOrgSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient)
 					if err != nil {
@@ -157,7 +157,7 @@ func accountCmd(
 					state := getState(cctx)
 					tokenSource := getTokenSource(cctx)
 					apiURL := getAPIUrl(cctx)
-					httpClient := getHTTPClient(cctx)
+					httpClient := getHTTPClient(cctx, apiURL)
 
 					accountName := cctx.Args().First()
 					if accountName == "" {
@@ -198,7 +198,7 @@ func accountCmd(
 					state := getState(cctx)
 					tokenSource := getTokenSource(cctx)
 					apiURL := getAPIUrl(cctx)
-					httpClient := getHTTPClient(cctx)
+					httpClient := getHTTPClient(cctx, apiURL)
 					clOpts := connect.WithInterceptors(
 						auth.Interceptors(ll, tokenSource)...,
 					)
@@ -232,7 +232,7 @@ func accountCmd(
 					state := getState(cctx)
 					tokenSource := getTokenSource(cctx)
 					apiURL := getAPIUrl(cctx)
-					httpClient := getHTTPClient(cctx)
+					httpClient := getHTTPClient(cctx, apiURL)
 
 					orgID, err := ensureOrgSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient)
 					if err != nil {
@@ -283,7 +283,7 @@ func accountCmd(
 					state := getState(cctx)
 					tokenSource := getTokenSource(cctx)
 					apiURL := getAPIUrl(cctx)
-					httpClient := getHTTPClient(cctx)
+					httpClient := getHTTPClient(cctx, apiURL)
 
 					orgID, err := ensureOrgSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient)
 					if err != nil {
@@ -334,7 +334,7 @@ func accountCmd(
 					state := getState(cctx)
 					tokenSource := getTokenSource(cctx)
 					apiURL := getAPIUrl(cctx)
-					httpClient := getHTTPClient(cctx)
+					httpClient := getHTTPClient(cctx, apiURL)
 
 					orgID, err := ensureOrgSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient)
 					if err != nil {
@@ -396,7 +396,7 @@ func accountCmd(
 					state := getState(cctx)
 					tokenSource := getTokenSource(cctx)
 					apiURL := getAPIUrl(cctx)
-					httpClient := getHTTPClient(cctx)
+					httpClient := getHTTPClient(cctx, apiURL)
 
 					orgID, err := ensureOrgSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient)
 					if err != nil {

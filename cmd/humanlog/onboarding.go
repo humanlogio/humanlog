@@ -23,7 +23,7 @@ func onboardingCmd(
 	getTokenSource func(cctx *cli.Context) *auth.UserRefreshableTokenSource,
 	getAPIUrl func(cctx *cli.Context) string,
 	getBaseSiteURL func(cctx *cli.Context) string,
-	getHTTPClient func(*cli.Context) *http.Client,
+	getHTTPClient func(*cli.Context, string) *http.Client,
 ) cli.Command {
 	return cli.Command{
 		Name:   onboardingCmdName,
@@ -47,7 +47,7 @@ func onboardingCmd(
 				state := getState(cctx)
 				tokenSource := getTokenSource(cctx)
 				apiURL := getAPIUrl(cctx)
-				httpClient := getHTTPClient(cctx)
+				httpClient := getHTTPClient(cctx, apiURL)
 				authClient := authv1connect.NewAuthServiceClient(httpClient, apiURL)
 				_, err := performLoginFlow(ctx, state, authClient, tokenSource)
 				return err

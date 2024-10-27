@@ -24,7 +24,7 @@ func NewSizedBufferedSink(size int, flush sink.BatchSink) *SizedBuffer {
 	}
 }
 
-func (sn *SizedBuffer) Flush(ctx context.Context) error {
+func (sn *SizedBuffer) Close(ctx context.Context) error {
 	return nil
 }
 

@@ -29,7 +29,7 @@ func organizationCmd(
 	getState func(cctx *cli.Context) *state.State,
 	getTokenSource func(cctx *cli.Context) *auth.UserRefreshableTokenSource,
 	getAPIUrl func(cctx *cli.Context) string,
-	getHTTPClient func(*cli.Context) *http.Client,
+	getHTTPClient func(cctx *cli.Context, apiURL string) *http.Client,
 ) cli.Command {
 
 	var (
@@ -49,7 +49,7 @@ func organizationCmd(
 			state := getState(cctx)
 			tokenSource := getTokenSource(cctx)
 			apiURL := getAPIUrl(cctx)
-			httpClient := getHTTPClient(cctx)
+			httpClient := getHTTPClient(cctx, apiURL)
 			_, err := ensureLoggedIn(ctx, cctx, state, tokenSource, apiURL, httpClient)
 			if err != nil {
 				return err
@@ -67,7 +67,7 @@ func organizationCmd(
 					state := getState(cctx)
 					tokenSource := getTokenSource(cctx)
 					apiURL := getAPIUrl(cctx)
-					httpClient := getHTTPClient(cctx)
+					httpClient := getHTTPClient(cctx, apiURL)
 
 					organizationName := cctx.Args().First()
 					if organizationName == "" {
@@ -106,7 +106,7 @@ func organizationCmd(
 					state := getState(cctx)
 					tokenSource := getTokenSource(cctx)
 					apiURL := getAPIUrl(cctx)
-					httpClient := getHTTPClient(cctx)
+					httpClient := getHTTPClient(cctx, apiURL)
 
 					if state.CurrentOrgID == nil {
 						return fmt.Errorf("no org is currently set")
@@ -146,7 +146,7 @@ func organizationCmd(
 					state := getState(cctx)
 					tokenSource := getTokenSource(cctx)
 					apiURL := getAPIUrl(cctx)
-					httpClient := getHTTPClient(cctx)
+					httpClient := getHTTPClient(cctx, apiURL)
 
 					clOpts := connect.WithInterceptors(
 						auth.Interceptors(ll, tokenSource)...,
@@ -169,7 +169,7 @@ func organizationCmd(
 					ll := getLogger(cctx)
 					tokenSource := getTokenSource(cctx)
 					apiURL := getAPIUrl(cctx)
-					httpClient := getHTTPClient(cctx)
+					httpClient := getHTTPClient(cctx, apiURL)
 
 					clOpts := connect.WithInterceptors(
 						auth.Interceptors(ll, tokenSource)...,
@@ -211,7 +211,7 @@ func organizationCmd(
 					ll := getLogger(cctx)
 					tokenSource := getTokenSource(cctx)
 					apiURL := getAPIUrl(cctx)
-					httpClient := getHTTPClient(cctx)
+					httpClient := getHTTPClient(cctx, apiURL)
 
 					organizationName := cctx.Args().First()
 					if organizationName == "" {
@@ -247,7 +247,7 @@ func organizationCmd(
 					ll := getLogger(cctx)
 					tokenSource := getTokenSource(cctx)
 					apiURL := getAPIUrl(cctx)
-					httpClient := getHTTPClient(cctx)
+					httpClient := getHTTPClient(cctx, apiURL)
 
 					clOpts := connect.WithInterceptors(
 						auth.Interceptors(ll, tokenSource)...,
@@ -277,7 +277,7 @@ func organizationCmd(
 					state := getState(cctx)
 					tokenSource := getTokenSource(cctx)
 					apiURL := getAPIUrl(cctx)
-					httpClient := getHTTPClient(cctx)
+					httpClient := getHTTPClient(cctx, apiURL)
 
 					orgID, err := ensureOrgSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient)
 					if err != nil {
@@ -310,7 +310,7 @@ func organizationCmd(
 					state := getState(cctx)
 					tokenSource := getTokenSource(cctx)
 					apiURL := getAPIUrl(cctx)
-					httpClient := getHTTPClient(cctx)
+					httpClient := getHTTPClient(cctx, apiURL)
 
 					_ = ctx
 					_ = state
@@ -335,7 +335,7 @@ func organizationCmd(
 					state := getState(cctx)
 					tokenSource := getTokenSource(cctx)
 					apiURL := getAPIUrl(cctx)
-					httpClient := getHTTPClient(cctx)
+					httpClient := getHTTPClient(cctx, apiURL)
 
 					_ = ctx
 					_ = state

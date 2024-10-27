@@ -23,7 +23,7 @@ func machineCmd(
 	getState func(cctx *cli.Context) *state.State,
 	getTokenSource func(cctx *cli.Context) *auth.UserRefreshableTokenSource,
 	getAPIUrl func(cctx *cli.Context) string,
-	getHTTPClient func(*cli.Context) *http.Client,
+	getHTTPClient func(cctx *cli.Context, apiURL string) *http.Client,
 ) cli.Command {
 	return cli.Command{
 		Hidden: hideUnreleasedFeatures == "true",
@@ -34,7 +34,7 @@ func machineCmd(
 			state := getState(cctx)
 			tokenSource := getTokenSource(cctx)
 			apiURL := getAPIUrl(cctx)
-			httpClient := getHTTPClient(cctx)
+			httpClient := getHTTPClient(cctx, apiURL)
 			_, err := ensureLoggedIn(ctx, cctx, state, tokenSource, apiURL, httpClient)
 			if err != nil {
 				return err
@@ -51,7 +51,7 @@ func machineCmd(
 					state := getState(cctx)
 					tokenSource := getTokenSource(cctx)
 					apiURL := getAPIUrl(cctx)
-					httpClient := getHTTPClient(cctx)
+					httpClient := getHTTPClient(cctx, apiURL)
 					accountToken, err := createIngestionToken(ctx, ll, cctx, state, tokenSource, apiURL, httpClient)
 					if err != nil {
 						return fmt.Errorf("ingestion token couldn't be generated: %v", err)

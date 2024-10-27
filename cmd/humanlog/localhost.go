@@ -86,10 +86,10 @@ func startLocalhostServer(
 		localhostSink := logsvcsink.StartStreamSink(ctx, ll, client, "local", machineID, 1<<20, 100*time.Millisecond, true, notifyUnableToIngest)
 		return localhostSink, func(ctx context.Context) error {
 			logdebug("flushing localhost sink")
-			return localhostSink.Flush(ctx)
+			return localhostSink.Close(ctx)
 		}, nil
 	}
-	storage := localstorage.NewMemStorage()
+	storage := localstorage.NewMemStorage(ll.WithGroup("memstorage"))
 	ownSink, _, err := storage.SinkFor(int64(machineID), time.Now().UnixNano())
 	if err != nil {
 		return nil, nil, fmt.Errorf("can't create own sink: %v", err)
@@ -127,11 +127,11 @@ func startLocalhostServer(
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			errc <- ownSink.Flush(ctx)
+			errc <- ownSink.Close(ctx)
 		}()
 		wg.Wait()
 		close(errc)
-		l.Close()
+		_ = l.Close()
 		var ferr error
 		for err := range errc {
 			if ferr == nil {
