@@ -2,6 +2,8 @@ package localstorage
 
 import (
 	"context"
+	"log/slog"
+	"os"
 	"testing"
 	"time"
 
@@ -13,10 +15,11 @@ import (
 
 func TestMemoryStorage(t *testing.T) {
 	tests := []struct {
-		name  string
-		q     *typesv1.LogQuery
-		input []*typesv1.LogEventGroup
-		want  []*typesv1.LogEventGroup
+		name    string
+		q       *typesv1.LogQuery
+		waitFor time.Duration
+		input   []*typesv1.LogEventGroup
+		want    []*typesv1.LogEventGroup
 	}{
 		{
 			name: "nothing",
@@ -120,6 +123,34 @@ func TestMemoryStorage(t *testing.T) {
 			},
 		},
 		{
+			name: "from only",
+			q: &typesv1.LogQuery{
+				From: timestamppb.New(musttime("2006-01-02T15:04:06.002")),
+			},
+			waitFor: time.Second,
+			input: []*typesv1.LogEventGroup{
+				{
+					MachineId: 1, SessionId: 2,
+					Logs: []*typesv1.LogEvent{
+						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.001")), Raw: []byte("hello world 1")},
+						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.002")), Raw: []byte("hello world 2")},
+						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 3")},
+						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.004")), Raw: []byte("hello world 4")},
+					},
+				},
+			},
+			want: []*typesv1.LogEventGroup{
+				{
+					MachineId: 1, SessionId: 2,
+					Logs: []*typesv1.LogEvent{
+						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.002")), Raw: []byte("hello world 2")},
+						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 3")},
+						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.004")), Raw: []byte("hello world 4")},
+					},
+				},
+			},
+		},
+		{
 			name: "slice",
 			q: &typesv1.LogQuery{
 				From: timestamppb.New(musttime("2006-01-02T15:04:06.002")),
@@ -152,7 +183,7 @@ func TestMemoryStorage(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
-			mem := NewMemStorage()
+			mem := NewMemStorage(slog.New(slog.NewTextHandler(os.Stderr, nil)))
 
 			for _, leg := range tt.input {
 				snk, _, err := mem.SinkFor(leg.MachineId, leg.SessionId)
@@ -161,13 +192,25 @@ func TestMemoryStorage(t *testing.T) {
 					err = snk.Receive(ctx, ev)
 					require.NoError(t, err)
 				}
-				err = snk.Flush(ctx)
+				err = snk.Close(ctx)
 				require.NoError(t, err)
 			}
 
-			cursors, err := mem.Query(ctx, tt.q)
+			queryctx := ctx
+			if tt.waitFor != 0 {
+				var cancel context.CancelFunc
+				queryctx, cancel = context.WithTimeout(ctx, tt.waitFor)
+				defer cancel()
+			}
+			now := time.Now()
+			cursors, err := mem.Query(queryctx, tt.q)
 			require.NoError(t, err)
-			got := drainCursors(t, ctx, cursors)
+			got := drainCursors(t, queryctx, cursors)
+
+			if tt.waitFor != 0 {
+				queriedFor := time.Since(now)
+				require.InDelta(t, tt.waitFor.Milliseconds(), queriedFor.Milliseconds(), 30)
+			}
 
 			require.Len(t, got, len(tt.want))
 			for i := range tt.want {
@@ -177,9 +220,9 @@ func TestMemoryStorage(t *testing.T) {
 	}
 }
 
-func drainCursors(t *testing.T, ctx context.Context, cursors []Cursor) []*typesv1.LogEventGroup {
+func drainCursors(t *testing.T, ctx context.Context, cursors <-chan Cursor) []*typesv1.LogEventGroup {
 	out := make([]*typesv1.LogEventGroup, 0, len(cursors))
-	for _, cursor := range cursors {
+	for cursor := range cursors {
 		mid, sid := cursor.IDs()
 		leg := &typesv1.LogEventGroup{
 			MachineId: mid, SessionId: sid,

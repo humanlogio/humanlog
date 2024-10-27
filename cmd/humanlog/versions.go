@@ -101,7 +101,7 @@ func versionCmd(
 	getTokenSource func(cctx *cli.Context) *auth.UserRefreshableTokenSource,
 	getAPIUrl func(cctx *cli.Context) string,
 	getBaseSiteURL func(cctx *cli.Context) string,
-	getHTTPClient func(*cli.Context) *http.Client,
+	getHTTPClient func(*cli.Context, string) *http.Client,
 ) cli.Command {
 	return cli.Command{
 		Name:  versionCmdName,
@@ -117,7 +117,7 @@ func versionCmd(
 					state := getState(cctx)
 					tokenSource := getTokenSource(cctx)
 					apiURL := getAPIUrl(cctx)
-					httpClient := getHTTPClient(cctx)
+					httpClient := getHTTPClient(cctx, apiURL)
 					var channelName *string
 					if cfg.ExperimentalFeatures != nil && cfg.ExperimentalFeatures.ReleaseChannel != nil {
 						channelName = cfg.ExperimentalFeatures.ReleaseChannel
@@ -152,7 +152,7 @@ func versionCmd(
 					tokenSource := getTokenSource(cctx)
 					apiURL := getAPIUrl(cctx)
 					baseSiteURL := getBaseSiteURL(cctx)
-					httpClient := getHTTPClient(cctx)
+					httpClient := getHTTPClient(cctx, apiURL)
 					var channelName *string
 					if cfg.ExperimentalFeatures != nil && cfg.ExperimentalFeatures.ReleaseChannel != nil {
 						channelName = cfg.ExperimentalFeatures.ReleaseChannel

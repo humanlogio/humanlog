@@ -228,8 +228,8 @@ func (snk *ConnectUnarySink) Receive(ctx context.Context, ev *typesv1.LogEvent) 
 	return nil
 }
 
-// Flush can only be called once, calling it twice will panic.
-func (snk *ConnectUnarySink) Flush(ctx context.Context) error {
+// Close can only be called once, calling it twice will panic.
+func (snk *ConnectUnarySink) Close(ctx context.Context) error {
 	close(snk.eventsc)
 	snk.ll.DebugContext(ctx, "starting to flush")
 	select {

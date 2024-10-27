@@ -31,6 +31,7 @@ require (
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
 	github.com/rs/cors v1.11.0
 	github.com/stretchr/testify v1.9.0
+	github.com/teivah/broadcast v0.1.0
 	github.com/urfave/cli v1.22.14
 	golang.org/x/exp v0.0.0-20231110203233-9a3e6036ecaa
 	golang.org/x/net v0.23.0
@@ -74,3 +75,5 @@ require (
 	golang.org/x/text v0.18.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/humanlogio/api/go => /Users/antoine/code/src/github.com/humanlogio/api/go

@@ -43,7 +43,7 @@ func queryCmd(
 	getState func(cctx *cli.Context) *state.State,
 	getTokenSource func(cctx *cli.Context) *auth.UserRefreshableTokenSource,
 	getAPIUrl func(cctx *cli.Context) string,
-	getHTTPClient func(*cli.Context) *http.Client,
+	getHTTPClient func(cctx *cli.Context, apiURL string) *http.Client,
 ) cli.Command {
 	return cli.Command{
 		Hidden: hideUnreleasedFeatures == "true",
@@ -81,7 +81,7 @@ func queryCmd(
 			state := getState(cctx)
 			tokenSource := getTokenSource(cctx)
 			apiURL := getAPIUrl(cctx)
-			httpClient := getHTTPClient(cctx)
+			httpClient := getHTTPClient(cctx, apiURL)
 			_, err := ensureLoggedIn(ctx, cctx, state, tokenSource, apiURL, httpClient)
 			if err != nil {
 				return err
@@ -118,8 +118,9 @@ func queryApiSummarizeCmd(
 	getState func(cctx *cli.Context) *state.State,
 	getTokenSource func(cctx *cli.Context) *auth.UserRefreshableTokenSource,
 	getAPIUrl func(cctx *cli.Context) string,
-	getHTTPClient func(*cli.Context) *http.Client,
+	getHTTPClient func(cctx *cli.Context, apiURL string) *http.Client,
 ) cli.Command {
+	bucket := cli.IntFlag{Name: "buckets", Value: 20}
 	fromFlag := cli.DurationFlag{Name: "since", Value: 365 * 24 * time.Hour}
 	toFlag := cli.DurationFlag{Name: "to", Value: 0}
 	localhost := cli.BoolFlag{Name: "localhost"}
@@ -135,7 +136,7 @@ func queryApiSummarizeCmd(
 				ll := getLogger(cctx)
 				tokenSource := getTokenSource(cctx)
 				apiURL := getAPIUrl(cctx)
-				httpClient := getHTTPClient(cctx)
+				httpClient := getHTTPClient(cctx, apiURL)
 				_, err := ensureLoggedIn(ctx, cctx, state, tokenSource, apiURL, httpClient)
 				if err != nil {
 					return err
@@ -145,13 +146,13 @@ func queryApiSummarizeCmd(
 				)
 				queryClient = queryv1connect.NewQueryServiceClient(httpClient, apiURL, clOpts)
 			} else {
-				httpClient := getHTTPClient(cctx)
 				cfg := getCfg(cctx)
 				if cfg.ExperimentalFeatures == nil || cfg.ExperimentalFeatures.ServeLocalhostOnPort == nil {
 					return fmt.Errorf("localhost feature is not enabled or not configured, can't dial localhost")
 				}
-				addr := fmt.Sprintf("http://localhost:%d", *cfg.ExperimentalFeatures.ServeLocalhostOnPort)
-				queryClient = queryv1connect.NewQueryServiceClient(httpClient, addr)
+				apiURL := fmt.Sprintf("http://localhost:%d", *cfg.ExperimentalFeatures.ServeLocalhostOnPort)
+				httpClient := getHTTPClient(cctx, apiURL)
+				queryClient = queryv1connect.NewQueryServiceClient(httpClient, apiURL)
 			}
 
 			termWidth, termHeight, err := term.GetSize(os.Stdout.Fd())
@@ -159,14 +160,22 @@ func queryApiSummarizeCmd(
 				return fmt.Errorf("getting term size: %v", err)
 			}
 			now := time.Now()
-			from := now.Add(-cctx.Duration(fromFlag.Name))
-			to := now.Add(-cctx.Duration(toFlag.Name))
+			var (
+				from *timestamppb.Timestamp
+				to   *timestamppb.Timestamp
+			)
+			if cctx.Duration(fromFlag.Name) != 0 {
+				from = timestamppb.New(now.Add(-cctx.Duration(fromFlag.Name)))
+			}
+			if cctx.Duration(toFlag.Name) != 0 {
+				to = timestamppb.New(now.Add(-cctx.Duration(toFlag.Name)))
+			}
 
 			res, err := queryClient.SummarizeEvents(ctx, connect.NewRequest(&queryv1.SummarizeEventsRequest{
 				AccountId:   *state.CurrentAccountID,
-				BucketCount: 20,
-				From:        timestamppb.New(from),
-				To:          timestamppb.New(to),
+				BucketCount: uint32(cctx.Int(bucket.Name)),
+				From:        from,
+				To:          to,
 			}))
 			if err != nil {
 				return fmt.Errorf("querying summary data: %v", err)
@@ -186,7 +195,7 @@ func queryApiSummarizeCmd(
 				firstTimeformat = "'06 01/02"
 			}
 			lastTimeFormat := "'06 01/02 15:04:05"
-			window := to.Sub(from)
+			window := to.AsTime().Sub(from.AsTime())
 			if window < time.Microsecond {
 				lastTimeFormat = ".000000000"
 			} else if window < time.Millisecond {
@@ -220,7 +229,7 @@ func queryApiSummarizeCmd(
 			}
 
 			tslc := timeserieslinechart.New(termWidth, termHeight-3,
-				timeserieslinechart.WithTimeRange(from, to),
+				timeserieslinechart.WithTimeRange(from.AsTime(), to.AsTime()),
 			)
 			tslc.XLabelFormatter = linechart.LabelFormatter(func(i int, f float64) string {
 				t := time.Unix(int64(f), 0).UTC()
@@ -259,7 +268,7 @@ func queryApiWatchCmd(
 	getState func(cctx *cli.Context) *state.State,
 	getTokenSource func(cctx *cli.Context) *auth.UserRefreshableTokenSource,
 	getAPIUrl func(cctx *cli.Context) string,
-	getHTTPClient func(*cli.Context) *http.Client,
+	getHTTPClient func(cctx *cli.Context, apiURL string) *http.Client,
 ) cli.Command {
 	fromFlag := cli.DurationFlag{Name: "since", Value: 365 * 24 * time.Hour}
 	toFlag := cli.DurationFlag{Name: "to", Value: 0}
@@ -276,7 +285,7 @@ func queryApiWatchCmd(
 				ll := getLogger(cctx)
 				tokenSource := getTokenSource(cctx)
 				apiURL := getAPIUrl(cctx)
-				httpClient := getHTTPClient(cctx)
+				httpClient := getHTTPClient(cctx, apiURL)
 				_, err := ensureLoggedIn(ctx, cctx, state, tokenSource, apiURL, httpClient)
 				if err != nil {
 					return err
@@ -286,17 +295,26 @@ func queryApiWatchCmd(
 				)
 				queryClient = queryv1connect.NewQueryServiceClient(httpClient, apiURL, clOpts)
 			} else {
-				httpClient := getHTTPClient(cctx)
-
+				cfg := getCfg(cctx)
 				if cfg.ExperimentalFeatures == nil || cfg.ExperimentalFeatures.ServeLocalhostOnPort == nil {
 					return fmt.Errorf("localhost feature is not enabled or not configured, can't dial localhost")
 				}
-				addr := fmt.Sprintf("http://localhost:%d", *cfg.ExperimentalFeatures.ServeLocalhostOnPort)
-				queryClient = queryv1connect.NewQueryServiceClient(httpClient, addr)
+				apiURL := fmt.Sprintf("http://localhost:%d", *cfg.ExperimentalFeatures.ServeLocalhostOnPort)
+				httpClient := getHTTPClient(cctx, apiURL)
+				queryClient = queryv1connect.NewQueryServiceClient(httpClient, apiURL)
 			}
 			now := time.Now()
-			from := now.Add(-cctx.Duration(fromFlag.Name))
-			to := now.Add(-cctx.Duration(toFlag.Name))
+			var (
+				from  *timestamppb.Timestamp
+				to    *timestamppb.Timestamp
+				query = strings.Join(cctx.Args(), " ")
+			)
+			if cctx.Duration(fromFlag.Name) != 0 {
+				from = timestamppb.New(now.Add(-cctx.Duration(fromFlag.Name)))
+			}
+			if cctx.Duration(toFlag.Name) != 0 {
+				to = timestamppb.New(now.Add(-cctx.Duration(toFlag.Name)))
+			}
 			sinkOpts, errs := stdiosink.StdioOptsFrom(*cfg)
 			if len(errs) > 0 {
 				for _, err := range errs {
@@ -306,13 +324,14 @@ func queryApiWatchCmd(
 
 			loginfo("from=%s", from)
 			loginfo("to=%s", to)
-			loginfo("query=%s", strings.Join(cctx.Args(), " "))
+			loginfo("query=%s", query)
 
 			req := &queryv1.WatchQueryRequest{
 				AccountId: *state.CurrentAccountID,
 				Query: &typesv1.LogQuery{
-					From: timestamppb.New(from),
-					To:   timestamppb.New(to),
+					From:  from,
+					To:    to,
+					Query: query,
 				},
 			}
 			res, err := queryClient.WatchQuery(ctx, connect.NewRequest(req))

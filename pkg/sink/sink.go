@@ -8,10 +8,10 @@ import (
 
 type Sink interface {
 	Receive(ctx context.Context, ev *typesv1.LogEvent) error
-	Flush(ctx context.Context) error
+	Close(ctx context.Context) error
 }
 
 type BatchSink interface {
 	ReceiveBatch(ctx context.Context, evs []*typesv1.LogEvent) error
-	Flush(ctx context.Context) error
+	Close(ctx context.Context) error
 }

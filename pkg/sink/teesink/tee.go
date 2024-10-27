@@ -44,9 +44,9 @@ func (sn *Tee) Receive(ctx context.Context, ev *typesv1.LogEvent) error {
 	return nil
 }
 
-func (sn *Tee) Flush(ctx context.Context) error {
+func (sn *Tee) Close(ctx context.Context) error {
 	for i, sinks := range sn.sinks {
-		if err := sinks.Flush(ctx); err != nil {
+		if err := sinks.Close(ctx); err != nil {
 			return fmt.Errorf("tee sink %d: %w", i, err)
 		}
 	}
@@ -88,14 +88,14 @@ func (sn *MixedBatchingTee) ReceiveBatch(ctx context.Context, evs []*typesv1.Log
 	return nil
 }
 
-func (sn *MixedBatchingTee) Flush(ctx context.Context) error {
+func (sn *MixedBatchingTee) Close(ctx context.Context) error {
 	for i, sinks := range sn.nonbatchers {
-		if err := sinks.Flush(ctx); err != nil {
+		if err := sinks.Close(ctx); err != nil {
 			return fmt.Errorf("tee sink %d: %w", i, err)
 		}
 	}
 	for i, sinks := range sn.batchers {
-		if err := sinks.Flush(ctx); err != nil {
+		if err := sinks.Close(ctx); err != nil {
 			return fmt.Errorf("tee sink %d: %w", i, err)
 		}
 	}
@@ -124,9 +124,9 @@ func (sn *BatchingTee) ReceiveBatch(ctx context.Context, evs []*typesv1.LogEvent
 	return nil
 }
 
-func (sn *BatchingTee) Flush(ctx context.Context) error {
+func (sn *BatchingTee) Close(ctx context.Context) error {
 	for i, sinks := range sn.batchers {
-		if err := sinks.Flush(ctx); err != nil {
+		if err := sinks.Close(ctx); err != nil {
 			return fmt.Errorf("tee sink %d: %w", i, err)
 		}
 	}

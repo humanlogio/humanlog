@@ -120,7 +120,7 @@ func TestSummarize(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 
 			ll := slog.New(slog.NewTextHandler(os.Stderr, nil))
-			mem := localstorage.NewMemStorage()
+			mem := localstorage.NewMemStorage(ll)
 
 			for _, leg := range tt.input {
 				snk, _, err := mem.SinkFor(leg.MachineId, leg.SessionId)
@@ -129,7 +129,7 @@ func TestSummarize(t *testing.T) {
 					err = snk.Receive(ctx, ev)
 					require.NoError(t, err)
 				}
-				err = snk.Flush(ctx)
+				err = snk.Close(ctx)
 				require.NoError(t, err)
 			}
 

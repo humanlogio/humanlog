@@ -29,7 +29,7 @@ func authCmd(
 	getState func(cctx *cli.Context) *state.State,
 	getTokenSource func(cctx *cli.Context) *auth.UserRefreshableTokenSource,
 	getAPIUrl func(cctx *cli.Context) string,
-	getHTTPClient func(cctx *cli.Context) *http.Client,
+	getHTTPClient func(cctx *cli.Context, apiURL string) *http.Client,
 ) cli.Command {
 	return cli.Command{
 		Name:  authCmdName,
@@ -42,7 +42,7 @@ func authCmd(
 					state := getState(cctx)
 					tokenSource := getTokenSource(cctx)
 					apiURL := getAPIUrl(cctx)
-					httpClient := getHTTPClient(cctx)
+					httpClient := getHTTPClient(cctx, apiURL)
 					authClient := authv1connect.NewAuthServiceClient(httpClient, apiURL)
 					_, err := performLoginFlow(ctx, state, authClient, tokenSource)
 					return err
@@ -54,7 +54,7 @@ func authCmd(
 					ctx := getCtx(cctx)
 					apiURL := getAPIUrl(cctx)
 					state := getState(cctx)
-					httpClient := getHTTPClient(cctx)
+					httpClient := getHTTPClient(cctx, apiURL)
 					tokenSource := getTokenSource(cctx)
 					userToken, err := ensureLoggedIn(ctx, cctx, state, tokenSource, apiURL, httpClient)
 					if err != nil {
@@ -89,7 +89,7 @@ func authCmd(
 				Action: func(cctx *cli.Context) error {
 					ctx := getCtx(cctx)
 					apiURL := getAPIUrl(cctx)
-					httpClient := getHTTPClient(cctx)
+					httpClient := getHTTPClient(cctx, apiURL)
 					tokenSource := getTokenSource(cctx)
 
 					ll := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{}))

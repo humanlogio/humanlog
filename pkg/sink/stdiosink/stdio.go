@@ -127,7 +127,7 @@ func NewStdio(w io.Writer, opts StdioOpts) *Stdio {
 	}
 }
 
-func (std *Stdio) Flush(ctx context.Context) error {
+func (std *Stdio) Close(ctx context.Context) error {
 	return nil
 }
 

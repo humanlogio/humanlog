@@ -15,7 +15,7 @@ type Storage interface {
 }
 
 type Queryable interface {
-	Query(context.Context, *typesv1.LogQuery) ([]Cursor, error)
+	Query(context.Context, *typesv1.LogQuery) (<-chan Cursor, error)
 }
 
 type Cursor interface {
@@ -23,4 +23,5 @@ type Cursor interface {
 	Next(context.Context) bool
 	Event() *typesv1.LogEvent
 	Err() error
+	Close() error
 }
