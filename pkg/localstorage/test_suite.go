@@ -181,10 +181,11 @@ func RunTest(t *testing.T, constructor func(t *testing.T) Storage) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
-			mem := constructor(t)
+			db := constructor(t)
+			defer db.Close()
 
 			for _, leg := range tt.input {
-				snk, _, err := mem.SinkFor(ctx, leg.MachineId, leg.SessionId)
+				snk, _, err := db.SinkFor(ctx, leg.MachineId, leg.SessionId)
 				require.NoError(t, err)
 				for _, ev := range leg.Logs {
 					err = snk.Receive(ctx, ev)
@@ -201,7 +202,7 @@ func RunTest(t *testing.T, constructor func(t *testing.T) Storage) {
 				defer cancel()
 			}
 			now := time.Now()
-			cursors, err := mem.Query(queryctx, tt.q)
+			cursors, err := db.Query(queryctx, tt.q)
 			require.NoError(t, err)
 			got := drainCursors(t, queryctx, cursors)
 
