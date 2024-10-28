@@ -517,8 +517,8 @@ func newApp() *cli.App {
 				sink = teesink.NewTeeSink(sink, remotesink)
 			}
 
-			if cfg.ExperimentalFeatures.ServeLocalhostOnPort != nil {
-				port := *cfg.ExperimentalFeatures.ServeLocalhostOnPort
+			if cfg.ExperimentalFeatures.ServeLocalhost != nil {
+				localhostCfg := *cfg.ExperimentalFeatures.ServeLocalhost
 				state := getState(cctx)
 				// TODO(antoine): all logs to a single location, right now there's code logging
 				// randomly everywhere
@@ -534,7 +534,7 @@ func newApp() *cli.App {
 					}
 				}
 				machineID = uint64(*state.MachineID)
-				localhostSink, done, err := startLocalhostServer(ctx, ll, cfg, state, machineID, port, getLocalhostHTTPClient(cctx), version)
+				localhostSink, done, err := startLocalhostServer(ctx, ll, cfg, state, machineID, localhostCfg.Port, getLocalhostHTTPClient(cctx), version)
 				if err != nil {
 					loginfo("starting experimental localhost service: %v", err)
 				} else {

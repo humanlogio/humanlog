@@ -20,10 +20,10 @@ import (
 	"github.com/humanlogio/api/go/svc/localhost/v1/localhostv1connect"
 	"github.com/humanlogio/api/go/svc/query/v1/queryv1connect"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
-	"github.com/humanlogio/humanlog/internal/localstorage"
 	"github.com/humanlogio/humanlog/internal/localsvc"
 	"github.com/humanlogio/humanlog/internal/pkg/config"
 	"github.com/humanlogio/humanlog/internal/pkg/state"
+	"github.com/humanlogio/humanlog/pkg/localstorage"
 	"github.com/humanlogio/humanlog/pkg/sink"
 	"github.com/humanlogio/humanlog/pkg/sink/logsvcsink"
 	"github.com/rs/cors"
@@ -89,7 +89,16 @@ func startLocalhostServer(
 			return localhostSink.Close(ctx)
 		}, nil
 	}
-	storage := localstorage.NewMemStorage(ll.WithGroup("memstorage"))
+
+	storage, err := localstorage.Open(
+		ctx,
+		cfg.ExperimentalFeatures.ServeLocalhost.Engine,
+		ll.WithGroup("storage"),
+		cfg.ExperimentalFeatures.ServeLocalhost.Cfg,
+	)
+	if err != nil {
+		return nil, nil, fmt.Errorf("opening localstorage %q: %v", cfg.ExperimentalFeatures.ServeLocalhost.Engine, err)
+	}
 	ownSink, _, err := storage.SinkFor(ctx, int64(machineID), time.Now().UnixNano())
 	if err != nil {
 		return nil, nil, fmt.Errorf("can't create own sink: %v", err)

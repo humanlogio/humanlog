@@ -2,8 +2,6 @@ package localstorage
 
 import (
 	"context"
-	"log/slog"
-	"os"
 	"testing"
 	"time"
 
@@ -13,7 +11,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func TestMemoryStorage(t *testing.T) {
+func RunTest(t *testing.T, constructor func(t *testing.T) Storage) {
 	tests := []struct {
 		name    string
 		q       *typesv1.LogQuery
@@ -183,7 +181,7 @@ func TestMemoryStorage(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
-			mem := NewMemStorage(slog.New(slog.NewTextHandler(os.Stderr, nil)))
+			mem := constructor(t)
 
 			for _, leg := range tt.input {
 				snk, _, err := mem.SinkFor(ctx, leg.MachineId, leg.SessionId)
@@ -228,7 +226,10 @@ func drainCursors(t *testing.T, ctx context.Context, cursors <-chan Cursor) []*t
 			MachineId: mid, SessionId: sid,
 		}
 		for cursor.Next(ctx) {
-			leg.Logs = append(leg.Logs, cursor.Event())
+			ev := new(typesv1.LogEvent)
+			err := cursor.Event(ev)
+			require.NoError(t, err)
+			leg.Logs = append(leg.Logs, ev)
 		}
 		require.NoError(t, cursor.Err())
 		out = append(out, leg)
