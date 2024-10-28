@@ -90,7 +90,7 @@ func startLocalhostServer(
 		}, nil
 	}
 	storage := localstorage.NewMemStorage(ll.WithGroup("memstorage"))
-	ownSink, _, err := storage.SinkFor(int64(machineID), time.Now().UnixNano())
+	ownSink, _, err := storage.SinkFor(ctx, int64(machineID), time.Now().UnixNano())
 	if err != nil {
 		return nil, nil, fmt.Errorf("can't create own sink: %v", err)
 	}

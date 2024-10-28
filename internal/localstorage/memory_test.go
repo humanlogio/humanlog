@@ -186,7 +186,7 @@ func TestMemoryStorage(t *testing.T) {
 			mem := NewMemStorage(slog.New(slog.NewTextHandler(os.Stderr, nil)))
 
 			for _, leg := range tt.input {
-				snk, _, err := mem.SinkFor(leg.MachineId, leg.SessionId)
+				snk, _, err := mem.SinkFor(ctx, leg.MachineId, leg.SessionId)
 				require.NoError(t, err)
 				for _, ev := range leg.Logs {
 					err = snk.Receive(ctx, ev)
