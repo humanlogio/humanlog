@@ -53,6 +53,8 @@ type SummarizedEvents struct {
 	}
 }
 
+func (str *MemStorage) Close() error { return nil }
+
 func (str *MemStorage) Query(ctx context.Context, q *typesv1.LogQuery) (<-chan localstorage.Cursor, error) {
 	if q.To != nil && q.From.AsTime().After(q.To.AsTime()) {
 		return nil, fmt.Errorf("invalid query, `to` is before `from`")
