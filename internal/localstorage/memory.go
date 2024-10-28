@@ -100,7 +100,7 @@ func (str *MemStorage) Heartbeat(ctx context.Context, machineID, sessionID int64
 	return str.heartbeat, nil
 }
 
-func (str *MemStorage) SinkFor(machineID, sessionID int64) (sink.Sink, time.Duration, error) {
+func (str *MemStorage) SinkFor(ctx context.Context, machineID, sessionID int64) (sink.Sink, time.Duration, error) {
 	str.sinksMu.Lock()
 	defer str.sinksMu.Unlock()
 

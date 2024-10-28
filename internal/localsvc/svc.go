@@ -102,7 +102,7 @@ func (svc *Service) IngestStream(ctx context.Context, req *connect.ClientStream[
 		slog.Int64("session_id", sessionID),
 	)
 	ll.DebugContext(ctx, "receiving data from stream")
-	snk, heartbeatIn, err := svc.storage.SinkFor(machineID, sessionID)
+	snk, heartbeatIn, err := svc.storage.SinkFor(ctx, machineID, sessionID)
 	if err != nil {
 		ll.ErrorContext(ctx, "obtaining sink for stream", slog.Any("err", err))
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("obtaining sink for stream: %v", err))
