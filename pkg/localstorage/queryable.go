@@ -3,6 +3,7 @@ package localstorage
 import (
 	"context"
 	"fmt"
+	"log"
 	"log/slog"
 	"time"
 
@@ -15,6 +16,7 @@ type StorageBuilder func(ctx context.Context, ll *slog.Logger, cfg map[string]in
 var registry = make(map[string]StorageBuilder)
 
 func RegisterStorage(name string, builder StorageBuilder) {
+	log.Printf("registered storage engine %q", name)
 	_, ok := registry[name]
 	if ok {
 		panic(fmt.Sprintf("already used: %q", name))

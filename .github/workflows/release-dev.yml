@@ -20,19 +20,23 @@ jobs:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
+      - run: git config --global --add safe.directory '*'
+      - run: git config --global url.https://$GH_ACCESS_TOKEN_FOR_HUMANLOGPRO@github.com/.insteadOf https://github.com/
       - run: git fetch --force --tags
       - uses: actions/setup-go@v3
         with:
           go-version: ">=1.23"
           cache: true
-      - run: git config --global url.https://$GH_ACCESS_TOKEN_FOR_HUMANLOGPRO@github.com/.insteadOf https://github.com/
       - run: echo "${HOME}/.humanlog/bin" >> $GITHUB_PATH
       - run: curl https://humanlog.dev/install_apictl.sh | bash
+      - run: go install github.com/goware/modvendor@latest
+      - run: go mod vendor
+      - run: modvendor -copy="**/*.a **/*.h" -v
       - uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
           version: v2
-          args: release --clean --draft --skip validate --config .goreleaser-dev.yaml
+          args: release --verbose --clean --draft --skip validate --config .goreleaser-dev.yaml
         env:
           GITHUB_TOKEN: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
           AWS_ACCESS_KEY_ID: ${{ secrets.S3_BINARIES_BUCKET_KEY_ID }}

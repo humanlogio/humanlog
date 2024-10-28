@@ -6,20 +6,115 @@ before:
     - go generate ./...
     - mkdir -p dist-extra
     - script/write_version_info.sh "{{.Major}}" "{{.Minor}}" "{{.Patch}}" "next.{{ .CommitTimestamp }}" "{{.ShortCommit}}" "https://humanlog-binaries.sfo3.cdn.digitaloceanspaces.com/humanlog-binaries/{{ .ProjectName }}/dev/{{ .CommitTimestamp }}/{{ .ShortCommit }}"
+# builds:
+#   - main: ./cmd/humanlog/
+#     binary: humanlog
+#     env:
+#       - CGO_ENABLED=1
+#     tags:
+#       - pro
+#
+#     ldflags:
+#       - -s -w -X main.versionMajor={{.Major}} -X main.versionMinor={{.Minor}} -X main.versionPatch={{.Patch}} -X main.versionPrerelease=next.{{ .CommitTimestamp }} -X main.versionBuild={{.ShortCommit}} -X main.defaultApiAddr=https://api.humanlog.dev -X main.defaultBaseSiteAddr=https://humanlog.dev
+#     goos:
+#       # - windows
+#       - darwin
+#       - linux
+#     goarch:
+#       - amd64
+#       - arm64
+
 builds:
-  - main: ./cmd/humanlog/
+  - id: humanlog-darwin-amd64
     binary: humanlog
-    env:
-      - CGO_ENABLED=1
-    ldflags:
-      - -s -w -X main.versionMajor={{.Major}} -X main.versionMinor={{.Minor}} -X main.versionPatch={{.Patch}} -X main.versionPrerelease=next.{{ .CommitTimestamp }} -X main.versionBuild={{.ShortCommit}} -X main.defaultApiAddr=https://api.humanlog.dev -X main.defaultBaseSiteAddr=https://humanlog.dev
-    goos:
-      # - windows
-      - darwin
-      - linux
+    main: ./cmd/humanlog
+    tags:
+      - pro
     goarch:
       - amd64
+    goos:
+      - darwin
+    env:
+      - CGO_ENABLED=1
+      - CC=o64-clang
+      - CXX=o64-clang++
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.versionMajor={{.Major}} -X main.versionMinor={{.Minor}} -X main.versionPatch={{.Patch}} -X main.versionPrerelease=next.{{ .CommitTimestamp }} -X main.versionBuild={{.ShortCommit}} -X main.defaultApiAddr=https://api.humanlog.dev -X main.defaultBaseSiteAddr=https://humanlog.dev
+
+  - id: humanlog-darwin-arm64
+    binary: humanlog
+    main: ./cmd/humanlog
+    tags:
+      - pro
+    goarch:
       - arm64
+    goos:
+      - darwin
+    env:
+      - CGO_ENABLED=1
+      - CC=oa64-clang
+      - CXX=oa64-clang++
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.versionMajor={{.Major}} -X main.versionMinor={{.Minor}} -X main.versionPatch={{.Patch}} -X main.versionPrerelease=next.{{ .CommitTimestamp }} -X main.versionBuild={{.ShortCommit}} -X main.defaultApiAddr=https://api.humanlog.dev -X main.defaultBaseSiteAddr=https://humanlog.dev
+
+  - id: humanlog-linux-amd64
+    binary: humanlog
+    main: ./cmd/humanlog
+    tags:
+      - pro
+    env:
+      - CGO_ENABLED=1
+      - CC=x86_64-linux-gnu-gcc
+      - CXX=x86_64-linux-gnu-g++
+    goarch:
+      - amd64
+    goos:
+      - linux
+    flags:
+      - -trimpath
+    ldflags:
+      - -extldflags "-lc -lrt -lpthread --static" -s -w -X main.versionMajor={{.Major}} -X main.versionMinor={{.Minor}} -X main.versionPatch={{.Patch}} -X main.versionPrerelease=next.{{ .CommitTimestamp }} -X main.versionBuild={{.ShortCommit}} -X main.defaultApiAddr=https://api.humanlog.dev -X main.defaultBaseSiteAddr=https://humanlog.dev
+
+  - id: humanlog-linux-arm64
+    binary: humanlog
+    main: ./cmd/humanlog
+    tags:
+      - pro
+    goarch:
+      - arm64
+    goos:
+      - linux
+    env:
+      - CGO_ENABLED=1
+      - CC=aarch64-linux-gnu-gcc
+      - CXX=aarch64-linux-gnu-g++
+    flags:
+      - -trimpath
+    ldflags:
+      - -extldflags "-lc -lrt -lpthread --static" -s -w -X main.versionMajor={{.Major}} -X main.versionMinor={{.Minor}} -X main.versionPatch={{.Patch}} -X main.versionPrerelease=next.{{ .CommitTimestamp }} -X main.versionBuild={{.ShortCommit}} -X main.defaultApiAddr=https://api.humanlog.dev -X main.defaultBaseSiteAddr=https://humanlog.dev
+
+  # - id: humanlog-windows-amd64
+  #   binary: humanlog
+  #   main: ./cmd/humanlog
+  #   tags:
+  #     - pro
+  #   goarch:
+  #     - amd64
+  #   goos:
+  #     - windows
+  #   env:
+  #     - CC=x86_64-w64-mingw32-gcc
+  #     - CXX=x86_64-w64-mingw32-g++
+  #   flags:
+  #     - -trimpath
+  #     - -buildmode=exe
+  #   ldflags:
+  #     - -s -w -X main.versionMajor={{.Major}} -X main.versionMinor={{.Minor}} -X main.versionPatch={{.Patch}} -X main.versionPrerelease=next.{{ .CommitTimestamp }} -X main.versionBuild={{.ShortCommit}} -X main.defaultApiAddr=https://api.humanlog.dev -X main.defaultBaseSiteAddr=https://humanlog.dev
+
 release:
   disable: true
 blobs:
