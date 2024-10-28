@@ -30,7 +30,8 @@ import (
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 
-	// imported for side-effect
+	// imported for side-effect of `init()` registration
+	_ "github.com/humanlogio/humanlog/internal/diskstorage"
 	_ "github.com/humanlogio/humanlog/internal/memstorage"
 )
 
