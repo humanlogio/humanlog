@@ -15,8 +15,8 @@ import (
 	qrv1 "github.com/humanlogio/api/go/svc/query/v1"
 	qrsvcpb "github.com/humanlogio/api/go/svc/query/v1/queryv1connect"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
-	"github.com/humanlogio/humanlog/internal/localstorage"
 	"github.com/humanlogio/humanlog/internal/pkg/state"
+	"github.com/humanlogio/humanlog/pkg/localstorage"
 	"github.com/humanlogio/humanlog/pkg/sink"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -208,7 +208,11 @@ func (svc *Service) SummarizeEvents(ctx context.Context, req *connect.Request[qr
 
 	for cursor := range cursors {
 		for cursor.Next(ctx) {
-			ts := cursor.Event().ParsedAt.AsTime().Truncate(width)
+			ev := new(typesv1.LogEvent)
+			if err := cursor.Event(ev); err != nil {
+				return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("scanning events: %v", err))
+			}
+			ts := ev.ParsedAt.AsTime().Truncate(width)
 			loc, _ := slices.BinarySearchFunc(buckets, ts, func(a bucket, t time.Time) int {
 				return a.ts.Compare(t)
 			})
@@ -297,7 +301,11 @@ func (svc *Service) WatchQuery(ctx context.Context, req *connect.Request[qrv1.Wa
 			slog.Int64("session_id", sessionID),
 		)
 		for cursor.Next(ctx) {
-			evs = append(evs, cursor.Event())
+			ev := new(typesv1.LogEvent)
+			if err := cursor.Event(ev); err != nil {
+				return err
+			}
+			evs = append(evs, ev)
 			now := time.Now()
 			if now.Sub(lastSend) > 100*time.Millisecond {
 				ll.DebugContext(ctx, "cursor batch sent", slog.Int("batch_len", len(evs)))

@@ -10,7 +10,7 @@ import (
 	"connectrpc.com/connect"
 	qrv1 "github.com/humanlogio/api/go/svc/query/v1"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
-	"github.com/humanlogio/humanlog/internal/localstorage"
+	"github.com/humanlogio/humanlog/internal/memstorage"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -120,7 +120,7 @@ func TestSummarize(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 
 			ll := slog.New(slog.NewTextHandler(os.Stderr, nil))
-			mem := localstorage.NewMemStorage(ll)
+			mem := memstorage.NewMemStorage(ll)
 
 			for _, leg := range tt.input {
 				snk, _, err := mem.SinkFor(ctx, leg.MachineId, leg.SessionId)

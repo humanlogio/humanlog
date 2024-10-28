@@ -1,4 +1,4 @@
-package localstorage
+package memstorage
 
 import (
 	"context"
@@ -9,17 +9,24 @@ import (
 	"time"
 
 	typesv1 "github.com/humanlogio/api/go/types/v1"
+	"github.com/humanlogio/humanlog/pkg/localstorage"
 	"github.com/humanlogio/humanlog/pkg/sink"
 	"github.com/teivah/broadcast"
 	"google.golang.org/protobuf/proto"
 )
 
 var (
-	_ Queryable      = (*MemStorage)(nil)
-	_ Storage        = (*MemStorage)(nil)
-	_ sink.Sink      = (*MemStorageSink)(nil)
-	_ sink.BatchSink = (*MemStorageSink)(nil)
+	_ localstorage.Queryable = (*MemStorage)(nil)
+	_ localstorage.Storage   = (*MemStorage)(nil)
+	_ sink.Sink              = (*MemStorageSink)(nil)
+	_ sink.BatchSink         = (*MemStorageSink)(nil)
 )
+
+func init() {
+	localstorage.RegisterStorage("basic", func(ctx context.Context, ll *slog.Logger, cfg map[string]interface{}) (localstorage.Storage, error) {
+		return NewMemStorage(ll), nil
+	})
+}
 
 type MemStorage struct {
 	ll        *slog.Logger
@@ -46,7 +53,7 @@ type SummarizedEvents struct {
 	}
 }
 
-func (str *MemStorage) Query(ctx context.Context, q *typesv1.LogQuery) (<-chan Cursor, error) {
+func (str *MemStorage) Query(ctx context.Context, q *typesv1.LogQuery) (<-chan localstorage.Cursor, error) {
 	if q.To != nil && q.From.AsTime().After(q.To.AsTime()) {
 		return nil, fmt.Errorf("invalid query, `to` is before `from`")
 	}
@@ -54,7 +61,7 @@ func (str *MemStorage) Query(ctx context.Context, q *typesv1.LogQuery) (<-chan C
 	str.sinksMu.Lock()
 	defer str.sinksMu.Unlock()
 
-	var cursors []Cursor
+	var cursors []localstorage.Cursor
 	for _, snk := range str.sinks {
 		if idx, ok, err := snk.firstMatch(ctx, q); err != nil {
 			return nil, err
@@ -64,7 +71,7 @@ func (str *MemStorage) Query(ctx context.Context, q *typesv1.LogQuery) (<-chan C
 			cursors = append(cursors, newMemSinkCursor(ll, q, idx, idx, true, snk))
 		}
 	}
-	newCursors := make(chan Cursor, len(cursors))
+	newCursors := make(chan localstorage.Cursor, len(cursors))
 	for _, cursor := range cursors {
 		newCursors <- cursor
 	}
@@ -165,8 +172,12 @@ func (crs *MemSinkCursor) Next(ctx context.Context) bool {
 	return hasCurrent && crs.err == nil
 }
 
-func (crs *MemSinkCursor) Event() *typesv1.LogEvent {
-	return crs.sink.evs[crs.cur]
+func (crs *MemSinkCursor) Event(ev *typesv1.LogEvent) error {
+	orig := crs.sink.evs[crs.cur]
+	ev.ParsedAt = orig.ParsedAt
+	ev.Raw = orig.Raw
+	ev.Structured = orig.Structured
+	return nil
 }
 
 func (crs *MemSinkCursor) Err() error {
