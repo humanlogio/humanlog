@@ -80,3 +80,12 @@ func Scan(ctx context.Context, src io.Reader, sink sink.Sink, opts *HandlerOptio
 		return err
 	}
 }
+
+func checkEachUntilFound(fieldList []string, found func(string) bool) bool {
+	for _, field := range fieldList {
+		if found(field) {
+			return true
+		}
+	}
+	return false
+}

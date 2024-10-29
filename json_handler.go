@@ -50,15 +50,6 @@ func searchJSON(kvs map[string]interface{}, fieldList []string, found func(key s
 	return false
 }
 
-func checkEachUntilFound(fieldList []string, found func(string) bool) bool {
-	for _, field := range fieldList {
-		if found(field) {
-			return true
-		}
-	}
-	return false
-}
-
 func (h *JSONHandler) clear() {
 	h.Level = ""
 	h.Time = time.Time{}

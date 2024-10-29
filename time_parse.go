@@ -37,23 +37,37 @@ func parseTimeFloat64(value float64) time.Time {
 	case v > 1e12:
 		v *= 1e6
 	default:
-		return time.Unix(v, 0)
+		return fixTimebeforeUnixZero(time.Unix(v, 0))
 	}
 
-	return time.Unix(v/1e9, v%1e9)
+	return fixTimebeforeUnixZero(time.Unix(v/1e9, v%1e9))
+}
+
+var zeroTime = time.Time{}
+
+func fixTimebeforeUnixZero(t time.Time) time.Time {
+	if t.Unix() >= 0 {
+		return t
+	}
+	// fast forward in the future at unix 0... unfortunately
+	// we can't handle times before that, the JSON API stack
+	// fails to marshal negative UNIX seconds (ConnectRPC)
+	t = t.AddDate(zeroTime.Year(), 0, 0)
+	return t
 }
 
 // tries to parse time using a couple of formats before giving up
 func tryParseTime(value interface{}) (time.Time, bool) {
 	var t time.Time
-	var err error
 	switch v := value.(type) {
 	case string:
 		for _, layout := range TimeFormats {
-			t, err = time.Parse(layout, v)
+			t, err := time.Parse(layout, v)
 			if err == nil {
+				t = fixTimebeforeUnixZero(t)
 				return t, true
 			}
+
 		}
 		// try to parse unix time number from string
 		floatVal, err := strconv.ParseFloat(v, 64)
