@@ -2,10 +2,8 @@ package localsvc
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
-	"os"
 	"slices"
 	"time"
 
@@ -412,12 +410,6 @@ func (svc *Service) WatchQuery(ctx context.Context, req *connect.Request[qrv1.Wa
 		defer func() {
 			ll.DebugContext(ctx, "accumulator: done accumulating")
 			if len(legs) > 0 {
-				ll.DebugContext(ctx, "accumulator: trying to send final watch query response, may not work")
-				if data, err := json.MarshalIndent(legs, "", "  "); err != nil {
-					ll.ErrorContext(ctx, "doesnt jsonize", slog.Any("err", err))
-				} else {
-					os.Stderr.Write(data)
-				}
 				err = stream.Send(&qrv1.WatchQueryResponse{
 					Events: legs,
 				})
@@ -454,11 +446,6 @@ func (svc *Service) WatchQuery(ctx context.Context, req *connect.Request[qrv1.Wa
 			case <-sender.C:
 				if len(legs) < 1 {
 					continue
-				}
-				if data, err := json.MarshalIndent(legs, "", "  "); err != nil {
-					ll.ErrorContext(ctx, "doesnt jsonize", slog.Any("err", err))
-				} else {
-					os.Stderr.Write(data)
 				}
 				ll.DebugContext(ctx, "accumulator: sending watch query response")
 				err := stream.Send(&qrv1.WatchQueryResponse{
