@@ -326,8 +326,12 @@ func queryApiWatchCmd(
 			loginfo("to=%s", to)
 			loginfo("query=%s", query)
 
+			var accountID int64
+			if state.CurrentAccountID != nil {
+				accountID = *state.CurrentAccountID
+			}
 			req := &queryv1.WatchQueryRequest{
-				AccountId: *state.CurrentAccountID,
+				AccountId: accountID,
 				Query: &typesv1.LogQuery{
 					From:  from,
 					To:    to,
