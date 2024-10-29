@@ -30,6 +30,9 @@ import (
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 	"golang.org/x/sys/unix"
+
+	// imported for side-effect
+	_ "github.com/humanlogio/humanlog/internal/memstorage"
 )
 
 func isEADDRINUSE(err error) bool {
