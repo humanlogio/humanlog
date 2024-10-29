@@ -126,7 +126,7 @@ func queryApiSummarizeCmd(
 	localhost := cli.BoolFlag{Name: "localhost"}
 	return cli.Command{
 		Name:  "summarize",
-		Flags: []cli.Flag{localhost, fromFlag, toFlag},
+		Flags: []cli.Flag{localhost, fromFlag, toFlag, bucket},
 		Action: func(cctx *cli.Context) error {
 			ctx := getCtx(cctx)
 			state := getState(cctx)
