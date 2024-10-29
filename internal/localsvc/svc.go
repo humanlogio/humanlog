@@ -2,8 +2,10 @@ package localsvc
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
+	"os"
 	"slices"
 	"time"
 
@@ -76,6 +78,25 @@ func (svc *Service) Ingest(ctx context.Context, req *connect.Request[igv1.Ingest
 	return nil, connect.NewError(connect.CodeUnimplemented, fmt.Errorf("not available on localhost"))
 }
 
+func fixEventsTimestamps(ctx context.Context, ll *slog.Logger, evs []*typesv1.LogEvent) []*typesv1.LogEvent {
+	for i, ev := range evs {
+		evs[i] = fixEventTimestamps(ctx, ll, ev)
+	}
+	return evs
+}
+
+func fixEventTimestamps(ctx context.Context, ll *slog.Logger, ev *typesv1.LogEvent) *typesv1.LogEvent {
+	if ev.ParsedAt != nil && ev.ParsedAt.Seconds < 0 {
+		ev.ParsedAt = timestamppb.Now()
+		ll.ErrorContext(ctx, "client is sending invalid parsedat")
+	}
+	if ev.Structured != nil && ev.Structured.Timestamp != nil && ev.Structured.Timestamp.Seconds < 0 {
+		ev.Structured.Timestamp = ev.ParsedAt
+		ll.ErrorContext(ctx, "client is sending invalid timestamp")
+	}
+	return ev
+}
+
 func (svc *Service) IngestStream(ctx context.Context, req *connect.ClientStream[igv1.IngestStreamRequest]) (*connect.Response[igv1.IngestStreamResponse], error) {
 	ll := svc.ll
 
@@ -119,6 +140,7 @@ func (svc *Service) IngestStream(ctx context.Context, req *connect.ClientStream[
 
 	if bsnk, ok := snk.(sink.BatchSink); ok {
 		// ingest the first message
+		msg.Events = fixEventsTimestamps(ctx, ll, msg.Events)
 		if err := bsnk.ReceiveBatch(ctx, msg.Events); err != nil {
 			ll.ErrorContext(ctx, "ingesting event batch", slog.Any("err", err))
 			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("ingesting event batch: %v", err))
@@ -126,6 +148,7 @@ func (svc *Service) IngestStream(ctx context.Context, req *connect.ClientStream[
 		// then wait for more
 		for req.Receive() {
 			msg := req.Msg()
+			msg.Events = fixEventsTimestamps(ctx, ll, msg.Events)
 			if err := bsnk.ReceiveBatch(ctx, msg.Events); err != nil {
 				ll.ErrorContext(ctx, "ingesting event batch", slog.Any("err", err))
 				return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("ingesting event batch: %v", err))
@@ -133,6 +156,7 @@ func (svc *Service) IngestStream(ctx context.Context, req *connect.ClientStream[
 		}
 	} else {
 		// ingest the first message
+		msg.Events = fixEventsTimestamps(ctx, ll, msg.Events)
 		for _, ev := range msg.Events {
 			if err := snk.Receive(ctx, ev); err != nil {
 				ll.ErrorContext(ctx, "ingesting event", slog.Any("err", err))
@@ -142,7 +166,16 @@ func (svc *Service) IngestStream(ctx context.Context, req *connect.ClientStream[
 		// then wait for more
 		for req.Receive() {
 			msg := req.Msg()
+			msg.Events = fixEventsTimestamps(ctx, ll, msg.Events)
 			for _, ev := range msg.Events {
+				if ev.ParsedAt != nil && ev.ParsedAt.Seconds < 0 {
+					ev.ParsedAt = timestamppb.Now()
+					ll.ErrorContext(ctx, "client is sending invalid parsedat", slog.Any("err", err))
+				}
+				if ev.Structured != nil && ev.Structured.Timestamp != nil && ev.Structured.Timestamp.Seconds < 0 {
+					ev.Structured.Timestamp = ev.ParsedAt
+					ll.ErrorContext(ctx, "client is sending invalid timestamp", slog.Any("err", err))
+				}
 				if err := snk.Receive(ctx, ev); err != nil {
 					ll.ErrorContext(ctx, "ingesting event", slog.Any("err", err))
 					return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("ingesting event: %v", err))
@@ -380,6 +413,11 @@ func (svc *Service) WatchQuery(ctx context.Context, req *connect.Request[qrv1.Wa
 			ll.DebugContext(ctx, "accumulator: done accumulating")
 			if len(legs) > 0 {
 				ll.DebugContext(ctx, "accumulator: trying to send final watch query response, may not work")
+				if data, err := json.MarshalIndent(legs, "", "  "); err != nil {
+					ll.ErrorContext(ctx, "doesnt jsonize", slog.Any("err", err))
+				} else {
+					os.Stderr.Write(data)
+				}
 				err = stream.Send(&qrv1.WatchQueryResponse{
 					Events: legs,
 				})
@@ -416,6 +454,11 @@ func (svc *Service) WatchQuery(ctx context.Context, req *connect.Request[qrv1.Wa
 			case <-sender.C:
 				if len(legs) < 1 {
 					continue
+				}
+				if data, err := json.MarshalIndent(legs, "", "  "); err != nil {
+					ll.ErrorContext(ctx, "doesnt jsonize", slog.Any("err", err))
+				} else {
+					os.Stderr.Write(data)
 				}
 				ll.DebugContext(ctx, "accumulator: sending watch query response")
 				err := stream.Send(&qrv1.WatchQueryResponse{
