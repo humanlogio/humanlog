@@ -46,6 +46,22 @@ func TestScannerLongLine(t *testing.T) {
 	}
 }
 
+func TestLargePayload(t *testing.T) {
+
+	ctx := context.Background()
+	payload := `{"msg":` + strings.Repeat("a", 1024*1024) + `}` // more than 1mb long json payload
+	src := strings.NewReader(payload)
+
+	opts := DefaultOptions()
+	opts.timeNow = func() time.Time {
+		return time.Date(2024, 11, 1, 15, 40, 0, 0, time.UTC)
+	}
+
+	sink := bufsink.NewSizedBufferedSink(1024*1024, nil)
+	err := Scan(ctx, src, sink, opts)
+	require.NoError(t, err)
+}
+
 func pjson(m proto.Message) string {
 	o, err := protojson.Marshal(m)
 	if err != nil {
