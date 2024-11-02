@@ -29,9 +29,9 @@ import (
 	"github.com/rs/cors"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
-	"golang.org/x/sys/unix"
 
 	// imported for side-effect
+	internal_errors "github.com/humanlogio/humanlog/internal/errors"
 	_ "github.com/humanlogio/humanlog/internal/memstorage"
 )
 
@@ -51,7 +51,7 @@ func isEADDRINUSE(err error) bool {
 	if !ok {
 		return false
 	}
-	return nserrno == unix.EADDRINUSE
+	return internal_errors.IsSocketInUse(nserrno)
 }
 
 func startLocalhostServer(
