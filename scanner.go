@@ -15,8 +15,11 @@ import (
 // the lines aren't JSON-structured, it will simply write them out with no
 // prettification.
 func Scan(ctx context.Context, src io.Reader, sink sink.Sink, opts *HandlerOptions) error {
+
+	const bufferMaxSize = 2 * 1024 * 1024 // 2MB
+
 	in := bufio.NewScanner(src)
-	in.Buffer(make([]byte, 1024*1024), 1024*1024)
+	in.Buffer(make([]byte, 0, bufferMaxSize), bufferMaxSize)
 	in.Split(bufio.ScanLines)
 
 	var line uint64
