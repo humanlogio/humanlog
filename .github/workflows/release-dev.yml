@@ -10,41 +10,91 @@ permissions:
   contents: write
 
 jobs:
-  create_a_dev_release:
-    name: create a dev release
-    runs-on: ubuntu-latest
+  build:
+    strategy:
+      matrix:
+        targets:
+        - name: linux-amd64
+          runner: ubuntu-latest
+          tags: pro
+          goos: linux
+          goarch: amd64
+        - name: linux-arm64
+          runner: ubuntu-latest
+          goos: linux
+          goarch: arm64
+          goenvs: CC=aarch64-linux-gnu-gcc CXX=x86_64-linux-gnu-g++
+          preinstall: sudo apt install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+        - name: darwin-amd64
+          runner: macos-latest
+          tags: pro
+          goos: darwin
+          goarch: amd64
+        - name: darwin-arm64
+          runner: macos-latest
+          tags: pro
+          goos: darwin
+          goarch: arm64
+    name: ${{ matrix.targets.name }}
+    runs-on: ${{ matrix.targets.runner }}
     env:
       GOPRIVATE: "github.com/humanlogio/humanlog-pro"
       GH_ACCESS_TOKEN_FOR_HUMANLOGPRO: ${{ secrets.GH_ACCESS_TOKEN_FOR_HUMANLOGPRO }}
+      CGO_ENABLED: 1
+      GOBIN: /usr/local/bin/
+    steps:
+      - name: Set up Go 1
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: true
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - if: ${{ matrix.targets.preinstall != '' }}
+        run: ${{ matrix.targets.preinstall }}
+      - run: echo "${HOME}/.humanlog/bin" >> $GITHUB_PATH
+      - run: curl https://humanlog.io/install_apictl.sh | bash
+      - run: git config --global --add safe.directory '*'
+      - run: git config --global url.https://$GH_ACCESS_TOKEN_FOR_HUMANLOGPRO@github.com/.insteadOf https://github.com/
+      - run: go install github.com/goware/modvendor@latest
+      - run: go mod vendor
+      - run: modvendor -copy="**/*.a **/*.h" -v
+      - run: mkdir -p dist/${{ matrix.targets.goos }}-${{ matrix.targets.goarch }}
+      - run: ${{ matrix.targets.goenvs }} ./script/build.sh
+        env:
+          HUMANLOG_GOTAGS: ${{ matrix.targets.tags }}
+          GOOS: ${{ matrix.targets.goos }}
+          GOARCH: ${{ matrix.targets.goarch }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: humanlog-bins-${{ matrix.targets.goos }}-${{ matrix.targets.goarch }}
+          path: dist/*
+
+  publish:
+    name: "publish"
+    needs: build
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
-      - run: git config --global --add safe.directory '*'
-      - run: git config --global url.https://$GH_ACCESS_TOKEN_FOR_HUMANLOGPRO@github.com/.insteadOf https://github.com/
-      - run: git fetch --force --tags
-      - uses: actions/setup-go@v3
-        with:
-          go-version: ">=1.23"
-          cache: true
       - run: echo "${HOME}/.humanlog/bin" >> $GITHUB_PATH
-      - run: curl https://humanlog.dev/install_apictl.sh | bash
-      - run: go install github.com/goware/modvendor@latest
-      - run: go mod vendor
-      - run: modvendor -copy="**/*.a **/*.h" -v
-      - uses: goreleaser/goreleaser-action@v6
+      - run: curl https://humanlog.io/install_apictl.sh | bash
+      - uses: actions/upload-artifact/merge@v4
         with:
-          distribution: goreleaser
-          version: v2
-          args: release --verbose --clean --draft --skip validate --config .goreleaser-dev.yaml
-        env:
-          GITHUB_TOKEN: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.S3_BINARIES_BUCKET_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_BINARIES_BUCKET_ACCESS_KEY }}
-      - run: ./script/create_version_artifacts.sh
+          name: humanlog-bins
+          pattern: humanlog-bins-*
+          separate-directories: true
+          delete-merged: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: humanlog-bins
+      - run: ./script/publish.sh
         env:
           CHANNEL: "dev"
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           API_URL: "https://api.humanlog.dev"
           HMAC_KEY_ID: ${{ secrets.DEV_HMAC_KEY_ID }}
           HMAC_PRIVATE_KEY: ${{ secrets.DEV_HMAC_PRIVATE_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.S3_BINARIES_BUCKET_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_BINARIES_BUCKET_ACCESS_KEY }}
