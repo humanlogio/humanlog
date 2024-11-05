@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/humanlogio/humanlog/internal/pkg/config"
@@ -38,6 +40,13 @@ func TestHarness(t *testing.T) {
 			if err != nil {
 				t.Fatalf("reading config: %v", err)
 			}
+
+			if runtime.GOOS == "windows" {
+				input = replaceCRLF(input, "\r\n", "\n")
+				want = replaceCRLF(want, "\r\n", "\n")
+				cfgjson = replaceCRLF(cfgjson, "\r\n", "\n")
+			}
+
 			var cfg config.Config
 			if err := json.Unmarshal(cfgjson, &cfg); err != nil {
 				t.Fatalf("unmarshaling config: %v", err)
@@ -107,6 +116,11 @@ func TestHarness(t *testing.T) {
 
 type byteranges struct {
 	ranges []*byterange
+}
+
+func replaceCRLF(org []byte, oldCRLF string, newCRLF string) []byte {
+	replaced := strings.ReplaceAll(string(org), oldCRLF, newCRLF)
+	return []byte(replaced)
 }
 
 func newByteRanges() *byteranges {
