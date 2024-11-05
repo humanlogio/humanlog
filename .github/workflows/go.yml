@@ -13,7 +13,7 @@ jobs:
         os:
         - ubuntu-latest
         - macos-latest
-        # - windows-latest
+        - windows-latest
 
     name: test
     runs-on: ${{ matrix.os }}
