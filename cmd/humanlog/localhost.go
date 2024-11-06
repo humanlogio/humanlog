@@ -8,10 +8,8 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"strconv"
 	"sync"
-	"syscall"
 	"time"
 
 	connectcors "connectrpc.com/cors"
@@ -20,39 +18,21 @@ import (
 	"github.com/humanlogio/api/go/svc/localhost/v1/localhostv1connect"
 	"github.com/humanlogio/api/go/svc/query/v1/queryv1connect"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
+	"github.com/humanlogio/humanlog/internal/errutil"
 	"github.com/humanlogio/humanlog/internal/localsvc"
 	"github.com/humanlogio/humanlog/internal/pkg/config"
 	"github.com/humanlogio/humanlog/internal/pkg/state"
 	"github.com/humanlogio/humanlog/pkg/localstorage"
 	"github.com/humanlogio/humanlog/pkg/sink"
 	"github.com/humanlogio/humanlog/pkg/sink/logsvcsink"
+
 	"github.com/rs/cors"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 
 	// imported for side-effect
-	internal_errors "github.com/humanlogio/humanlog/internal/errors"
 	_ "github.com/humanlogio/humanlog/internal/memstorage"
 )
-
-func isEADDRINUSE(err error) bool {
-	nerr, ok := err.(*net.OpError)
-	if !ok {
-		return false
-	}
-	nserr, ok := nerr.Err.(*os.SyscallError)
-	if !ok {
-		return false
-	}
-	if nserr.Syscall != "bind" {
-		return false
-	}
-	nserrno, ok := nserr.Err.(syscall.Errno)
-	if !ok {
-		return false
-	}
-	return internal_errors.IsSocketInUse(nserrno)
-}
 
 func startLocalhostServer(
 	ctx context.Context,
@@ -72,10 +52,10 @@ func startLocalhostServer(
 
 	localhostAddr := net.JoinHostPort("localhost", strconv.Itoa(port))
 	l, err := net.Listen("tcp", localhostAddr)
-	if err != nil && !isEADDRINUSE(err) {
+	if err != nil && !errutil.IsEADDRINUSE(err) {
 		return nil, nil, fmt.Errorf("listening on host/port: %v", err)
 	}
-	if isEADDRINUSE(err) {
+	if errutil.IsEADDRINUSE(err) {
 		// TODO(antoine):
 		// 1) log to localhost until it's gone
 		// 2) try to gain the socket, if fail; goto 1)
