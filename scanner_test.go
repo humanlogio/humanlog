@@ -49,17 +49,52 @@ func TestScannerLongLine(t *testing.T) {
 func TestLargePayload(t *testing.T) {
 
 	ctx := context.Background()
-	payload := `{"msg":` + strings.Repeat("a", 1024*1024) + `}` // more than 1mb long json payload
+	payload := `{"msg": "hello world"}`
+	payload += "\n" + `{"msg":` + strings.Repeat("a", maxBufferSize+1) + `}` // more than 1mb long json payload
+	payload += "\n" + `{"msg": "안녕하세요"}`
+
+	now := time.Date(2024, 10, 11, 15, 25, 6, 0, time.UTC)
+	want := []*typesv1.LogEvent{
+		{
+			ParsedAt: timestamppb.New(now),
+			Raw:      []byte(`{"msg": "hello world"}`),
+			Structured: &typesv1.StructuredLogEvent{
+				Msg:       "hello world",
+				Timestamp: timestamppb.New(time.Time{}),
+			},
+		},
+		{
+			ParsedAt: timestamppb.New(now),
+			Raw:      []byte(`{"msg": "안녕하세요"}`),
+			Structured: &typesv1.StructuredLogEvent{
+				Msg:       "안녕하세요",
+				Timestamp: timestamppb.New(time.Time{}),
+			},
+		},
+	}
+
 	src := strings.NewReader(payload)
 
 	opts := DefaultOptions()
 	opts.timeNow = func() time.Time {
-		return time.Date(2024, 11, 1, 15, 40, 0, 0, time.UTC)
+		return now
 	}
 
-	sink := bufsink.NewSizedBufferedSink(1024*1024, nil)
+	sink := bufsink.NewSizedBufferedSink(100, nil)
 	err := Scan(ctx, src, sink, opts)
 	require.NoError(t, err)
+
+	got := sink.Buffered
+	require.Equal(t, pjsonslice(want), pjsonslice(got))
+}
+
+func pjsonslice[E proto.Message](m []E) string {
+	sb := strings.Builder{}
+	for _, e := range m {
+		sb.WriteString(pjson(e))
+		sb.WriteRune('\n')
+	}
+	return sb.String()
 }
 
 func pjson(m proto.Message) string {
