@@ -4,17 +4,8 @@ Read logs from `stdin` and prints them back to `stdout`, but prettier.
 
 # Using it
 
-## On macOS
-
 ```bash
-brew tap humanlogio/homebrew-tap
-brew install humanlog
-```
-
-## On linux (and macOS)
-
-```bash
-curl -sSL "https://humanlog.io/install.sh" | sh
+curl -sSL "https://humanlog.io/install.sh" | bash
 ```
 
 ## Otherwise
