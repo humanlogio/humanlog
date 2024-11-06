@@ -32,6 +32,7 @@ func Scan(ctx context.Context, src io.Reader, sink sink.Sink, opts *HandlerOptio
 	data := new(typesv1.StructuredLogEvent)
 	ev.Structured = data
 
+	skipNextScan := false
 	for {
 		if !in.Scan() {
 			err := in.Err()
@@ -42,10 +43,14 @@ func Scan(ctx context.Context, src io.Reader, sink sink.Sink, opts *HandlerOptio
 				in = bufio.NewScanner(src)
 				in.Buffer(make([]byte, 0, maxBufferSize), maxBufferSize)
 				in.Split(bufio.ScanLines)
-				in.Scan()
+				skipNextScan = true
 				continue
 			}
 			break
+		}
+		if skipNextScan {
+			skipNextScan = false
+			continue
 		}
 
 		line++
