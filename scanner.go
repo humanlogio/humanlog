@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"io"
 
 	typesv1 "github.com/humanlogio/api/go/types/v1"
@@ -11,15 +12,15 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
+const maxBufferSize = 1024 * 1024
+
 // Scan reads JSON-structured lines from src and prettify them onto dst. If
 // the lines aren't JSON-structured, it will simply write them out with no
 // prettification.
 func Scan(ctx context.Context, src io.Reader, sink sink.Sink, opts *HandlerOptions) error {
 
-	const bufferMaxSize = 2 * 1024 * 1024 // 2MB
-
 	in := bufio.NewScanner(src)
-	in.Buffer(make([]byte, 0, bufferMaxSize), bufferMaxSize)
+	in.Buffer(make([]byte, 0, maxBufferSize), maxBufferSize)
 	in.Split(bufio.ScanLines)
 
 	var line uint64
@@ -31,7 +32,21 @@ func Scan(ctx context.Context, src io.Reader, sink sink.Sink, opts *HandlerOptio
 	data := new(typesv1.StructuredLogEvent)
 	ev.Structured = data
 
-	for in.Scan() {
+	for {
+		if !in.Scan() {
+			err := in.Err()
+			if err == nil || errors.Is(err, io.EOF) {
+				break
+			}
+			if errors.Is(err, bufio.ErrTooLong) {
+				in = bufio.NewScanner(src)
+				in.Buffer(make([]byte, 0, maxBufferSize), maxBufferSize)
+				in.Split(bufio.ScanLines)
+				in.Scan()
+				continue
+			}
+			break
+		}
 
 		line++
 		lineData := in.Bytes()
