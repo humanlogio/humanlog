@@ -52,6 +52,7 @@ func TestLargePayload(t *testing.T) {
 	payload := `{"msg": "hello world"}`
 	payload += "\n" + `{"msg":` + strings.Repeat("a", maxBufferSize+1) + `}` // more than 1mb long json payload
 	payload += "\n" + `{"msg": "안녕하세요"}`
+	payload += "\n" + `{"msg":` + strings.Repeat("a", maxBufferSize*3+1) + `}` // more than 3mb long json payload
 
 	now := time.Date(2024, 10, 11, 15, 25, 6, 0, time.UTC)
 	want := []*typesv1.LogEvent{
