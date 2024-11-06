@@ -1,6 +1,6 @@
 //go:build windows
 
-package errors
+package errutil
 
 import (
 	"syscall"
@@ -8,6 +8,6 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-func IsSocketInUse(errno syscall.Errno) bool {
+func isErrAddrInUse(errno syscall.Errno) bool {
 	return errno == windows.WSAEADDRINUSE
 }
