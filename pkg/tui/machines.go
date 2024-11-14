@@ -9,17 +9,17 @@ import (
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	accountv1 "github.com/humanlogio/api/go/svc/account/v1"
-	"github.com/humanlogio/api/go/svc/account/v1/accountv1connect"
+	environmentv1 "github.com/humanlogio/api/go/svc/environment/v1"
+	"github.com/humanlogio/api/go/svc/environment/v1/environmentv1connect"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
 	"github.com/humanlogio/humanlog/internal/pkg/state"
 )
 
 type machineSelectorShell struct {
-	appStyle      lipgloss.Style
-	ctx           context.Context
-	state         *state.State
-	accountClient accountv1connect.AccountServiceClient
+	appStyle          lipgloss.Style
+	ctx               context.Context
+	state             *state.State
+	environmentClient environmentv1connect.EnvironmentServiceClient
 
 	children tea.Model
 
@@ -36,7 +36,7 @@ func WithMachineSelectorShell(
 	appStyle lipgloss.Style,
 	ctx context.Context,
 	state *state.State,
-	accountClient accountv1connect.AccountServiceClient,
+	environmentClient environmentv1connect.EnvironmentServiceClient,
 	children tea.Model,
 ) *machineSelectorShell {
 
@@ -64,12 +64,12 @@ func WithMachineSelectorShell(
 		Bold(false)
 	t.SetStyles(s)
 	return &machineSelectorShell{
-		appStyle:      appStyle,
-		ctx:           ctx,
-		state:         state,
-		children:      children,
-		accountClient: accountClient,
-		table:         t,
+		appStyle:          appStyle,
+		ctx:               ctx,
+		state:             state,
+		children:          children,
+		environmentClient: environmentClient,
+		table:             t,
 	}
 }
 
@@ -83,9 +83,9 @@ func (m *machineSelectorShell) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	log.Printf("machine: update")
 	switch msg := msg.(type) {
 
-	case *SelectedAccountMsg:
-		log.Printf("machine: got account selected orgID=%d", msg.Account.Id)
-		return m, listMachinesCmd(m.ctx, m.accountClient, m.state)
+	case *SelectedEnvironmentMsg:
+		log.Printf("machine: got environment selected orgID=%d", msg.Environment.Id)
+		return m, listMachinesCmd(m.ctx, m.environmentClient, m.state)
 	case listMachineMsg:
 		m.machines = msg.machines
 		m.nextCursor = msg.next
@@ -151,15 +151,15 @@ type listMachineMsg struct {
 
 func listMachinesCmd(
 	ctx context.Context,
-	accountClient accountv1connect.AccountServiceClient,
+	environmentClient environmentv1connect.EnvironmentServiceClient,
 	state *state.State,
 ) func() tea.Msg {
 	return func() tea.Msg {
 		log.Printf("machine: listMachines")
-		res, err := accountClient.ListMachine(ctx, connect.NewRequest(&accountv1.ListMachineRequest{
-			Cursor:    nil,
-			Limit:     10,
-			AccountId: *state.CurrentAccountID,
+		res, err := environmentClient.ListMachine(ctx, connect.NewRequest(&environmentv1.ListMachineRequest{
+			Cursor:        nil,
+			Limit:         10,
+			EnvironmentId: *state.CurrentEnvironmentID,
 		}))
 		if err != nil {
 			cerr := new(connect.Error)

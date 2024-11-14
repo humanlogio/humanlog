@@ -39,12 +39,12 @@ func ingest(
 	httpClient := getHTTPClient(cctx, apiURL)
 
 	if state.IngestionToken == nil || time.Now().After(state.IngestionToken.ExpiresAt.AsTime()) {
-		// we need to create an account token
-		accountToken, err := createIngestionToken(ctx, ll, cctx, state, tokenSource, apiURL, httpClient)
+		// we need to create an environment token
+		environmentToken, err := createIngestionToken(ctx, ll, cctx, state, tokenSource, apiURL, httpClient)
 		if err != nil {
 			return nil, fmt.Errorf("no ingestion token configured, and couldn't generate one: %v", err)
 		}
-		state.IngestionToken = accountToken
+		state.IngestionToken = environmentToken
 		if err := state.WriteBack(); err != nil {
 			return nil, fmt.Errorf("writing back generated ingestion token: %v", err)
 		}
@@ -52,12 +52,12 @@ func ingest(
 
 	if state.MachineID == nil || *state.MachineID <= 0 {
 		//lint:ignore ST1005 "user facing call-to-action"
-		return nil, fmt.Errorf("It looks like this machine isn't associated with this account. Try to login again, or register with humanlog.io.")
+		return nil, fmt.Errorf("It looks like this machine isn't associated with this environment. Try to login again, or register with humanlog.io.")
 	}
 
 	clOpts := []connect.ClientOption{
 		connect.WithInterceptors(
-			auth.NewAccountAuthInterceptor(ll, state.IngestionToken),
+			auth.NewEnvironmentAuthInterceptor(ll, state.IngestionToken),
 		),
 		connect.WithGRPC(),
 	}
@@ -86,18 +86,19 @@ func createIngestionToken(
 	tokenSource *auth.UserRefreshableTokenSource,
 	apiURL string,
 	httpClient *http.Client,
-) (*typesv1.AccountToken, error) {
+) (*typesv1.EnvironmentToken, error) {
 	_, err := ensureLoggedIn(ctx, cctx, state, tokenSource, apiURL, httpClient)
 	if err != nil {
 		return nil, fmt.Errorf("ensuring you're logged in: %v", err)
 	}
-	if state.AccountID == nil {
+
+	if state.CurrentEnvironmentID == nil {
 		//lint:ignore ST1005 "user facing call-to-action"
-		return nil, fmt.Errorf("It looks like no account is associated with this user. Try to login again, or register with humanlog.io.")
+		return nil, fmt.Errorf("It looks like no environment is associated with this user. Try to login again, or register with humanlog.io.")
 	}
 
 	// userToken is most likely valid and unexpired, use it
-	// to generate an account token with the right roles
+	// to generate an environment token with the right roles
 	clOpts := connect.WithInterceptors(
 		auth.Interceptors(ll, tokenSource)...,
 	)
@@ -107,14 +108,14 @@ func createIngestionToken(
 	if err != nil {
 		return nil, err
 	}
-	req := &tokenv1.GenerateAccountTokenRequest{
-		AccountId: *state.AccountID,
-		ExpiresAt: timestamppb.New(expiresAt),
-		Roles:     []typesv1.AccountRole{typesv1.AccountRole_AccountRole_Ingestor},
+	req := &tokenv1.GenerateEnvironmentTokenRequest{
+		EnvironmentId: *state.CurrentEnvironmentID,
+		ExpiresAt:     timestamppb.New(expiresAt),
+		Roles:         []typesv1.EnvironmentRole{typesv1.EnvironmentRole_EnvironmentRole_Ingestor},
 	}
-	res, err := tokenClient.GenerateAccountToken(ctx, connect.NewRequest(req))
+	res, err := tokenClient.GenerateEnvironmentToken(ctx, connect.NewRequest(req))
 	if err != nil {
-		return nil, fmt.Errorf("generating account token for ingestion: %v", err)
+		return nil, fmt.Errorf("generating environment token for ingestion: %v", err)
 	}
 	return res.Msg.Token, nil
 }
@@ -143,13 +144,13 @@ func hubAskTokenExpiry(title string) (time.Time, error) {
 	return expiresAt, nil
 }
 
-func hubAskTokenRoles(title string) ([]typesv1.AccountRole, error) {
-	var roles []typesv1.AccountRole
-	err := huh.NewMultiSelect[typesv1.AccountRole]().
+func hubAskTokenRoles(title string) ([]typesv1.EnvironmentRole, error) {
+	var roles []typesv1.EnvironmentRole
+	err := huh.NewMultiSelect[typesv1.EnvironmentRole]().
 		Title(title).
 		Description("What roles should be granted to this token?").
 		Options(
-			huh.NewOption("ingestor", typesv1.AccountRole_AccountRole_Ingestor),
+			huh.NewOption("ingestor", typesv1.EnvironmentRole_EnvironmentRole_Ingestor),
 		).
 		Value(&roles).
 		Run()

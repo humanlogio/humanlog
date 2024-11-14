@@ -52,9 +52,6 @@ func reqMeta(st *state.State) *types.ReqMeta {
 	if st == nil {
 		return req
 	}
-	if st.AccountID != nil {
-		req.AccountId = *st.AccountID
-	}
 	if st.MachineID != nil {
 		req.MachineId = *st.MachineID
 	}
@@ -63,10 +60,6 @@ func reqMeta(st *state.State) *types.ReqMeta {
 
 func updateFromResMeta(st *state.State, res *types.ResMeta, latestKnownVersion *semver.Version, latestKnownVersionUpdatedAt *time.Time) error {
 	changed := false
-	if st.AccountID == nil || res.AccountId != *st.AccountID {
-		st.AccountID = &res.AccountId
-		changed = true
-	}
 	if st.MachineID == nil || res.MachineId != *st.MachineID {
 		st.MachineID = &res.MachineId
 		changed = true

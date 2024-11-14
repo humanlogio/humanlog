@@ -15,7 +15,7 @@ import (
 	"github.com/humanlogio/humanlog/internal/pkg/state"
 )
 
-type accountSelectorShell struct {
+type environmentSelectorShell struct {
 	appStyle           lipgloss.Style
 	ctx                context.Context
 	organizationClient organizationv1connect.OrganizationServiceClient
@@ -25,20 +25,20 @@ type accountSelectorShell struct {
 
 	table table.Model
 
-	accounts   []*typesv1.Account
-	nextCursor *typesv1.Cursor
-	selected   *typesv1.Account
+	environments []*typesv1.Environment
+	nextCursor   *typesv1.Cursor
+	selected     *typesv1.Environment
 
 	err error
 }
 
-func WithAccountSelectorShell(
+func WithEnvironmentSelectorShell(
 	appStyle lipgloss.Style,
 	ctx context.Context,
 	state *state.State,
 	organizationClient organizationv1connect.OrganizationServiceClient,
 	children tea.Model,
-) *accountSelectorShell {
+) *environmentSelectorShell {
 
 	columns := []table.Column{
 		{Title: "Name", Width: 10},
@@ -60,7 +60,7 @@ func WithAccountSelectorShell(
 		Background(lipgloss.Color("57")).
 		Bold(false)
 	t.SetStyles(s)
-	return &accountSelectorShell{
+	return &environmentSelectorShell{
 		appStyle:           appStyle,
 		ctx:                ctx,
 		state:              state,
@@ -70,35 +70,35 @@ func WithAccountSelectorShell(
 	}
 }
 
-func (m *accountSelectorShell) Init() tea.Cmd {
-	log.Printf("account: view")
+func (m *environmentSelectorShell) Init() tea.Cmd {
+	log.Printf("environment: view")
 	return m.children.Init()
 }
 
-func (m *accountSelectorShell) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	log.Printf("account: update")
+func (m *environmentSelectorShell) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	log.Printf("environment: update")
 	switch msg := msg.(type) {
 
 	case *SelectedOrganizationMsg:
-		log.Printf("account: got org selected orgID=%d", msg.Organization.Id)
-		return m, listAccountsCmd(m.ctx, m.organizationClient, m.state)
+		log.Printf("environment: got org selected orgID=%d", msg.Organization.Id)
+		return m, listEnvironmentsCmd(m.ctx, m.organizationClient, m.state)
 
-	case listAccountMsg:
-		m.accounts = msg.accounts
+	case listEnvironmentMsg:
+		m.environments = msg.environments
 		m.nextCursor = msg.next
-		rows := make([]table.Row, 0, len(m.accounts))
-		for _, acct := range m.accounts {
+		rows := make([]table.Row, 0, len(m.environments))
+		for _, acct := range m.environments {
 			rows = append(rows, table.Row{
 				acct.Name,
 			})
-			if m.state.CurrentAccountID != nil && *m.state.CurrentAccountID == acct.Id {
+			if m.state.CurrentEnvironmentID != nil && *m.state.CurrentEnvironmentID == acct.Id {
 				m.selected = acct
 				break
 			}
 		}
-		if len(m.accounts) == 1 {
-			m.selected = m.accounts[0]
-			return m, writeSelectedAccountToState(m.state, m.selected)
+		if len(m.environments) == 1 {
+			m.selected = m.environments[0]
+			return m, writeSelectedEnvironmentToState(m.state, m.selected)
 		}
 		m.table.SetRows(rows)
 
@@ -113,13 +113,13 @@ func (m *accountSelectorShell) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "enter":
 			if m.selected == nil {
 				selectedName := string(m.table.SelectedRow()[0])
-				for _, account := range m.accounts {
-					if account.Name == selectedName {
-						m.selected = account
+				for _, environment := range m.environments {
+					if environment.Name == selectedName {
+						m.selected = environment
 						break
 					}
 				}
-				return m, writeSelectedAccountToState(m.state, m.selected)
+				return m, writeSelectedEnvironmentToState(m.state, m.selected)
 			}
 		}
 	case tea.WindowSizeMsg:
@@ -138,33 +138,33 @@ func (m *accountSelectorShell) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m *accountSelectorShell) View() string {
-	log.Printf("account: view")
-	if m.accounts == nil {
-		return "Looking up accounts..."
+func (m *environmentSelectorShell) View() string {
+	log.Printf("environment: view")
+	if m.environments == nil {
+		return "Looking up environments..."
 	}
 	if m.selected == nil {
 		return m.appStyle.Render(
-			"Select an account\n",
+			"Select an environment\n",
 			m.table.View(),
 		)
 	}
 	return m.children.View()
 }
 
-type listAccountMsg struct {
-	accounts []*typesv1.Account
-	next     *typesv1.Cursor
+type listEnvironmentMsg struct {
+	environments []*typesv1.Environment
+	next         *typesv1.Cursor
 }
 
-func listAccountsCmd(
+func listEnvironmentsCmd(
 	ctx context.Context,
 	organizationClient organizationv1connect.OrganizationServiceClient,
 	state *state.State,
 ) func() tea.Msg {
 	return func() tea.Msg {
-		log.Printf("account: listAccounts")
-		res, err := organizationClient.ListAccount(ctx, connect.NewRequest(&organizationv1.ListAccountRequest{
+		log.Printf("environment: listEnvironments")
+		res, err := organizationClient.ListEnvironment(ctx, connect.NewRequest(&organizationv1.ListEnvironmentRequest{
 			Cursor:         nil,
 			Limit:          10,
 			OrganizationId: *state.CurrentOrgID,
@@ -172,33 +172,33 @@ func listAccountsCmd(
 		if err != nil {
 			cerr := new(connect.Error)
 			if errors.As(err, &cerr) {
-				log.Printf("account: listAccounts err=%v", cerr)
+				log.Printf("environment: listEnvironments err=%v", cerr)
 			}
 			return errMsg{err}
 		}
-		out := listAccountMsg{
-			accounts: make([]*typesv1.Account, 0, len(res.Msg.Items)),
+		out := listEnvironmentMsg{
+			environments: make([]*typesv1.Environment, 0, len(res.Msg.Items)),
 		}
 		for _, mc := range res.Msg.Items {
-			out.accounts = append(out.accounts, mc.Account)
+			out.environments = append(out.environments, mc.Environment)
 		}
-		log.Printf("account: got %d accounts", len(out.accounts))
+		log.Printf("environment: got %d environments", len(out.environments))
 		out.next = res.Msg.Next
 		return out
 	}
 }
 
-type SelectedAccountMsg struct {
-	Account *typesv1.Account
+type SelectedEnvironmentMsg struct {
+	Environment *typesv1.Environment
 }
 
-func writeSelectedAccountToState(state *state.State, selected *typesv1.Account) func() tea.Msg {
+func writeSelectedEnvironmentToState(state *state.State, selected *typesv1.Environment) func() tea.Msg {
 	return func() tea.Msg {
-		log.Print("app: writeSelectedAccountToState")
-		state.CurrentAccountID = &selected.Id
+		log.Print("app: writeSelectedEnvironmentToState")
+		state.CurrentEnvironmentID = &selected.Id
 		if err := state.WriteBack(); err != nil {
 			return errMsg{err}
 		}
-		return &SelectedAccountMsg{Account: selected}
+		return &SelectedEnvironmentMsg{Environment: selected}
 	}
 }

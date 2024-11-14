@@ -17,7 +17,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/term"
 	"github.com/crazy3lf/colorconv"
-	"github.com/humanlogio/api/go/svc/account/v1/accountv1connect"
+	"github.com/humanlogio/api/go/svc/environment/v1/environmentv1connect"
 	"github.com/humanlogio/api/go/svc/organization/v1/organizationv1connect"
 	queryv1 "github.com/humanlogio/api/go/svc/query/v1"
 	"github.com/humanlogio/api/go/svc/query/v1/queryv1connect"
@@ -105,10 +105,10 @@ func query(
 	var (
 		userClient         = userv1connect.NewUserServiceClient(httpClient, apiURL, clOpts)
 		organizationClient = organizationv1connect.NewOrganizationServiceClient(httpClient, apiURL, clOpts)
-		accountClient      = accountv1connect.NewAccountServiceClient(httpClient, apiURL, clOpts)
+		environmentClient  = environmentv1connect.NewEnvironmentServiceClient(httpClient, apiURL, clOpts)
 		queryClient        = queryv1connect.NewQueryServiceClient(httpClient, apiURL, clOpts)
 	)
-	return tui.RunTUI(ctx, state, userClient, organizationClient, accountClient, queryClient)
+	return tui.RunTUI(ctx, state, userClient, organizationClient, environmentClient, queryClient)
 }
 
 func queryApiSummarizeCmd(
@@ -172,10 +172,10 @@ func queryApiSummarizeCmd(
 			}
 
 			res, err := queryClient.SummarizeEvents(ctx, connect.NewRequest(&queryv1.SummarizeEventsRequest{
-				AccountId:   *state.CurrentAccountID,
-				BucketCount: uint32(cctx.Int(bucket.Name)),
-				From:        from,
-				To:          to,
+				EnvironmentId: *state.CurrentEnvironmentID,
+				BucketCount:   uint32(cctx.Int(bucket.Name)),
+				From:          from,
+				To:            to,
 			}))
 			if err != nil {
 				return fmt.Errorf("querying summary data: %v", err)
@@ -326,12 +326,12 @@ func queryApiWatchCmd(
 			loginfo("to=%s", to)
 			loginfo("query=%s", query)
 
-			var accountID int64
-			if state.CurrentAccountID != nil {
-				accountID = *state.CurrentAccountID
+			var environmentID int64
+			if state.CurrentEnvironmentID != nil {
+				environmentID = *state.CurrentEnvironmentID
 			}
 			req := &queryv1.WatchQueryRequest{
-				AccountId: accountID,
+				EnvironmentId: environmentID,
 				Query: &typesv1.LogQuery{
 					From:  from,
 					To:    to,
