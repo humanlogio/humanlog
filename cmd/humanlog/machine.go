@@ -28,7 +28,7 @@ func machineCmd(
 	return cli.Command{
 		Hidden: hideUnreleasedFeatures == "true",
 		Name:   machineCmdName,
-		Usage:  "Manage machines in the current account.",
+		Usage:  "Manage machines in the current environment.",
 		Before: func(cctx *cli.Context) error {
 			ctx := getCtx(cctx)
 			state := getState(cctx)
@@ -44,7 +44,7 @@ func machineCmd(
 		Subcommands: []cli.Command{
 			{
 				Name:  "register",
-				Usage: "register this machine to save logs in an account",
+				Usage: "register this machine to save logs in an environment",
 				Action: func(cctx *cli.Context) error {
 					ctx := getCtx(cctx)
 					ll := getLogger(cctx)
@@ -52,11 +52,11 @@ func machineCmd(
 					tokenSource := getTokenSource(cctx)
 					apiURL := getAPIUrl(cctx)
 					httpClient := getHTTPClient(cctx, apiURL)
-					accountToken, err := createIngestionToken(ctx, ll, cctx, state, tokenSource, apiURL, httpClient)
+					environmentToken, err := createIngestionToken(ctx, ll, cctx, state, tokenSource, apiURL, httpClient)
 					if err != nil {
 						return fmt.Errorf("ingestion token couldn't be generated: %v", err)
 					}
-					state.IngestionToken = accountToken
+					state.IngestionToken = environmentToken
 					if err := state.WriteBack(); err != nil {
 						return fmt.Errorf("writing back generated ingestion token: %v", err)
 					}
@@ -65,7 +65,7 @@ func machineCmd(
 			},
 			{
 				Name:  "deregister",
-				Usage: "deregister this machine from saving logs in an account",
+				Usage: "deregister this machine from saving logs in an environment",
 				Action: func(cctx *cli.Context) error {
 					state := getState(cctx)
 					state.IngestionToken = nil

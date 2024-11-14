@@ -118,16 +118,16 @@ func (uai *userAuthInjector) WrapStreamingHandler(next connect.StreamingHandlerF
 	}
 }
 
-func NewAccountAuthInterceptor(ll *slog.Logger, token *typesv1.AccountToken) connect.Interceptor {
-	return &accountAuthInjector{ll: ll, token: token}
+func NewEnvironmentAuthInterceptor(ll *slog.Logger, token *typesv1.EnvironmentToken) connect.Interceptor {
+	return &environmentAuthInjector{ll: ll, token: token}
 }
 
-type accountAuthInjector struct {
+type environmentAuthInjector struct {
 	ll    *slog.Logger
-	token *typesv1.AccountToken
+	token *typesv1.EnvironmentToken
 }
 
-func (aai *accountAuthInjector) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {
+func (aai *environmentAuthInjector) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {
 	return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
 		aai.ll.DebugContext(ctx, "unary auth injection", slog.String("peer.addr", req.Peer().Addr))
 		req.Header().Set("Authorization", "Bearer "+aai.token.Token)
@@ -135,7 +135,7 @@ func (aai *accountAuthInjector) WrapUnary(next connect.UnaryFunc) connect.UnaryF
 	}
 }
 
-func (aai *accountAuthInjector) WrapStreamingClient(next connect.StreamingClientFunc) connect.StreamingClientFunc {
+func (aai *environmentAuthInjector) WrapStreamingClient(next connect.StreamingClientFunc) connect.StreamingClientFunc {
 	return func(ctx context.Context, spec connect.Spec) connect.StreamingClientConn {
 		conn := next(ctx, spec)
 		aai.ll.DebugContext(ctx, "streaming client auth injection", slog.String("peer.addr", conn.Peer().Addr))
@@ -144,7 +144,7 @@ func (aai *accountAuthInjector) WrapStreamingClient(next connect.StreamingClient
 	}
 }
 
-func (aai *accountAuthInjector) WrapStreamingHandler(next connect.StreamingHandlerFunc) connect.StreamingHandlerFunc {
+func (aai *environmentAuthInjector) WrapStreamingHandler(next connect.StreamingHandlerFunc) connect.StreamingHandlerFunc {
 	return func(ctx context.Context, shc connect.StreamingHandlerConn) error {
 		shc.RequestHeader().Set("Authorization", "Bearer "+aai.token.Token)
 		aai.ll.DebugContext(ctx, "streaming duplex injection", slog.String("peer.addr", shc.Peer().Addr))

@@ -45,9 +45,8 @@ func (svc *Service) Ping(ctx context.Context, req *connect.Request[lhv1.PingRequ
 		ClientVersion: svc.ownVersion,
 		Meta:          &typesv1.ResMeta{},
 	}
-	if svc.state.AccountID != nil && svc.state.MachineID != nil {
+	if svc.state.MachineID != nil {
 		res.Meta = &typesv1.ResMeta{
-			AccountId: *svc.state.AccountID,
 			MachineId: *svc.state.MachineID,
 		}
 	}
@@ -210,7 +209,7 @@ func (svc *Service) SummarizeEvents(ctx context.Context, req *connect.Request[qr
 		slog.Time("from", req.Msg.From.AsTime()),
 		slog.Time("to", req.Msg.From.AsTime()),
 		slog.Int("bucket_count", int(req.Msg.BucketCount)),
-		slog.Int("account_id", int(req.Msg.AccountId)),
+		slog.Int("environment_id", int(req.Msg.EnvironmentId)),
 	)
 
 	cursors, err := svc.storage.Query(ctx, &typesv1.LogQuery{

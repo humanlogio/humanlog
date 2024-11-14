@@ -129,7 +129,6 @@ func performLoginFlow(
 
 	var (
 		userToken *typesv1.UserToken
-		accountID int64
 		machineID int64
 	)
 poll_for_tokens:
@@ -144,8 +143,6 @@ poll_for_tokens:
 			DeviceCode: deviceCode,
 			UserCode:   userCode,
 
-			ClaimAccountId:  state.AccountID,
-			ClaimMachineId:  state.MachineID,
 			Architecture:    runtime.GOARCH,
 			OperatingSystem: runtime.GOOS,
 		}))
@@ -159,8 +156,6 @@ poll_for_tokens:
 			return nil, fmt.Errorf("waiting for user to be authenticated: %v", err)
 		}
 		userToken = res.Msg.Token
-		accountID = res.Msg.AccountId
-		machineID = res.Msg.MachineId
 		break poll_for_tokens
 
 	}
@@ -169,7 +164,6 @@ poll_for_tokens:
 	if err != nil {
 		return nil, fmt.Errorf("saving credentials to keyring: %v", err)
 	}
-	state.AccountID = &accountID
 	state.MachineID = &machineID
 	if err := state.WriteBack(); err != nil {
 		return nil, fmt.Errorf("saving state")
@@ -231,7 +225,7 @@ func huhSelectOrganizations(ctx context.Context, client userv1connect.UserServic
 	return selected.Id, nil
 }
 
-func ensureAccountSelected(
+func ensureEnvironmentSelected(
 	ctx context.Context,
 	ll *slog.Logger,
 	cctx *cli.Context,
@@ -241,48 +235,48 @@ func ensureAccountSelected(
 	httpClient *http.Client,
 	orgID int64,
 ) (int64, error) {
-	if state.CurrentAccountID != nil {
-		return *state.CurrentAccountID, nil
+	if state.CurrentEnvironmentID != nil {
+		return *state.CurrentEnvironmentID, nil
 	}
 	clOpts := connect.WithInterceptors(
 		auth.Interceptors(ll, tokenSource)...,
 	)
 
-	var options []huh.Option[*typesv1.Account]
+	var options []huh.Option[*typesv1.Environment]
 	client := organizationv1connect.NewOrganizationServiceClient(httpClient, apiURL, clOpts)
-	iter := ListAccounts(ctx, orgID, client)
+	iter := ListEnvironments(ctx, orgID, client)
 	for iter.Next() {
-		item := iter.Current().Account
+		item := iter.Current().Environment
 		options = append(options, huh.NewOption(item.Name, item))
 	}
 	if err := iter.Err(); err != nil {
-		return -1, fmt.Errorf("no account selected and couldn't list user accounts: %v", err)
+		return -1, fmt.Errorf("no environment selected and couldn't list user environments: %v", err)
 	}
 
 	if len(options) == 0 {
-		accountID, err := promptCreateAccount(ctx, ll, cctx, state, tokenSource, apiURL, httpClient, orgID)
+		environmentID, err := promptCreateEnvironment(ctx, ll, cctx, state, tokenSource, apiURL, httpClient, orgID)
 		if err != nil {
 			return -1, err
 		}
-		state.CurrentAccountID = &accountID
-		return accountID, state.WriteBack()
+		state.CurrentEnvironmentID = &environmentID
+		return environmentID, state.WriteBack()
 	}
 	if len(options) == 1 {
-		state.CurrentAccountID = &options[0].Value.Id
-		return *state.CurrentAccountID, state.WriteBack()
+		state.CurrentEnvironmentID = &options[0].Value.Id
+		return *state.CurrentEnvironmentID, state.WriteBack()
 	}
 
 	var (
-		selected *typesv1.Account
+		selected *typesv1.Environment
 	)
-	err := huh.NewSelect[*typesv1.Account]().
-		Title("You have access to multiple accounts. Which one would you like to use?").
+	err := huh.NewSelect[*typesv1.Environment]().
+		Title("You have access to multiple environments. Which one would you like to use?").
 		Options(options...).
 		Value(&selected).
 		WithTheme(huhTheme).
 		Run()
 	if err != nil {
-		return -1, fmt.Errorf("prompting for account selection: %v", err)
+		return -1, fmt.Errorf("prompting for environment selection: %v", err)
 	}
 
 	state.CurrentOrgID = &selected.Id
@@ -316,9 +310,9 @@ func ListOrgUser(ctx context.Context, orgID int64, client organizationv1connect.
 	})
 }
 
-func ListAccounts(ctx context.Context, orgID int64, client organizationv1connect.OrganizationServiceClient) *iterapi.Iter[*organizationv1.ListAccountResponse_ListItem] {
-	return iterapi.New(ctx, 100, func(ctx context.Context, cursor *typesv1.Cursor, limit int32) ([]*organizationv1.ListAccountResponse_ListItem, *typesv1.Cursor, error) {
-		list, err := client.ListAccount(ctx, connect.NewRequest(&organizationv1.ListAccountRequest{
+func ListEnvironments(ctx context.Context, orgID int64, client organizationv1connect.OrganizationServiceClient) *iterapi.Iter[*organizationv1.ListEnvironmentResponse_ListItem] {
+	return iterapi.New(ctx, 100, func(ctx context.Context, cursor *typesv1.Cursor, limit int32) ([]*organizationv1.ListEnvironmentResponse_ListItem, *typesv1.Cursor, error) {
+		list, err := client.ListEnvironment(ctx, connect.NewRequest(&organizationv1.ListEnvironmentRequest{
 			Cursor:         cursor,
 			Limit:          limit,
 			OrganizationId: orgID,
@@ -330,12 +324,12 @@ func ListAccounts(ctx context.Context, orgID int64, client organizationv1connect
 	})
 }
 
-func ListAccountTokens(ctx context.Context, accountID int64, client tokenv1connect.TokenServiceClient) *iterapi.Iter[*tokenv1.ListAccountTokenResponse_ListItem] {
-	return iterapi.New(ctx, 100, func(ctx context.Context, cursor *typesv1.Cursor, limit int32) ([]*tokenv1.ListAccountTokenResponse_ListItem, *typesv1.Cursor, error) {
-		list, err := client.ListAccountToken(ctx, connect.NewRequest(&tokenv1.ListAccountTokenRequest{
-			Cursor:    cursor,
-			Limit:     limit,
-			AccountId: accountID,
+func ListEnvironmentTokens(ctx context.Context, environmentID int64, client tokenv1connect.TokenServiceClient) *iterapi.Iter[*tokenv1.ListEnvironmentTokenResponse_ListItem] {
+	return iterapi.New(ctx, 100, func(ctx context.Context, cursor *typesv1.Cursor, limit int32) ([]*tokenv1.ListEnvironmentTokenResponse_ListItem, *typesv1.Cursor, error) {
+		list, err := client.ListEnvironmentToken(ctx, connect.NewRequest(&tokenv1.ListEnvironmentTokenRequest{
+			Cursor:        cursor,
+			Limit:         limit,
+			EnvironmentId: environmentID,
 		}))
 		if err != nil {
 			return nil, nil, err

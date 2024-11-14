@@ -6,7 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/humanlogio/api/go/svc/account/v1/accountv1connect"
+	"github.com/humanlogio/api/go/svc/environment/v1/environmentv1connect"
 	"github.com/humanlogio/api/go/svc/organization/v1/organizationv1connect"
 	"github.com/humanlogio/api/go/svc/query/v1/queryv1connect"
 	"github.com/humanlogio/api/go/svc/user/v1/userv1connect"
@@ -18,7 +18,7 @@ func RunTUI(
 	state *state.State,
 	userClient userv1connect.UserServiceClient,
 	organizationClient organizationv1connect.OrganizationServiceClient,
-	accountClient accountv1connect.AccountServiceClient,
+	environmentClient environmentv1connect.EnvironmentServiceClient,
 	queryClient queryv1connect.QueryServiceClient,
 ) error {
 	appStyle := lipgloss.NewStyle().Padding(1, 2)
@@ -28,8 +28,8 @@ func RunTUI(
 		appStyle: appStyle,
 		state:    state,
 		orgSelectorShell: WithOrgSelectorShell(appStyle, ctx, state, userClient,
-			WithAccountSelectorShell(appStyle, ctx, state, organizationClient,
-				// WithMachineSelectorShell(appStyle, ctx, state, accountClient,
+			WithEnvironmentSelectorShell(appStyle, ctx, state, organizationClient,
+				// WithMachineSelectorShell(appStyle, ctx, state, environmentClient,
 				NewQuerierModel(appStyle, ctx, state, queryClient, func(m tea.Msg) {
 					p.Send(m)
 				}),

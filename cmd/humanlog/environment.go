@@ -21,10 +21,10 @@ import (
 )
 
 const (
-	accountCmdName = "account"
+	environmentCmdName = "environment"
 )
 
-func accountCmd(
+func environmentCmd(
 	getCtx func(cctx *cli.Context) context.Context,
 	getLogger func(cctx *cli.Context) *slog.Logger,
 	getCfg func(cctx *cli.Context) *config.Config,
@@ -35,8 +35,8 @@ func accountCmd(
 ) cli.Command {
 	return cli.Command{
 		Hidden: hideUnreleasedFeatures == "true",
-		Name:   accountCmdName,
-		Usage:  "Manage accounts for the current user or org.",
+		Name:   environmentCmdName,
+		Usage:  "Manage environments for the current user or org.",
 		Before: func(cctx *cli.Context) error {
 			ctx := getCtx(cctx)
 			state := getState(cctx)
@@ -60,19 +60,19 @@ func accountCmd(
 					apiURL := getAPIUrl(cctx)
 					httpClient := getHTTPClient(cctx, apiURL)
 
-					accountName := cctx.Args().First()
-					if accountName == "" {
+					environmentName := cctx.Args().First()
+					if environmentName == "" {
 						logerror("missing argument: <name>")
 						return cli.ShowSubcommandHelp(cctx)
 					}
 
-					// lookup `accountName` and set its ID in `state`
+					// lookup `environmentName` and set its ID in `state`
 					_ = ctx
 					_ = state
 					_ = tokenSource
 					_ = apiURL
 					_ = httpClient
-					_ = accountName
+					_ = environmentName
 
 					return nil
 				},
@@ -91,7 +91,7 @@ func accountCmd(
 					if err != nil {
 						return err
 					}
-					accountID, err := ensureAccountSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient, orgID)
+					environmentID, err := ensureEnvironmentSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient, orgID)
 					if err != nil {
 						return err
 					}
@@ -99,20 +99,20 @@ func accountCmd(
 						auth.Interceptors(ll, tokenSource)...,
 					)
 					orgClient := organizationv1connect.NewOrganizationServiceClient(httpClient, apiURL, clOpts)
-					iter := ListAccounts(ctx, orgID, orgClient)
-					a, ok, err := iterapi.Find(iter, func(el *organizationv1.ListAccountResponse_ListItem) bool {
-						return el.Account.Id == accountID
+					iter := ListEnvironments(ctx, orgID, orgClient)
+					a, ok, err := iterapi.Find(iter, func(el *organizationv1.ListEnvironmentResponse_ListItem) bool {
+						return el.Environment.Id == environmentID
 					})
 					if err != nil {
 						return err
 					}
 					if !ok {
-						logwarn("account with id %d doesn't exist anymore, select another one")
-						state.CurrentAccountID = nil
+						logwarn("environment with id %d doesn't exist anymore, select another one")
+						state.CurrentEnvironmentID = nil
 						return state.WriteBack()
 					}
-					printFact("id", a.Account.Id)
-					printFact("name", a.Account.Name)
+					printFact("id", a.Environment.Id)
+					printFact("name", a.Environment.Name)
 					return nil
 				},
 			},
@@ -136,15 +136,15 @@ func accountCmd(
 					)
 					orgClient := organizationv1connect.NewOrganizationServiceClient(httpClient, apiURL, clOpts)
 
-					res, err := orgClient.CreateAccount(ctx, connect.NewRequest(&organizationv1.CreateAccountRequest{
+					res, err := orgClient.CreateEnvironment(ctx, connect.NewRequest(&organizationv1.CreateEnvironmentRequest{
 						OrganizationId: orgID,
 					}))
 					if err != nil {
 						return err
 					}
-					account := res.Msg.Account
-					printFact("created id", account.Id)
-					printFact("created name", account.Name)
+					environment := res.Msg.Environment
+					printFact("created id", environment.Id)
+					printFact("created name", environment.Name)
 					return nil
 				},
 			},
@@ -159,8 +159,8 @@ func accountCmd(
 					apiURL := getAPIUrl(cctx)
 					httpClient := getHTTPClient(cctx, apiURL)
 
-					accountName := cctx.Args().First()
-					if accountName == "" {
+					environmentName := cctx.Args().First()
+					if environmentName == "" {
 						logerror("missing argument: <name>")
 						return cli.ShowSubcommandHelp(cctx)
 					}
@@ -175,23 +175,23 @@ func accountCmd(
 					)
 					orgClient := organizationv1connect.NewOrganizationServiceClient(httpClient, apiURL, clOpts)
 
-					el, ok, err := iterapi.Find(ListAccounts(ctx, orgID, orgClient), func(el *organizationv1.ListAccountResponse_ListItem) bool {
-						return el.Account.Name == accountName
+					el, ok, err := iterapi.Find(ListEnvironments(ctx, orgID, orgClient), func(el *organizationv1.ListEnvironmentResponse_ListItem) bool {
+						return el.Environment.Name == environmentName
 					})
 					if err != nil {
 						return err
 					}
 					if !ok {
-						return fmt.Errorf("no account with name %q", accountName)
+						return fmt.Errorf("no environment with name %q", environmentName)
 					}
-					printFact("id", el.Account.Id)
-					printFact("name", el.Account.Name)
+					printFact("id", el.Environment.Id)
+					printFact("name", el.Environment.Name)
 					return nil
 				},
 			},
 			{
 				Name:  "list",
-				Usage: "list the accounts for the current user or org",
+				Usage: "list the environments for the current user or org",
 				Action: func(cctx *cli.Context) error {
 					ctx := getCtx(cctx)
 					ll := getLogger(cctx)
@@ -209,12 +209,12 @@ func accountCmd(
 						return err
 					}
 
-					iter := ListAccounts(ctx, orgID, orgClient)
+					iter := ListEnvironments(ctx, orgID, orgClient)
 
 					for iter.Next() {
 						li := iter.Current()
-						account := li.Account
-						printFact("account name", account.Name)
+						environment := li.Environment
+						printFact("environment name", environment.Name)
 						return nil
 					}
 					if err := iter.Err(); err != nil {
@@ -225,7 +225,7 @@ func accountCmd(
 			},
 			{
 				Name:  "generate-token",
-				Usage: "generate an API token for the current account",
+				Usage: "generate an API token for the current environment",
 				Action: func(cctx *cli.Context) error {
 					ctx := getCtx(cctx)
 					ll := getLogger(cctx)
@@ -238,15 +238,15 @@ func accountCmd(
 					if err != nil {
 						return err
 					}
-					accountID, err := ensureAccountSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient, orgID)
+					environmentID, err := ensureEnvironmentSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient, orgID)
 					if err != nil {
 						return err
 					}
-					expiresAt, err := hubAskTokenExpiry("Creating an account token")
+					expiresAt, err := hubAskTokenExpiry("Creating an environment token")
 					if err != nil {
 						return err
 					}
-					roles, err := hubAskTokenRoles("Creating an account token")
+					roles, err := hubAskTokenRoles("Creating an environment token")
 					if err != nil {
 						return err
 					}
@@ -256,17 +256,17 @@ func accountCmd(
 
 					tokenClient := tokenv1connect.NewTokenServiceClient(httpClient, apiURL, clOpts)
 
-					res, err := tokenClient.GenerateAccountToken(ctx, connect.NewRequest(&tokenv1.GenerateAccountTokenRequest{
-						AccountId: accountID,
-						ExpiresAt: timestamppb.New(expiresAt),
-						Roles:     roles,
+					res, err := tokenClient.GenerateEnvironmentToken(ctx, connect.NewRequest(&tokenv1.GenerateEnvironmentTokenRequest{
+						EnvironmentId: environmentID,
+						ExpiresAt:     timestamppb.New(expiresAt),
+						Roles:         roles,
 					}))
 					if err != nil {
-						return fmt.Errorf("generating account token: %v", err)
+						return fmt.Errorf("generating environment token: %v", err)
 					}
 					token := res.Msg.Token
 					printFact("id", token.TokenId)
-					printFact("account id", token.AccountId)
+					printFact("environment id", token.EnvironmentId)
 					printFact("expires at", token.ExpiresAt.AsTime())
 					printFact("roles", token.Roles)
 					printFact("token (secret! do not lose)", token.Token)
@@ -275,7 +275,7 @@ func accountCmd(
 			},
 			{
 				Name:      "revoke-token",
-				Usage:     "revoke an API token for the current account",
+				Usage:     "revoke an API token for the current environment",
 				ArgsUsage: "<token id>",
 				Action: func(cctx *cli.Context) error {
 					ctx := getCtx(cctx)
@@ -289,7 +289,7 @@ func accountCmd(
 					if err != nil {
 						return err
 					}
-					accountID, err := ensureAccountSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient, orgID)
+					environmentID, err := ensureEnvironmentSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient, orgID)
 					if err != nil {
 						return err
 					}
@@ -311,13 +311,13 @@ func accountCmd(
 
 					tokenClient := tokenv1connect.NewTokenServiceClient(httpClient, apiURL, clOpts)
 
-					loginfo("revoking token %d on account %d", tokenID, accountID)
-					res, err := tokenClient.RevokeAccountToken(ctx, connect.NewRequest(&tokenv1.RevokeAccountTokenRequest{
-						AccountId: accountID,
-						TokenId:   tokenID,
+					loginfo("revoking token %d on environment %d", tokenID, environmentID)
+					res, err := tokenClient.RevokeEnvironmentToken(ctx, connect.NewRequest(&tokenv1.RevokeEnvironmentTokenRequest{
+						EnvironmentId: environmentID,
+						TokenId:       tokenID,
 					}))
 					if err != nil {
-						return fmt.Errorf("revoking account token: %v", err)
+						return fmt.Errorf("revoking environment token: %v", err)
 					}
 					_ = res
 					loginfo("token revoked")
@@ -326,7 +326,7 @@ func accountCmd(
 			},
 			{
 				Name:      "view-token",
-				Usage:     "view the details of an API token for the current account",
+				Usage:     "view the details of an API token for the current environment",
 				ArgsUsage: "<token id>",
 				Action: func(cctx *cli.Context) error {
 					ctx := getCtx(cctx)
@@ -340,7 +340,7 @@ func accountCmd(
 					if err != nil {
 						return err
 					}
-					accountID, err := ensureAccountSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient, orgID)
+					environmentID, err := ensureEnvironmentSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient, orgID)
 					if err != nil {
 						return err
 					}
@@ -362,16 +362,16 @@ func accountCmd(
 
 					tokenClient := tokenv1connect.NewTokenServiceClient(httpClient, apiURL, clOpts)
 
-					res, err := tokenClient.GetAccountToken(ctx, connect.NewRequest(&tokenv1.GetAccountTokenRequest{
-						AccountId: accountID,
-						TokenId:   tokenID,
+					res, err := tokenClient.GetEnvironmentToken(ctx, connect.NewRequest(&tokenv1.GetEnvironmentTokenRequest{
+						EnvironmentId: environmentID,
+						TokenId:       tokenID,
 					}))
 					if err != nil {
-						return fmt.Errorf("revoking account token: %v", err)
+						return fmt.Errorf("revoking environment token: %v", err)
 					}
 					token := res.Msg.Token
 					printFact("id", token.TokenId)
-					printFact("account id", token.AccountId)
+					printFact("environment id", token.EnvironmentId)
 					printFact("roles", token.Roles)
 					printFact("expires at", token.ExpiresAt.AsTime())
 					if token.LastUsedAt != nil {
@@ -389,7 +389,7 @@ func accountCmd(
 			},
 			{
 				Name:  "list-tokens",
-				Usage: "list the API tokens for the current account",
+				Usage: "list the API tokens for the current environment",
 				Action: func(cctx *cli.Context) error {
 					ctx := getCtx(cctx)
 					ll := getLogger(cctx)
@@ -402,7 +402,7 @@ func accountCmd(
 					if err != nil {
 						return err
 					}
-					accountID, err := ensureAccountSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient, orgID)
+					environmentID, err := ensureEnvironmentSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient, orgID)
 					if err != nil {
 						return err
 					}
@@ -414,7 +414,7 @@ func accountCmd(
 					tokenClient := tokenv1connect.NewTokenServiceClient(httpClient, apiURL, clOpts)
 
 					hasAny := false
-					iter := ListAccountTokens(ctx, accountID, tokenClient)
+					iter := ListEnvironmentTokens(ctx, environmentID, tokenClient)
 					for iter.Next() {
 						hasAny = true
 						token := iter.Current().Token
@@ -424,7 +424,7 @@ func accountCmd(
 						return fmt.Errorf("listing tokens: %v", err)
 					}
 					if !hasAny {
-						loginfo("no account token found")
+						loginfo("no environment token found")
 					}
 
 					return nil
@@ -434,7 +434,7 @@ func accountCmd(
 	}
 }
 
-func promptCreateAccount(ctx context.Context,
+func promptCreateEnvironment(ctx context.Context,
 	ll *slog.Logger,
 	cctx *cli.Context,
 	state *state.State,

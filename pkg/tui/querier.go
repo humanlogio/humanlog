@@ -190,10 +190,10 @@ func sendSummarizeCmd(
 	return func() tea.Msg {
 		log.Printf("querier: send SummarizeEvents")
 		res, err := client.SummarizeEvents(ctx, connect.NewRequest(&queryv1.SummarizeEventsRequest{
-			AccountId:   *state.CurrentAccountID,
-			BucketCount: uint32(width - 5),
-			From:        timestamppb.New(from),
-			To:          timestamppb.New(to),
+			EnvironmentId: *state.CurrentEnvironmentID,
+			BucketCount:   uint32(width - 5),
+			From:          timestamppb.New(from),
+			To:            timestamppb.New(to),
 		}))
 		if err != nil {
 			return errMsg{err: err}
@@ -216,8 +216,8 @@ func sendQueryCmd(
 	return func() tea.Msg {
 		log.Printf("querier: send WatchQuery")
 		res, err := client.WatchQuery(ctx, connect.NewRequest(&queryv1.WatchQueryRequest{
-			AccountId: *state.CurrentAccountID,
-			Query:     query,
+			EnvironmentId: *state.CurrentEnvironmentID,
+			Query:         query,
 		}))
 		if err != nil {
 			return errMsg{err: err}

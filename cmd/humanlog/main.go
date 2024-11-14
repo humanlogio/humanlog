@@ -390,7 +390,7 @@ func newApp() *cli.App {
 		versionCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getBaseSiteURL, getHTTPClient),
 		authCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getHTTPClient),
 		organizationCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getHTTPClient),
-		accountCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getHTTPClient),
+		environmentCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getHTTPClient),
 		machineCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getHTTPClient),
 		queryCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getHTTPClient),
 		gennyCmd(getCtx, getLogger, getCfg, getState),
@@ -526,11 +526,11 @@ func newApp() *cli.App {
 				var machineID uint64
 				for state.MachineID == nil {
 					// no machine ID assigned, ensure machine gets onboarded via the login flow
-					// TODO(antoine): if an account token exists, auto-onboard the machine. it's probably
+					// TODO(antoine): if an environment token exists, auto-onboard the machine. it's probably
 					// not an interactive session
 					_, err := ensureLoggedIn(ctx, cctx, state, getTokenSource(cctx), apiURL, getHTTPClient(cctx, apiURL))
 					if err != nil {
-						return fmt.Errorf("this feature requires a valid machine ID, which requires an account. failed to login: %v", err)
+						return fmt.Errorf("this feature requires a valid machine ID, which requires an environment. failed to login: %v", err)
 					}
 				}
 				machineID = uint64(*state.MachineID)
