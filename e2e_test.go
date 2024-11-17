@@ -87,10 +87,9 @@ func TestHarness(t *testing.T) {
 				mismatches = 10
 				t.Errorf("only showing first %d mismatches", mismatches)
 			}
-			for val, br := range ranges.ranges[:mismatches] {
+			for _, br := range ranges.ranges[:mismatches] {
 				t.Errorf("- mismatch from byte %d to %d", br.start, br.end)
 				wantPart := want[br.start:br.end]
-				t.Errorf("- mismatch from byte %v", val)
 				gotPart := got[br.start:br.end]
 				t.Errorf("want %q", wantPart)
 				t.Errorf("got  %q", gotPart)
