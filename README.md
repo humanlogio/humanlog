@@ -8,10 +8,6 @@ Read logs from `stdin` and prints them back to `stdout`, but prettier.
 curl -sSL "https://humanlog.io/install.sh" | bash
 ```
 
-## Otherwise
-
-[Grab a release](https://github.com/humanlogio/humanlog/releases)!
-
 # Example
 
 If you emit logs in JSON or in [`logfmt`](https://brandur.org/logfmt), you will enjoy pretty logs when those
