@@ -46,19 +46,25 @@ func gennyCmd(
 		Name:  "start_at",
 		Value: time.Now().Format(time.RFC3339),
 	}
-	averagePerInternalFlag := cli.Float64Flag{
+	averagePerIntervalFlag := cli.Float64Flag{
 		Name:  "logs_per_s",
 		Value: 50,
+	}
+	formatFlag := cli.StringFlag{
+		Name:  "format",
+		Value: "mixed", // Options: logfmt, json, otel, mixed
+		Usage: "Specify the log format: logfmt, json, otel, or mixed",
 	}
 
 	return cli.Command{
 		Name:   gennyCmdName,
-		Usage:  "Generate fake logs",
+		Usage:  "Generate realistic fake logs in various formats",
 		Hidden: true,
 		Flags: []cli.Flag{
 			seedFlag,
 			startAtFlag,
-			averagePerInternalFlag,
+			averagePerIntervalFlag,
+			formatFlag,
 		},
 
 		Action: func(cctx *cli.Context) error {
@@ -66,10 +72,12 @@ func gennyCmd(
 			seed := cctx.Uint64(seedFlag.Name)
 			start, err := time.Parse(time.RFC3339, cctx.String(startAtFlag.Name))
 			if err != nil {
-				return fmt.Errorf("invalid start: %v", err)
+				return fmt.Errorf("invalid start time: %v", err)
 			}
-			averagePerInternal := cctx.Float64(averagePerInternalFlag.Name)
-			return genny(ctx, seed, start, time.Second, averagePerInternal, os.Stdout)
+			averagePerInterval := cctx.Float64(averagePerIntervalFlag.Name)
+			format := cctx.String(formatFlag.Name)
+
+			return genny(ctx, seed, start, time.Second, averagePerInterval, format, os.Stdout)
 		},
 	}
 }
@@ -80,6 +88,7 @@ func genny(
 	start time.Time,
 	interval time.Duration,
 	averagePerInterval float64,
+	format string,
 	out io.Writer,
 ) error {
 	src := rand.NewSource(seed)
@@ -90,18 +99,79 @@ func genny(
 
 	now := start
 	for {
-		if err := emitMessage(out, now, src); err != nil {
-			return err
-		}
-		nextArrival := arrivalRateDist.Rand()
-		nextMsgIn := time.Duration(float64(interval) / nextArrival)
 		select {
 		case <-ctx.Done():
 			return nil
-		case <-time.After(nextMsgIn):
+		default:
+			nextArrival := arrivalRateDist.Rand()
+			nextMsgIn := time.Duration(float64(interval) / nextArrival)
+			time.Sleep(nextMsgIn)
 			now = now.Add(nextMsgIn)
+
+			if err := emitLog(out, now, src, format); err != nil {
+				return err
+			}
 		}
 	}
+}
+
+func emitLog(out io.Writer, now time.Time, src rand.Source, format string) error {
+	var log string
+	switch format {
+	case "logfmt":
+		log = generateLogfmtLog(now, src)
+	case "json":
+		log = generateJSONLog(now, src)
+	case "otel":
+		log = generateOtelLog(now, src)
+	case "mixed":
+		switch randel(src, []string{"logfmt", "json", "otel"}) {
+		case "logfmt":
+			log = generateLogfmtLog(now, src)
+		case "json":
+			log = generateJSONLog(now, src)
+		case "otel":
+			log = generateOtelLog(now, src)
+		}
+	default:
+		return fmt.Errorf("unsupported format: %s", format)
+	}
+
+	_, err := fmt.Fprintln(out, log)
+	return err
+}
+
+func generateLogfmtLog(now time.Time, src rand.Source) string {
+	return fmt.Sprintf(
+		"time=%s level=%s msg=%q user=%s org=%s",
+		now.Format(time.RFC3339),
+		randel(src, []string{"INFO", "DEBUG", "WARN", "ERROR"}),
+		randel(src, nouns)+" "+randel(src, adjectives),
+		genString(src, false),
+		genString(src, false),
+	)
+}
+
+func generateJSONLog(now time.Time, src rand.Source) string {
+	return fmt.Sprintf(
+		`{"time":"%s","level":"%s","message":"%s","user":"%s","org":"%s"}`,
+		now.Format(time.RFC3339),
+		randel(src, []string{"INFO", "DEBUG", "WARN", "ERROR"}),
+		randel(src, nouns)+" "+randel(src, adjectives),
+		genString(src, false),
+		genString(src, false),
+	)
+}
+
+func generateOtelLog(now time.Time, src rand.Source) string {
+	return fmt.Sprintf(
+		`{"time":"%s","severity":"%s","body":"%s","attributes":{"user":"%s","org":"%s"}}`,
+		now.Format(time.RFC3339Nano),
+		randel(src, []string{"INFO", "DEBUG", "WARN", "ERROR"}),
+		randel(src, nouns)+" "+randel(src, adjectives),
+		genString(src, false),
+		genString(src, false),
+	)
 }
 
 func emitMessage(out io.Writer, now time.Time, src rand.Source) error {
