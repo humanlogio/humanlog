@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -117,6 +118,7 @@ func genny(
 
 func emitLog(out io.Writer, now time.Time, src rand.Source, format string) error {
 	var log string
+
 	switch format {
 	case "logfmt":
 		log = generateLogfmtLog(now, src)
@@ -124,15 +126,11 @@ func emitLog(out io.Writer, now time.Time, src rand.Source, format string) error
 		log = generateJSONLog(now, src)
 	case "otel":
 		log = generateOtelLog(now, src)
+	case "custom":
+		return emitMessage(out, now, src)
 	case "mixed":
-		switch randel(src, []string{"logfmt", "json", "otel"}) {
-		case "logfmt":
-			log = generateLogfmtLog(now, src)
-		case "json":
-			log = generateJSONLog(now, src)
-		case "otel":
-			log = generateOtelLog(now, src)
-		}
+		newFormat := randel(src, []string{"logfmt", "json", "otel", "custom"})
+		return emitLog(out, now, src, newFormat)
 	default:
 		return fmt.Errorf("unsupported format: %s", format)
 	}
@@ -153,14 +151,20 @@ func generateLogfmtLog(now time.Time, src rand.Source) string {
 }
 
 func generateJSONLog(now time.Time, src rand.Source) string {
-	return fmt.Sprintf(
-		`{"time":"%s","level":"%s","message":"%s","user":"%s","org":"%s"}`,
-		now.Format(time.RFC3339),
-		randel(src, []string{"INFO", "DEBUG", "WARN", "ERROR"}),
-		randel(src, nouns)+" "+randel(src, adjectives),
-		genString(src, false),
-		genString(src, false),
-	)
+	logEntry := map[string]string{
+		"time":    now.Format(time.RFC3339),
+		"level":   randel(src, []string{"INFO", "DEBUG", "WARN", "ERROR"}),
+		"message": randel(src, nouns) + " " + randel(src, adjectives),
+		"user":    genString(src, false),
+		"org":     genString(src, false),
+	}
+
+	jsonData, err := json.Marshal(logEntry)
+	if err != nil {
+		return fmt.Sprintf(`{"error":"failed to generate log: %s"}`, err.Error())
+	}
+
+	return string(jsonData)
 }
 
 func generateOtelLog(now time.Time, src rand.Source) string {
