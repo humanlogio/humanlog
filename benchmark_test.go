@@ -4,16 +4,26 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
-	"errors"
 	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
 
+	typesv1 "github.com/humanlogio/api/go/types/v1"
 	"github.com/humanlogio/humanlog/pkg/sink/bufsink"
 	"github.com/stretchr/testify/require"
 )
+
+type NopSink struct{}
+
+func (*NopSink) ReceiveBatch(ctx context.Context, evs []*typesv1.LogEvent) error {
+	return nil
+}
+
+func (*NopSink) Close(ctx context.Context) error {
+	return nil
+}
 
 func BenchmarkHarness(b *testing.B) {
 	ctx := context.Background()
@@ -35,21 +45,18 @@ func BenchmarkHarness(b *testing.B) {
 		b.ResetTimer()
 		testCase := dir
 		b.Run(testCase, func(bb *testing.B) {
-			path := filepath.Join(dir, fileName)
-			f, err := os.Open(path)
+			p := filepath.Join(dir, fileName)
+			f, err := os.Open(p)
 			require.NoError(bb, err)
 			defer f.Close()
 
 			gzipReader, err := gzip.NewReader(f)
 			require.NoError(bb, err)
 
-			buf := make([]byte, 0, 100*1024) // set initial capacity to 100kb
-			err = loadAll(&buf, gzipReader)
+			src := bytes.NewBuffer(make([]byte, 0, 100*1024))
+			io.Copy(src, gzipReader)
 
-			src := bytes.NewBuffer(buf)
-			require.NoError(bb, err)
-
-			sink := bufsink.NewSizedBufferedSink(len(buf), nil) // size must be greater than src size
+			sink := bufsink.NewSizedBufferedSink(100, &NopSink{})
 			opt := DefaultOptions()
 
 			bb.SetBytes(int64(src.Len()))
@@ -83,19 +90,4 @@ func findfirstMatchedFileName(dirPath string, pattern string) (string, error) {
 		return nil
 	})
 	return firstMatched, walkError
-}
-
-func loadAll(dest *[]byte, r io.Reader) error {
-	for {
-		temp := make([]byte, 1024)
-		n, err := r.Read(temp)
-		if errors.Is(err, io.EOF) {
-			break
-		}
-		if err != nil {
-			return err
-		}
-		*dest = append(*dest, temp[:n]...)
-	}
-	return nil
 }
