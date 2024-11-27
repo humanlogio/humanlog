@@ -53,8 +53,9 @@ func BenchmarkHarness(b *testing.B) {
 			gzipReader, err := gzip.NewReader(f)
 			require.NoError(bb, err)
 
-			src := bytes.NewBuffer(make([]byte, 0, 100*1024))
-			io.Copy(src, gzipReader)
+			src := bytes.NewBuffer(nil)
+			_, err = io.Copy(src, gzipReader)
+			require.NoError(bb, err)
 
 			sink := bufsink.NewSizedBufferedSink(100, &NopSink{})
 			opt := DefaultOptions()
