@@ -89,6 +89,83 @@ func TestLargePayload(t *testing.T) {
 	require.Equal(t, pjsonslice(want), pjsonslice(got))
 }
 
+func TestFlatteningNestedObjects(t *testing.T) {
+
+	ctx := context.Background()
+	payload := `{"storage": {"from": "2024-10-29T05:47:00Z"}}`
+	payload += "\n" + `{"time":"2024-10-29T16:45:54.384776+09:00","level":"DEBUG","source":{"function":"github.com/humanlogio/humanlog/internal/memstorage.(*MemStorageSink).firstMatch","file":"/Users/antoine/code/src/github.com/humanlogio/humanlog/internal/memstorage/memory.go","line":243},"msg":"first match found at index","storage":{"machine.id":5089,"session.id":1730187806608637000,"i":0}}`
+
+	now := time.Date(2024, 11, 26, 4, 0, 0, 0, time.UTC)
+	want := []*typesv1.LogEvent{
+		{
+			ParsedAt: timestamppb.New(now),
+			Raw:      []byte(`{"storage": {"from": "2024-10-29T05:47:00Z"}}`),
+			Structured: &typesv1.StructuredLogEvent{
+				Timestamp: timestamppb.New(time.Time{}),
+				Kvs: []*typesv1.KV{
+					{
+						Key:   "storage.from",
+						Value: "2024-10-29T05:47:00Z",
+					},
+				},
+			},
+		},
+		{
+			ParsedAt: timestamppb.New(now),
+			Raw:      []byte(`{"time":"2024-10-29T16:45:54.384776+09:00","level":"DEBUG","source":{"function":"github.com/humanlogio/humanlog/internal/memstorage.(*MemStorageSink).firstMatch","file":"/Users/antoine/code/src/github.com/humanlogio/humanlog/internal/memstorage/memory.go","line":243},"msg":"first match found at index","storage":{"machine.id":5089,"session.id":1730187806608637000,"i":0}}`),
+			Structured: &typesv1.StructuredLogEvent{
+				Timestamp: timestamppb.New(time.Date(2024, 10, 29, 16, 45, 54, 384776000, time.Local)),
+				Lvl:       "DEBUG",
+				Msg:       "first match found at index",
+				Kvs: []*typesv1.KV{
+					{
+						Key:   "storage.from",
+						Value: "\"2024-10-29T05:47:00Z\"",
+					},
+					{
+						Key:   "source.function",
+						Value: "github.com/humanlogio/humanlog/internal/memstorage.(*MemStorageSink).firstMatch",
+					},
+					{
+						Key:   "source.file",
+						Value: "/Users/antoine/code/src/github.com/humanlogio/humanlog/internal/memstorage/memory.go",
+					},
+					{
+						Key:   "source.line",
+						Value: "243",
+					},
+					{
+						Key:   "storage.machine.id",
+						Value: "5089",
+					},
+					{
+						Key:   "storage.session.id",
+						Value: "1730187806608637000",
+					},
+					{
+						Key:   "storage.i",
+						Value: "0",
+					},
+				},
+			},
+		},
+	}
+
+	src := strings.NewReader(payload)
+
+	opts := DefaultOptions()
+	opts.timeNow = func() time.Time {
+		return now
+	}
+
+	sink := bufsink.NewSizedBufferedSink(100, nil)
+	err := Scan(ctx, src, sink, opts)
+	require.NoError(t, err)
+
+	got := sink.Buffered
+	require.Equal(t, pjsonslice(want), pjsonslice(got))
+}
+
 func pjsonslice[E proto.Message](m []E) string {
 	sb := strings.Builder{}
 	for _, e := range m {
