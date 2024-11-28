@@ -11,13 +11,12 @@ import (
 	"testing"
 
 	typesv1 "github.com/humanlogio/api/go/types/v1"
-	"github.com/humanlogio/humanlog/pkg/sink/bufsink"
 	"github.com/stretchr/testify/require"
 )
 
 type NopSink struct{}
 
-func (*NopSink) ReceiveBatch(ctx context.Context, evs []*typesv1.LogEvent) error {
+func (*NopSink) Receive(ctx context.Context, ev *typesv1.LogEvent) error {
 	return nil
 }
 
@@ -57,7 +56,7 @@ func BenchmarkHarness(b *testing.B) {
 			_, err = io.Copy(src, gzipReader)
 			require.NoError(bb, err)
 
-			sink := bufsink.NewSizedBufferedSink(100, &NopSink{})
+			sink := &NopSink{}
 			opt := DefaultOptions()
 
 			bb.SetBytes(int64(src.Len()))
