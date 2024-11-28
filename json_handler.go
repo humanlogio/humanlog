@@ -105,7 +105,7 @@ func getFlattenedFields(v map[string]interface{}) map[string]string {
 				extValues[key] = fmt.Sprintf("%g", valTyped)
 			}
 		case string:
-			extValues[key] = fmt.Sprintf("%q", valTyped)
+			extValues[key] = valTyped
 		case map[string]interface{}:
 			flattenedFields := getFlattenedFields(valTyped)
 			for keyNested, valStr := range flattenedFields {
