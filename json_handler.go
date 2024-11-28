@@ -96,7 +96,7 @@ func deleteJSONKey(key string, jsonData map[string]interface{}) {
 
 func getFlattenedFields(v map[string]interface{}) map[string]string {
 	extValues := make(map[string]string)
-	for key, nestedVal := range v { 
+	for key, nestedVal := range v {
 		switch valTyped := nestedVal.(type) {
 		case float64:
 			if valTyped-math.Floor(valTyped) < 0.000001 && valTyped < 1e9 {
@@ -105,16 +105,16 @@ func getFlattenedFields(v map[string]interface{}) map[string]string {
 				extValues[key] = fmt.Sprintf("%g", valTyped)
 			}
 		case string:
-			extValues[key] = fmt.Sprintf("%q", valTyped)
+			extValues[key] = valTyped
 		case map[string]interface{}:
 			flattenedFields := getFlattenedFields(valTyped)
-			for keyNested, valStr := range flattenedFields { 
-				extValues[key + "." + keyNested] = valStr
+			for keyNested, valStr := range flattenedFields {
+				extValues[key+"."+keyNested] = valStr
 			}
 		default:
 			extValues[key] = fmt.Sprintf("%v", valTyped)
 		}
-	} 
+	}
 	return extValues
 }
 
@@ -174,8 +174,8 @@ func (h *JSONHandler) UnmarshalJSON(data []byte) bool {
 			h.Fields[key] = fmt.Sprintf("%q", v)
 		case map[string]interface{}:
 			flattenedFields := getFlattenedFields(v)
-			for keyNested, val := range flattenedFields { 
-				h.Fields[key + "." + keyNested] = fmt.Sprintf("%v", val)
+			for keyNested, val := range flattenedFields {
+				h.Fields[key+"."+keyNested] = fmt.Sprintf("%v", val)
 			}
 		default:
 			h.Fields[key] = fmt.Sprintf("%v", v)
