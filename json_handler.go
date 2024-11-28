@@ -171,11 +171,11 @@ func (h *JSONHandler) UnmarshalJSON(data []byte) bool {
 				h.Fields[key] = fmt.Sprintf("%g", v)
 			}
 		case string:
-			h.Fields[key] = fmt.Sprintf("%q", v)
+			h.Fields[key] = v
 		case map[string]interface{}:
 			flattenedFields := getFlattenedFields(v)
 			for keyNested, val := range flattenedFields {
-				h.Fields[key+"."+keyNested] = fmt.Sprintf("%v", val)
+				h.Fields[key+"."+keyNested] = val
 			}
 		default:
 			h.Fields[key] = fmt.Sprintf("%v", v)
