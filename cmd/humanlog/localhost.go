@@ -46,7 +46,8 @@ func startLocalhostServer(
 	port int,
 	localhostHttpClient *http.Client,
 	apiHttpClient *http.Client,
-	apiClientOpts []connect.Option,
+	apiURL string,
+	apiClientOpts []connect.ClientOption,
 	ownVersion *typesv1.Version,
 ) (localsink sink.Sink, done func(context.Context) error, err error) {
 
@@ -78,7 +79,7 @@ func startLocalhostServer(
 		}, nil
 	}
 
-	features := featurev1connect.NewFeatureServiceClient(apiHttpClient, apiClientOpts...)
+	features := featurev1connect.NewFeatureServiceClient(apiHttpClient, apiURL, apiClientOpts...)
 
 	storage, err := localstorage.Open(
 		ctx,

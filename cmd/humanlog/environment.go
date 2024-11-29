@@ -99,7 +99,7 @@ func environmentCmd(
 						auth.Interceptors(ll, tokenSource)...,
 					)
 					orgClient := organizationv1connect.NewOrganizationServiceClient(httpClient, apiURL, clOpts)
-					iter := ListEnvironments(ctx, orgID, orgClient)
+					iter := ListEnvironments(ctx, orgClient)
 					a, ok, err := iterapi.Find(iter, func(el *organizationv1.ListEnvironmentResponse_ListItem) bool {
 						return el.Environment.Id == environmentID
 					})
@@ -126,7 +126,7 @@ func environmentCmd(
 					apiURL := getAPIUrl(cctx)
 					httpClient := getHTTPClient(cctx, apiURL)
 
-					orgID, err := ensureOrgSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient)
+					_, err := ensureOrgSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient)
 					if err != nil {
 						return err
 					}
@@ -136,9 +136,7 @@ func environmentCmd(
 					)
 					orgClient := organizationv1connect.NewOrganizationServiceClient(httpClient, apiURL, clOpts)
 
-					res, err := orgClient.CreateEnvironment(ctx, connect.NewRequest(&organizationv1.CreateEnvironmentRequest{
-						OrganizationId: orgID,
-					}))
+					res, err := orgClient.CreateEnvironment(ctx, connect.NewRequest(&organizationv1.CreateEnvironmentRequest{}))
 					if err != nil {
 						return err
 					}
@@ -165,7 +163,7 @@ func environmentCmd(
 						return cli.ShowSubcommandHelp(cctx)
 					}
 
-					orgID, err := ensureOrgSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient)
+					_, err := ensureOrgSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient)
 					if err != nil {
 						return err
 					}
@@ -175,7 +173,7 @@ func environmentCmd(
 					)
 					orgClient := organizationv1connect.NewOrganizationServiceClient(httpClient, apiURL, clOpts)
 
-					el, ok, err := iterapi.Find(ListEnvironments(ctx, orgID, orgClient), func(el *organizationv1.ListEnvironmentResponse_ListItem) bool {
+					el, ok, err := iterapi.Find(ListEnvironments(ctx, orgClient), func(el *organizationv1.ListEnvironmentResponse_ListItem) bool {
 						return el.Environment.Name == environmentName
 					})
 					if err != nil {
@@ -204,12 +202,12 @@ func environmentCmd(
 					)
 					orgClient := organizationv1connect.NewOrganizationServiceClient(httpClient, apiURL, clOpts)
 
-					orgID, err := ensureOrgSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient)
+					_, err := ensureOrgSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient)
 					if err != nil {
 						return err
 					}
 
-					iter := ListEnvironments(ctx, orgID, orgClient)
+					iter := ListEnvironments(ctx, orgClient)
 
 					for iter.Next() {
 						li := iter.Current()
