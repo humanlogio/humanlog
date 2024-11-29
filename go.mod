@@ -21,7 +21,7 @@ require (
 	github.com/go-logfmt/logfmt v0.5.1
 	github.com/google/uuid v1.6.0
 	github.com/humanlogio/api/go v0.0.0-20241128170213-590d167300cd
-	github.com/humanlogio/humanlog-pro v0.0.0-20241029032705-0ce172ecfc87
+	github.com/humanlogio/humanlog-pro v0.0.0-20241129054503-5f8dc005f887
 	github.com/kr/logfmt v0.0.0-20210122060352-19f9bcb100e6
 	github.com/lrstanley/bubblezone v0.0.0-20240914071701-b48c55a5e78e
 	github.com/matoous/go-nanoid v1.5.0
@@ -37,7 +37,7 @@ require (
 	golang.org/x/sync v0.8.0
 	golang.org/x/sys v0.25.0
 	gonum.org/v1/gonum v0.15.1
-	google.golang.org/protobuf v1.34.2
+	google.golang.org/protobuf v1.35.2
 )
 
 require (
