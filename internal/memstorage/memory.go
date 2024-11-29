@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/humanlogio/api/go/svc/feature/v1/featurev1connect"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
 	"github.com/humanlogio/humanlog/pkg/localstorage"
 	"github.com/humanlogio/humanlog/pkg/sink"
@@ -23,7 +24,7 @@ var (
 )
 
 func init() {
-	localstorage.RegisterStorage("basic", func(ctx context.Context, ll *slog.Logger, cfg map[string]interface{}) (localstorage.Storage, error) {
+	localstorage.RegisterStorage("basic", func(ctx context.Context, ll *slog.Logger, cfg map[string]interface{}, features featurev1connect.FeatureServiceClient) (localstorage.Storage, error) {
 		return NewMemStorage(ll), nil
 	})
 }

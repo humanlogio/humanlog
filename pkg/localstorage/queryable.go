@@ -6,11 +6,17 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/humanlogio/api/go/svc/feature/v1/featurev1connect"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
 	"github.com/humanlogio/humanlog/pkg/sink"
 )
 
-type StorageBuilder func(ctx context.Context, ll *slog.Logger, cfg map[string]interface{}) (Storage, error)
+type StorageBuilder func(
+	ctx context.Context,
+	ll *slog.Logger,
+	cfg map[string]interface{},
+	features featurev1connect.FeatureServiceClient,
+) (Storage, error)
 
 var registry = make(map[string]StorageBuilder)
 
@@ -22,12 +28,12 @@ func RegisterStorage(name string, builder StorageBuilder) {
 	registry[name] = builder
 }
 
-func Open(ctx context.Context, name string, ll *slog.Logger, cfg map[string]interface{}) (Storage, error) {
+func Open(ctx context.Context, name string, ll *slog.Logger, cfg map[string]interface{}, features featurev1connect.FeatureServiceClient) (Storage, error) {
 	builder, ok := registry[name]
 	if !ok {
 		return nil, fmt.Errorf("no storage engine with name %q", name)
 	}
-	return builder(ctx, ll, cfg)
+	return builder(ctx, ll, cfg, features)
 }
 
 type Storage interface {

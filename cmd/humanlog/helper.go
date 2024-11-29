@@ -244,7 +244,7 @@ func ensureEnvironmentSelected(
 
 	var options []huh.Option[*typesv1.Environment]
 	client := organizationv1connect.NewOrganizationServiceClient(httpClient, apiURL, clOpts)
-	iter := ListEnvironments(ctx, orgID, client)
+	iter := ListEnvironments(ctx, client)
 	for iter.Next() {
 		item := iter.Current().Environment
 		options = append(options, huh.NewOption(item.Name, item))
@@ -296,12 +296,11 @@ func ListOrganizations(ctx context.Context, client userv1connect.UserServiceClie
 	})
 }
 
-func ListOrgUser(ctx context.Context, orgID int64, client organizationv1connect.OrganizationServiceClient) *iterapi.Iter[*organizationv1.ListUserResponse_ListItem] {
+func ListOrgUser(ctx context.Context, client organizationv1connect.OrganizationServiceClient) *iterapi.Iter[*organizationv1.ListUserResponse_ListItem] {
 	return iterapi.New(ctx, 100, func(ctx context.Context, cursor *typesv1.Cursor, limit int32) ([]*organizationv1.ListUserResponse_ListItem, *typesv1.Cursor, error) {
 		list, err := client.ListUser(ctx, connect.NewRequest(&organizationv1.ListUserRequest{
-			Cursor:         cursor,
-			Limit:          limit,
-			OrganizationId: orgID,
+			Cursor: cursor,
+			Limit:  limit,
 		}))
 		if err != nil {
 			return nil, nil, err
@@ -310,12 +309,11 @@ func ListOrgUser(ctx context.Context, orgID int64, client organizationv1connect.
 	})
 }
 
-func ListEnvironments(ctx context.Context, orgID int64, client organizationv1connect.OrganizationServiceClient) *iterapi.Iter[*organizationv1.ListEnvironmentResponse_ListItem] {
+func ListEnvironments(ctx context.Context, client organizationv1connect.OrganizationServiceClient) *iterapi.Iter[*organizationv1.ListEnvironmentResponse_ListItem] {
 	return iterapi.New(ctx, 100, func(ctx context.Context, cursor *typesv1.Cursor, limit int32) ([]*organizationv1.ListEnvironmentResponse_ListItem, *typesv1.Cursor, error) {
 		list, err := client.ListEnvironment(ctx, connect.NewRequest(&organizationv1.ListEnvironmentRequest{
-			Cursor:         cursor,
-			Limit:          limit,
-			OrganizationId: orgID,
+			Cursor: cursor,
+			Limit:  limit,
 		}))
 		if err != nil {
 			return nil, nil, err
