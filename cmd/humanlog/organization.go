@@ -274,7 +274,6 @@ func organizationCmd(
 				Action: func(cctx *cli.Context) error {
 					ctx := getCtx(cctx)
 					ll := getLogger(cctx)
-					state := getState(cctx)
 					tokenSource := getTokenSource(cctx)
 					apiURL := getAPIUrl(cctx)
 					httpClient := getHTTPClient(cctx, apiURL)

@@ -533,7 +533,7 @@ func newApp() *cli.App {
 						return fmt.Errorf("this feature requires a valid machine ID, which requires an environment. failed to login: %v", err)
 					}
 				}
-				clOpts := []connect.Option{connect.WithInterceptors(
+				clOpts := []connect.ClientOption{connect.WithInterceptors(
 					auth.Interceptors(ll, getTokenSource(cctx))...,
 				)}
 
@@ -541,7 +541,7 @@ func newApp() *cli.App {
 				localhostSink, done, err := startLocalhostServer(
 					ctx, ll, cfg, state, machineID, localhostCfg.Port,
 					getLocalhostHTTPClient(cctx),
-					getHTTPClient(cctx, getAPIUrl(cctx)), clOpts,
+					getHTTPClient(cctx, getAPIUrl(cctx)), getAPIUrl(cctx), clOpts,
 					version,
 				)
 				if err != nil {
