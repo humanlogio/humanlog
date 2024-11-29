@@ -12,10 +12,8 @@ import (
 	"sync"
 	"time"
 
-	"connectrpc.com/connect"
 	connectcors "connectrpc.com/cors"
 
-	"github.com/humanlogio/api/go/svc/feature/v1/featurev1connect"
 	"github.com/humanlogio/api/go/svc/ingest/v1/ingestv1connect"
 	"github.com/humanlogio/api/go/svc/localhost/v1/localhostv1connect"
 	"github.com/humanlogio/api/go/svc/query/v1/queryv1connect"
@@ -45,10 +43,8 @@ func startLocalhostServer(
 	machineID uint64,
 	port int,
 	localhostHttpClient *http.Client,
-	apiHttpClient *http.Client,
-	apiURL string,
-	apiClientOpts []connect.ClientOption,
 	ownVersion *typesv1.Version,
+	app *localstorage.AppCtx,
 ) (localsink sink.Sink, done func(context.Context) error, err error) {
 
 	notifyUnableToIngest := func(err error) {
@@ -79,14 +75,12 @@ func startLocalhostServer(
 		}, nil
 	}
 
-	features := featurev1connect.NewFeatureServiceClient(apiHttpClient, apiURL, apiClientOpts...)
-
 	storage, err := localstorage.Open(
 		ctx,
 		cfg.ExperimentalFeatures.ServeLocalhost.Engine,
 		ll.WithGroup("storage"),
 		cfg.ExperimentalFeatures.ServeLocalhost.Cfg,
-		features,
+		app,
 	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("opening localstorage %q: %v", cfg.ExperimentalFeatures.ServeLocalhost.Engine, err)
