@@ -41,6 +41,55 @@ func BenchmarkHarness(b *testing.B) {
 		fileName, err := findfirstMatchedFileName(dir, "*.gz")
 		require.NoError(b, err)
 
+		testCase := dir
+		b.Run(testCase, func(bb *testing.B) {
+			p := filepath.Join(dir, fileName)
+			f, err := os.Open(p)
+			require.NoError(bb, err)
+			defer f.Close()
+
+			gzipReader, err := gzip.NewReader(f)
+			require.NoError(bb, err)
+
+			src := bytes.NewBuffer(nil)
+			_, err = io.Copy(src, gzipReader)
+			require.NoError(bb, err)
+
+			sink := &NopSink{}
+			opt := DefaultOptions()
+
+			sampleSize := src.Len()
+			bb.SetBytes(int64(sampleSize))
+			bb.ResetTimer()
+			bb.StartTimer()
+			err = Scan(ctx, src, sink, opt)
+			bb.StopTimer()
+
+			require.NoError(bb, err)
+		})
+	}
+}
+
+func BenchmarkJsonFormattedSamples(b *testing.B) {
+	ctx := context.Background()
+	root := "test/benchmark"
+	des, err := os.ReadDir(root)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	for _, de := range des {
+		if !de.IsDir() {
+			continue
+		}
+
+		dir := filepath.Join(root, de.Name())
+		fileName, err := findfirstMatchedFileName(dir, "*.json.gz")
+		if fileName == "" {
+			continue
+		}
+		require.NoError(b, err)
+
 		b.ResetTimer()
 		testCase := dir
 		b.Run(testCase, func(bb *testing.B) {
@@ -60,6 +109,7 @@ func BenchmarkHarness(b *testing.B) {
 			opt := DefaultOptions()
 
 			bb.SetBytes(int64(src.Len()))
+			bb.ResetTimer()
 			bb.StartTimer()
 			err = Scan(ctx, src, sink, opt)
 			bb.StopTimer()
