@@ -7,6 +7,7 @@ import (
 
 	typesv1 "github.com/humanlogio/api/go/types/v1"
 	"github.com/humanlogio/humanlog"
+	"github.com/stretchr/testify/require"
 )
 
 func TestJSONHandler_UnmarshalJSON_ParsesFields(t *testing.T) {
@@ -152,4 +153,15 @@ func TestJSONHandler_UnmarshalJSON_ParsesCustomMultiNestedFields(t *testing.T) {
 	if !h.Time.Equal(tm) {
 		t.Fatalf("not equal: expected %q, got %q", tm, h.Time)
 	}
+}
+
+func TestJsonHandler_TryHandle_LargeNumbers(t *testing.T) {
+	h := humanlog.JSONHandler{Opts: humanlog.DefaultOptions()}
+	ev := new(typesv1.StructuredLogEvent)
+	raw := []byte(`{"storage":{"session.id":1730187806608637000, "some": {"float": 1.2345}}}`)
+	if !h.TryHandle(raw, ev) {
+		t.Fatalf("failed to handle log")
+	}
+	require.Equal(t, "1.2345", h.Fields["storage.some.float"])
+	require.Equal(t, "1730187806608637000", h.Fields["storage.session.id"])
 }
