@@ -193,7 +193,7 @@ func TestKV(t *testing.T) {
 	require.NoError(t, err)
 
 	got := sink.Buffered
-	require.Equal(t, len(got), len(want)) // assume that there's no skipped log events (because of exceedly large payloads)
+	require.Equal(t, len(want), len(got)) // assume that there's no skipped log events
 
 	n := len(want)
 	for i := 0; i < n; i++ {
