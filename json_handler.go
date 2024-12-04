@@ -109,7 +109,7 @@ func getFlattenedFields(v map[string]interface{}) map[string]string {
 			}
 			extValues[key] = valTyped.String()
 		case string:
-			extValues[key] = valTyped
+			extValues[key] = fmt.Sprintf("%q", valTyped)
 		case map[string]interface{}:
 			flattenedFields := getFlattenedFields(valTyped)
 			for keyNested, valStr := range flattenedFields {
@@ -182,7 +182,7 @@ func (h *JSONHandler) UnmarshalJSON(data []byte) bool {
 			}
 			h.Fields[key] = v.String()
 		case string:
-			h.Fields[key] = v
+			h.Fields[key] = fmt.Sprintf("%q", v)
 		case map[string]interface{}:
 			flattenedFields := getFlattenedFields(v)
 			for keyNested, val := range flattenedFields {
