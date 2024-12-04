@@ -106,11 +106,11 @@ func TestFlatteningNestedObjects_with_a_big_number(t *testing.T) {
 				Kvs: []*typesv1.KV{
 					{
 						Key:   "source.function",
-						Value: "github.com/humanlogio/humanlog/internal/memstorage.(*MemStorageSink).firstMatch",
+						Value: "\"github.com/humanlogio/humanlog/internal/memstorage.(*MemStorageSink).firstMatch\"",
 					},
 					{
 						Key:   "source.file",
-						Value: "/Users/antoine/code/src/github.com/humanlogio/humanlog/internal/memstorage/memory.go",
+						Value: "\"/Users/antoine/code/src/github.com/humanlogio/humanlog/internal/memstorage/memory.go\"",
 					},
 					{
 						Key:   "source.line",
@@ -170,7 +170,7 @@ func TestFlatteningNestedObjects_simple(t *testing.T) {
 				Kvs: []*typesv1.KV{
 					{
 						Key:   "storage.from",
-						Value: time.Date(2024, 10, 29, 5, 47, 0, 0, time.UTC).Format(time.RFC3339),
+						Value: "\"" + time.Date(2024, 10, 29, 5, 47, 0, 0, time.UTC).Format(time.RFC3339) + "\"",
 					},
 				},
 			},
