@@ -23,7 +23,7 @@ var (
 )
 
 func init() {
-	localstorage.RegisterStorage("basic", func(ctx context.Context, ll *slog.Logger, cfg map[string]interface{}) (localstorage.Storage, error) {
+	localstorage.RegisterStorage("basic", func(ctx context.Context, ll *slog.Logger, cfg map[string]interface{}, appctx *localstorage.AppCtx) (localstorage.Storage, error) {
 		return NewMemStorage(ll), nil
 	})
 }

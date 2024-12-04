@@ -44,6 +44,7 @@ func startLocalhostServer(
 	port int,
 	localhostHttpClient *http.Client,
 	ownVersion *typesv1.Version,
+	app *localstorage.AppCtx,
 ) (localsink sink.Sink, done func(context.Context) error, err error) {
 
 	notifyUnableToIngest := func(err error) {
@@ -79,6 +80,7 @@ func startLocalhostServer(
 		cfg.ExperimentalFeatures.ServeLocalhost.Engine,
 		ll.WithGroup("storage"),
 		cfg.ExperimentalFeatures.ServeLocalhost.Cfg,
+		app,
 	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("opening localstorage %q: %v", cfg.ExperimentalFeatures.ServeLocalhost.Engine, err)

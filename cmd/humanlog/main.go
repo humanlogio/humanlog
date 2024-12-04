@@ -22,11 +22,13 @@ import (
 	"github.com/blang/semver"
 	"github.com/charmbracelet/huh"
 	"github.com/gen2brain/beeep"
+	"github.com/humanlogio/api/go/svc/feature/v1/featurev1connect"
 	types "github.com/humanlogio/api/go/types/v1"
 	"github.com/humanlogio/humanlog"
 	"github.com/humanlogio/humanlog/internal/pkg/config"
 	"github.com/humanlogio/humanlog/internal/pkg/state"
 	"github.com/humanlogio/humanlog/pkg/auth"
+	"github.com/humanlogio/humanlog/pkg/localstorage"
 	"github.com/humanlogio/humanlog/pkg/sink"
 	"github.com/humanlogio/humanlog/pkg/sink/stdiosink"
 	"github.com/humanlogio/humanlog/pkg/sink/teesink"
@@ -233,14 +235,19 @@ func newApp() *cli.App {
 		cancel     context.CancelFunc
 		cfg        *config.Config
 		statefile  *state.State
+		dialer     = &net.Dialer{Timeout: time.Second}
 		httpClient = &http.Client{
-			Transport: &http2.Transport{},
+			Transport: &http2.Transport{
+				DialTLS: func(network, addr string, cfg *tls.Config) (net.Conn, error) {
+					return tls.DialWithDialer(dialer, network, addr, cfg)
+				},
+			},
 		}
 		localhostHttpClient = &http.Client{
 			Transport: &http2.Transport{
 				AllowHTTP: true,
 				DialTLS: func(network, addr string, _ *tls.Config) (net.Conn, error) {
-					return net.Dial(network, addr)
+					return dialer.Dial(network, addr)
 				},
 			},
 		}
@@ -533,10 +540,26 @@ func newApp() *cli.App {
 						return fmt.Errorf("this feature requires a valid machine ID, which requires an environment. failed to login: %v", err)
 					}
 				}
+				apiHttpClient := getHTTPClient(cctx, getAPIUrl(cctx))
+				apiClientOpts := []connect.ClientOption{
+					connect.WithInterceptors(auth.Interceptors(ll, getTokenSource(cctx))...),
+				}
+
 				machineID = uint64(*state.MachineID)
-				localhostSink, done, err := startLocalhostServer(ctx, ll, cfg, state, machineID, localhostCfg.Port, getLocalhostHTTPClient(cctx), version)
+				localhostSink, done, err := startLocalhostServer(
+					ctx, ll, cfg, state, machineID, localhostCfg.Port,
+					getLocalhostHTTPClient(cctx),
+					version,
+					&localstorage.AppCtx{
+						EnsureLoggedIn: func(ctx context.Context) error {
+							_, err := ensureLoggedIn(ctx, cctx, state, getTokenSource(cctx), apiURL, getHTTPClient(cctx, apiURL))
+							return err
+						},
+						Features: featurev1connect.NewFeatureServiceClient(apiHttpClient, apiURL, apiClientOpts...),
+					},
+				)
 				if err != nil {
-					loginfo("starting experimental localhost service: %v", err)
+					logerror("failed to start localhost service: %v", err)
 				} else {
 					sink = teesink.NewTeeSink(sink, localhostSink)
 					defer func() {
