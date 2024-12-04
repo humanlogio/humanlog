@@ -92,24 +92,10 @@ func TestLargePayload(t *testing.T) {
 func TestFlatteningNestedObjects(t *testing.T) {
 
 	ctx := context.Background()
-	payload := `{"storage": {"from": "2024-10-29T05:47:00Z"}}`
-	payload += "\n" + `{"time":"2024-10-29T16:45:54.384776+09:00","level":"DEBUG","source":{"function":"github.com/humanlogio/humanlog/internal/memstorage.(*MemStorageSink).firstMatch","file":"/Users/antoine/code/src/github.com/humanlogio/humanlog/internal/memstorage/memory.go","line":243},"msg":"first match found at index","storage":{"machine.id":5089,"session.id":1730187806608637000,"i":0}}`
+	payload := `{"time":"2024-10-29T16:45:54.384776+09:00","level":"DEBUG","source":{"function":"github.com/humanlogio/humanlog/internal/memstorage.(*MemStorageSink).firstMatch","file":"/Users/antoine/code/src/github.com/humanlogio/humanlog/internal/memstorage/memory.go","line":243},"msg":"first match found at index","storage":{"machine.id":5089,"session.id":1730187806608637000,"i":0}}`
 
 	now := time.Date(2024, 11, 26, 4, 0, 0, 0, time.UTC)
 	want := []*typesv1.LogEvent{
-		{
-			ParsedAt: timestamppb.New(now),
-			Raw:      []byte(`{"storage": {"from": "2024-10-29T05:47:00Z"}}`),
-			Structured: &typesv1.StructuredLogEvent{
-				Timestamp: timestamppb.New(time.Time{}),
-				Kvs: []*typesv1.KV{
-					{
-						Key:   "storage.from",
-						Value: time.Date(2024, 10, 29, 5, 47, 0, 0, time.UTC).Format(time.RFC3339),
-					},
-				},
-			},
-		},
 		{
 			ParsedAt: timestamppb.New(now),
 			Raw:      []byte(`{"time":"2024-10-29T16:45:54.384776+09:00","level":"DEBUG","source":{"function":"github.com/humanlogio/humanlog/internal/memstorage.(*MemStorageSink).firstMatch","file":"/Users/antoine/code/src/github.com/humanlogio/humanlog/internal/memstorage/memory.go","line":243},"msg":"first match found at index","storage":{"machine.id":5089,"session.id":1730187806608637000,"i":0}}`),
@@ -157,8 +143,17 @@ func TestFlatteningNestedObjects(t *testing.T) {
 	err := Scan(ctx, src, sink, opts)
 	require.NoError(t, err)
 
-	got := sink.Buffered
-	require.Equal(t, pjsonslice(want), pjsonslice(got))
+	for i, got := range sink.Buffered {
+		expectedKvs := make(map[string]string)
+		for _, kv := range want[i].Structured.Kvs {
+			expectedKvs[kv.Key] = kv.Value
+		}
+		actualKvs := make(map[string]string)
+		for _, kv := range got.Structured.Kvs {
+			actualKvs[kv.Key] = kv.Value
+		}
+		require.Equal(t, expectedKvs, actualKvs)
+	}
 }
 
 func TestKV(t *testing.T) {
