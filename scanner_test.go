@@ -89,7 +89,7 @@ func TestLargePayload(t *testing.T) {
 	require.Equal(t, pjsonslice(want), pjsonslice(got))
 }
 
-func TestFlatteningNestedObjects(t *testing.T) {
+func TestFlatteningNestedObjects_with_a_big_number(t *testing.T) {
 
 	ctx := context.Background()
 	payload := `{"time":"2024-10-29T16:45:54.384776+09:00","level":"DEBUG","source":{"function":"github.com/humanlogio/humanlog/internal/memstorage.(*MemStorageSink).firstMatch","file":"/Users/antoine/code/src/github.com/humanlogio/humanlog/internal/memstorage/memory.go","line":243},"msg":"first match found at index","storage":{"machine.id":5089,"session.id":1730187806608637000,"i":0}}`
@@ -156,7 +156,7 @@ func TestFlatteningNestedObjects(t *testing.T) {
 	}
 }
 
-func TestKV(t *testing.T) {
+func TestFlatteningNestedObjects_simple(t *testing.T) {
 	ctx := context.Background()
 	payload := `{"storage": {"from": "2024-10-29T05:47:00Z"}}`
 
