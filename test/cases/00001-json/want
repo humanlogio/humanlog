@@ -23,4 +23,4 @@ Aug 11 18:15:10 || hello
 <no time> |ERRO| <no msg> 
 <no time> |PANI| <no msg> 
 <no time> |SOME| <no msg> 
-Oct 29 07:45:54 |DEBU| first match found at index storage.i=0 source.line=243 storage.machine.id=5089 storage.session.id=1.730187806608637e+18 source.function="github.com/humanlogio/humanlog/internal/memstorage.(*MemStorageSink).firstMatch" source.file="/Users/antoine/code/src/github.com/humanlogio/humanlog/internal/memstorage/memory.go"
+Oct 29 07:45:54 |DEBU| first match found at index storage.i=0 source.line=243 storage.machine.id=5089 storage.session.id=1730187806608637000 source.function="github.com/humanlogio/humanlog/internal/memstorage.(*MemStorageSink).firstMatch" source.file="/Users/antoine/code/src/github.com/humanlogio/humanlog/internal/memstorage/memory.go"
