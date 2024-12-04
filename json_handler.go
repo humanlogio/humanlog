@@ -1,9 +1,9 @@
 package humanlog
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
-	"math"
 	"strings"
 	"time"
 
@@ -98,12 +98,16 @@ func getFlattenedFields(v map[string]interface{}) map[string]string {
 	extValues := make(map[string]string)
 	for key, nestedVal := range v {
 		switch valTyped := nestedVal.(type) {
-		case float64:
-			if valTyped-math.Floor(valTyped) < 0.000001 && valTyped < 1e9 {
-				extValues[key] = fmt.Sprintf("%d", int(valTyped))
-			} else {
-				extValues[key] = fmt.Sprintf("%g", valTyped)
+		case json.Number:
+			if z, err := valTyped.Int64(); err == nil {
+				extValues[key] = fmt.Sprintf("%d", z)
+				continue
 			}
+			if f, err := valTyped.Float64(); err == nil {
+				extValues[key] = fmt.Sprintf("%g", f)
+				continue
+			}
+			extValues[key] = valTyped.String()
 		case string:
 			extValues[key] = valTyped
 		case map[string]interface{}:
@@ -120,8 +124,12 @@ func getFlattenedFields(v map[string]interface{}) map[string]string {
 
 // UnmarshalJSON sets the fields of the handler.
 func (h *JSONHandler) UnmarshalJSON(data []byte) bool {
+
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.UseNumber()
+
 	raw := make(map[string]interface{})
-	err := json.Unmarshal(data, &raw)
+	err := dec.Decode(&raw)
 	if err != nil {
 		return false
 	}
@@ -163,13 +171,16 @@ func (h *JSONHandler) UnmarshalJSON(data []byte) bool {
 
 	for key, val := range raw {
 		switch v := val.(type) {
-		case float64:
-			if v-math.Floor(v) < 0.000001 && v < 1e9 {
-				// looks like an integer that's not too large
-				h.Fields[key] = fmt.Sprintf("%d", int(v))
-			} else {
-				h.Fields[key] = fmt.Sprintf("%g", v)
+		case json.Number:
+			if z, err := v.Int64(); err == nil {
+				h.Fields[key] = fmt.Sprintf("%d", z)
+				continue
 			}
+			if f, err := v.Float64(); err == nil {
+				h.Fields[key] = fmt.Sprintf("%g", f)
+				continue
+			}
+			h.Fields[key] = v.String()
 		case string:
 			h.Fields[key] = v
 		case map[string]interface{}:
