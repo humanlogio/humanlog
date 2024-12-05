@@ -8,13 +8,13 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+var _ sink.Sink = (*SizedBuffer)(nil)
+
 type SizedBuffer struct {
 	size     int
 	Buffered []*typesv1.LogEvent
 	flush    sink.BatchSink
 }
-
-var _ sink.Sink = (*SizedBuffer)(nil)
 
 func NewSizedBufferedSink(size int, flush sink.BatchSink) *SizedBuffer {
 	return &SizedBuffer{
@@ -22,10 +22,6 @@ func NewSizedBufferedSink(size int, flush sink.BatchSink) *SizedBuffer {
 		Buffered: make([]*typesv1.LogEvent, 0, size),
 		flush:    flush,
 	}
-}
-
-func (sn *SizedBuffer) Close(ctx context.Context) error {
-	return nil
 }
 
 func (sn *SizedBuffer) Receive(ctx context.Context, ev *typesv1.LogEvent) error {
@@ -38,5 +34,9 @@ func (sn *SizedBuffer) Receive(ctx context.Context, ev *typesv1.LogEvent) error 
 		}
 		sn.Buffered = sn.Buffered[:0:sn.size]
 	}
+	return nil
+}
+
+func (sn *SizedBuffer) Close(ctx context.Context) error {
 	return nil
 }

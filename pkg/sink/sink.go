@@ -15,3 +15,8 @@ type BatchSink interface {
 	ReceiveBatch(ctx context.Context, evs []*typesv1.LogEvent) error
 	Close(ctx context.Context) error
 }
+
+type MixedSink interface {
+	Sink
+	BatchSink
+}

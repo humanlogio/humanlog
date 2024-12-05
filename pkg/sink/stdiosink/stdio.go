@@ -45,7 +45,6 @@ type StdioOpts struct {
 }
 
 var DefaultStdioOpts = StdioOpts{
-
 	SkipUnchanged:  true,
 	SortLongest:    true,
 	TimeFormat:     time.Stamp,
