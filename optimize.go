@@ -14,4 +14,4 @@ func moveToFront[El any](i int, s []El) []El {
 	return s
 }
 
-const dynamicReordering = false
+const dynamicReordering = true
