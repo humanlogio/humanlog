@@ -104,30 +104,16 @@ func TestFlatteningNestedObjects_with_a_big_number(t *testing.T) {
 				Lvl:       "DEBUG",
 				Msg:       "first match found at index",
 				Kvs: []*typesv1.KV{
-					{
-						Key:   "source.function",
-						Value: "\"github.com/humanlogio/humanlog/internal/memstorage.(*MemStorageSink).firstMatch\"",
-					},
-					{
-						Key:   "source.file",
-						Value: "\"/Users/antoine/code/src/github.com/humanlogio/humanlog/internal/memstorage/memory.go\"",
-					},
-					{
-						Key:   "source.line",
-						Value: "243",
-					},
-					{
-						Key:   "storage.machine.id",
-						Value: "5089",
-					},
-					{
-						Key:   "storage.session.id",
-						Value: "1730187806608637000",
-					},
-					{
-						Key:   "storage.i",
-						Value: "0",
-					},
+					typesv1.KeyVal("source", typesv1.ValObj(
+						typesv1.KeyVal("function", typesv1.ValStr("github.com/humanlogio/humanlog/internal/memstorage.(*MemStorageSink).firstMatch")),
+						typesv1.KeyVal("file", typesv1.ValStr("/Users/antoine/code/src/github.com/humanlogio/humanlog/internal/memstorage/memory.go")),
+						typesv1.KeyVal("line", typesv1.ValI64(243)),
+					)),
+					typesv1.KeyVal("storage", typesv1.ValObj(
+						typesv1.KeyVal("machine.id", typesv1.ValI64(5089)),
+						typesv1.KeyVal("session.id", typesv1.ValI64(1730187806608637000)),
+						typesv1.KeyVal("i", typesv1.ValI64(0)),
+					)),
 				},
 			},
 		},
