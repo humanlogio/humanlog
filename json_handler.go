@@ -152,6 +152,8 @@ func getFlattenedArrayFields(data []interface{}) map[string]string {
 			for k, v := range flattenedFields {
 				flattened[fmt.Sprintf("%d.%s", i, k)] = v
 			}
+		default:
+			flattened[strconv.Itoa(i)] = fmt.Sprintf("%v", vt)
 		}
 	}
 	return flattened
