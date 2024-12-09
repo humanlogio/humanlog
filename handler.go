@@ -16,7 +16,7 @@ type Handler interface {
 
 var DefaultOptions = func() *HandlerOptions {
 	opts := &HandlerOptions{
-		TimeFields:    []string{"time", "ts", "@timestamp", "timestamp", "Timestamp"},
+		TimeFields:    []string{"time", "ts", "@timestamp", "timestamp", "Timestamp", "asctime"},
 		MessageFields: []string{"message", "msg", "Body"},
 		LevelFields:   []string{"level", "lvl", "loglevel", "severity", "SeverityText"},
 		timeNow:       time.Now,
