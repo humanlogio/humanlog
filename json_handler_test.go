@@ -7,6 +7,7 @@ import (
 
 	typesv1 "github.com/humanlogio/api/go/types/v1"
 	"github.com/humanlogio/humanlog"
+	"github.com/stretchr/testify/require"
 )
 
 func TestJSONHandler_UnmarshalJSON_ParsesFields(t *testing.T) {
@@ -152,4 +153,27 @@ func TestJSONHandler_UnmarshalJSON_ParsesCustomMultiNestedFields(t *testing.T) {
 	if !h.Time.Equal(tm) {
 		t.Fatalf("not equal: expected %q, got %q", tm, h.Time)
 	}
+}
+
+func TestParseAsctimeFields_1(t *testing.T) {
+	raw := []byte(`{"asctime": ["12-05-05 22:11:08,506248"]}`)
+	opts := humanlog.DefaultOptions()
+	h := humanlog.JSONHandler{Opts: opts}
+	ev := new(typesv1.StructuredLogEvent)
+	if !h.TryHandle(raw, ev) {
+		t.Fatalf("failed to handle log")
+	}
+	// timezone should be identified before parsing... we can't just treat as UTC
+	require.Equal(t, time.Date(2012, 5, 5, 22, 11, 8, 506248000, time.UTC), h.Time)
+}
+
+func TestParseAsctimeFields_2(t *testing.T) {
+	raw := []byte(`{"time": "12-05-05 22:11:08,506248"}`)
+	opts := humanlog.DefaultOptions()
+	h := humanlog.JSONHandler{Opts: opts}
+	ev := new(typesv1.StructuredLogEvent)
+	if !h.TryHandle(raw, ev) {
+		t.Fatalf("failed to handle log")
+	}
+	require.Equal(t, time.Date(2012, 5, 5, 22, 11, 8, 506248000, time.UTC), h.Time)
 }
