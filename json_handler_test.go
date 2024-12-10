@@ -155,25 +155,29 @@ func TestJSONHandler_UnmarshalJSON_ParsesCustomMultiNestedFields(t *testing.T) {
 	}
 }
 
-func TestParseAsctimeFields_1(t *testing.T) {
-	raw := []byte(`{"asctime": ["12-05-05 22:11:08,506248"]}`)
-	opts := humanlog.DefaultOptions()
-	h := humanlog.JSONHandler{Opts: opts}
-	ev := new(typesv1.StructuredLogEvent)
-	if !h.TryHandle(raw, ev) {
-		t.Fatalf("failed to handle log")
+func TestParseAsctimeFields(t *testing.T) {
+	args := []struct {
+		raw  []byte
+		want time.Time
+	}{
+		{
+			raw:  []byte(`{"asctime": ["12-05-05 22:11:08,506248"]}`),
+			want: time.Date(2012, 5, 5, 22, 11, 8, 506248000, time.UTC),
+		},
+		{
+			raw:  []byte(`{"time": "12-05-05 22:11:08,506248"}`),
+			want: time.Date(2012, 5, 5, 22, 11, 8, 506248000, time.UTC),
+		},
 	}
-	// timezone should be identified before parsing... we can't just treat as UTC
-	require.Equal(t, time.Date(2012, 5, 5, 22, 11, 8, 506248000, time.UTC), h.Time)
-}
-
-func TestParseAsctimeFields_2(t *testing.T) {
-	raw := []byte(`{"time": "12-05-05 22:11:08,506248"}`)
-	opts := humanlog.DefaultOptions()
-	h := humanlog.JSONHandler{Opts: opts}
-	ev := new(typesv1.StructuredLogEvent)
-	if !h.TryHandle(raw, ev) {
-		t.Fatalf("failed to handle log")
+	for _, arg := range args {
+		opts := humanlog.DefaultOptions()
+		h := humanlog.JSONHandler{Opts: opts}
+		ev := new(typesv1.StructuredLogEvent)
+		if !h.TryHandle(arg.raw, ev) {
+			t.Fatalf("failed to handle log")
+		}
+		// timezone should be identified before parsing... we can't just treat as UTC
+		got := h.Time
+		require.Equal(t, arg.want, got)
 	}
-	require.Equal(t, time.Date(2012, 5, 5, 22, 11, 8, 506248000, time.UTC), h.Time)
 }
