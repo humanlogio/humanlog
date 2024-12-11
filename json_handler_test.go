@@ -5,9 +5,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
 	"github.com/humanlogio/humanlog"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func TestJSONHandler_UnmarshalJSON_ParsesFields(t *testing.T) {
@@ -156,28 +159,34 @@ func TestJSONHandler_UnmarshalJSON_ParsesCustomMultiNestedFields(t *testing.T) {
 }
 
 func TestParseAsctimeFields(t *testing.T) {
-	args := []struct {
+	tests := []struct {
+		name string
 		raw  []byte
-		want time.Time
+		want *timestamppb.Timestamp
 	}{
 		{
+			name: "asctime",
 			raw:  []byte(`{"asctime": ["12-05-05 22:11:08,506248"]}`),
-			want: time.Date(2012, 5, 5, 22, 11, 8, 506248000, time.UTC),
+			want: timestamppb.New(time.Date(2012, 5, 5, 22, 11, 8, 506248000, time.UTC)),
 		},
 		{
+			name: "time",
 			raw:  []byte(`{"time": "12-05-05 22:11:08,506248"}`),
-			want: time.Date(2012, 5, 5, 22, 11, 8, 506248000, time.UTC),
+			want: timestamppb.New(time.Date(2012, 5, 5, 22, 11, 8, 506248000, time.UTC)),
 		},
 	}
-	for _, arg := range args {
-		opts := humanlog.DefaultOptions()
-		h := humanlog.JSONHandler{Opts: opts}
-		ev := new(typesv1.StructuredLogEvent)
-		if !h.TryHandle(arg.raw, ev) {
-			t.Fatalf("failed to handle log")
-		}
-		// timezone should be identified before parsing... we can't just treat as UTC
-		got := h.Time
-		require.Equal(t, arg.want, got)
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			opts := humanlog.DefaultOptions()
+			h := humanlog.JSONHandler{Opts: opts}
+			ev := new(typesv1.StructuredLogEvent)
+			if !h.TryHandle(test.raw, ev) {
+				t.Fatalf("failed to handle log")
+			}
+			// timezone should be identified before parsing... we can't just treat as UTC
+			got := ev.Timestamp
+			require.Empty(t, cmp.Diff(test.want, got, protocmp.Transform()))
+		})
 	}
 }
