@@ -32,6 +32,20 @@ func Scan(ctx context.Context, src io.Reader, sink sink.Sink, opts *HandlerOptio
 	data := new(typesv1.StructuredLogEvent)
 	ev.Structured = data
 
+	handlers := []func([]byte, *typesv1.StructuredLogEvent) bool{
+		jsonEntry.TryHandle,
+		logfmtEntry.TryHandle,
+		func(lineData []byte, data *typesv1.StructuredLogEvent) bool {
+			return tryDockerComposePrefix(lineData, data, &jsonEntry)
+		},
+		func(lineData []byte, data *typesv1.StructuredLogEvent) bool {
+			return tryDockerComposePrefix(lineData, data, &logfmtEntry)
+		},
+		func(lineData []byte, data *typesv1.StructuredLogEvent) bool {
+			return tryZapDevPrefix(lineData, data, &jsonEntry)
+		},
+	}
+
 	skipNextScan := false
 	for {
 		if !in.Scan() {
@@ -65,21 +79,36 @@ func Scan(ctx context.Context, src io.Reader, sink sink.Sink, opts *HandlerOptio
 
 		// remove that pesky syslog crap
 		lineData = bytes.TrimPrefix(lineData, []byte("@cee: "))
-		switch {
 
-		case jsonEntry.TryHandle(lineData, data):
-
-		case logfmtEntry.TryHandle(lineData, data):
-
-		case tryDockerComposePrefix(lineData, data, &jsonEntry):
-
-		case tryDockerComposePrefix(lineData, data, &logfmtEntry):
-
-		case tryZapDevPrefix(lineData, data, &jsonEntry):
-
-		default:
+		handled := false
+	handled_line:
+		for i, tryHandler := range handlers {
+			if tryHandler(lineData, data) {
+				if dynamicReordering {
+					handlers = moveToFront(i, handlers)
+				}
+				handled = true
+				break handled_line
+			}
+		}
+		if !handled {
 			ev.Structured = nil
 		}
+		// switch {
+
+		// case jsonEntry.TryHandle(lineData, data):
+
+		// case logfmtEntry.TryHandle(lineData, data):
+
+		// case tryDockerComposePrefix(lineData, data, &jsonEntry):
+
+		// case tryDockerComposePrefix(lineData, data, &logfmtEntry):
+
+		// case tryZapDevPrefix(lineData, data, &jsonEntry):
+
+		// default:
+
+		// }
 		if err := sink.Receive(ctx, ev); err != nil {
 			return err
 		}
