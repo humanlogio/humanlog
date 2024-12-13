@@ -5,9 +5,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
 	"github.com/humanlogio/humanlog"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func TestJSONHandler_UnmarshalJSON_ParsesFields(t *testing.T) {
@@ -164,4 +167,71 @@ func TestJsonHandler_TryHandle_LargeNumbers(t *testing.T) {
 	}
 	require.Equal(t, "1.2345", h.Fields["storage.some.float"])
 	require.Equal(t, "1730187806608637000", h.Fields["storage.session.id"])
+}
+
+func TestJsonHandler_TryHandle_FlattendArrayFields(t *testing.T) {
+	handler := humanlog.JSONHandler{Opts: humanlog.DefaultOptions()}
+	ev := new(typesv1.StructuredLogEvent)
+	raw := []byte(`{"peers":[{"ID":"10.244.0.126:8083","URI":"10.244.0.126:8083"},{"ID":"10.244.0.206:8083","URI":"10.244.0.206:8083"},{"ID":"10.244.1.150:8083","URI":"10.244.1.150:8083"}],"storage":{"session.id":1730187806608637000, "some": {"float": 1.2345}}}`)
+	if !handler.TryHandle(raw, ev) {
+		t.Fatalf("failed to handle log")
+	}
+	require.Equal(t, "\"10.244.0.126:8083\"", handler.Fields["peers.0.ID"])
+	require.Equal(t, "\"10.244.0.126:8083\"", handler.Fields["peers.0.URI"])
+	require.Equal(t, "\"10.244.0.206:8083\"", handler.Fields["peers.1.ID"])
+	require.Equal(t, "\"10.244.0.206:8083\"", handler.Fields["peers.1.URI"])
+	require.Equal(t, "\"10.244.1.150:8083\"", handler.Fields["peers.2.ID"])
+	require.Equal(t, "\"10.244.1.150:8083\"", handler.Fields["peers.2.URI"])
+}
+
+func TestJsonHandler_TryHandle_FlattenedArrayFields_NestedArray(t *testing.T) {
+	handler := humanlog.JSONHandler{Opts: humanlog.DefaultOptions()}
+	ev := new(typesv1.StructuredLogEvent)
+	raw := []byte(`{"peers":[[1,2,3.14],[4,50.55,[6,7]],["hello","world"],{"foo":"bar"}]}`)
+	if !handler.TryHandle(raw, ev) {
+		t.Fatalf("failed to handle log")
+	}
+	require.Equal(t, "1", handler.Fields["peers.0.0"])
+	require.Equal(t, "2", handler.Fields["peers.0.1"])
+	require.Equal(t, "3.14", handler.Fields["peers.0.2"])
+	require.Equal(t, "4", handler.Fields["peers.1.0"])
+	require.Equal(t, "50.55", handler.Fields["peers.1.1"])
+	require.Equal(t, "6", handler.Fields["peers.1.2.0"])
+	require.Equal(t, "7", handler.Fields["peers.1.2.1"])
+	require.Equal(t, "hello", handler.Fields["peers.2.0"])
+	require.Equal(t, "world", handler.Fields["peers.2.1"])
+	require.Equal(t, "\"bar\"", handler.Fields["peers.3.foo"])
+}
+
+func TestParseAsctimeFields(t *testing.T) {
+	tests := []struct {
+		name string
+		raw  []byte
+		want *timestamppb.Timestamp
+	}{
+		{
+			name: "asctime",
+			raw:  []byte(`{"asctime": ["12-05-05 22:11:08,506248"]}`),
+			want: timestamppb.New(time.Date(2012, 5, 5, 22, 11, 8, 506248000, time.UTC)),
+		},
+		{
+			name: "time",
+			raw:  []byte(`{"time": "12-05-05 22:11:08,506248"}`),
+			want: timestamppb.New(time.Date(2012, 5, 5, 22, 11, 8, 506248000, time.UTC)),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			opts := humanlog.DefaultOptions()
+			h := humanlog.JSONHandler{Opts: opts}
+			ev := new(typesv1.StructuredLogEvent)
+			if !h.TryHandle(test.raw, ev) {
+				t.Fatalf("failed to handle log")
+			}
+			// timezone should be identified before parsing... we can't just treat as UTC
+			got := ev.Timestamp
+			require.Empty(t, cmp.Diff(test.want, got, protocmp.Transform()))
+		})
+	}
 }

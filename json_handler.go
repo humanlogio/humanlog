@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -110,6 +111,11 @@ func getFlattenedFields(v map[string]interface{}) map[string]string {
 			extValues[key] = valTyped.String()
 		case string:
 			extValues[key] = fmt.Sprintf("%q", valTyped)
+		case []interface{}:
+			flattenedArrayFields := getFlattenedArrayFields(valTyped)
+			for k, v := range flattenedArrayFields {
+				extValues[key+"."+k] = v
+			}
 		case map[string]interface{}:
 			flattenedFields := getFlattenedFields(valTyped)
 			for keyNested, valStr := range flattenedFields {
@@ -120,6 +126,37 @@ func getFlattenedFields(v map[string]interface{}) map[string]string {
 		}
 	}
 	return extValues
+}
+
+func getFlattenedArrayFields(data []interface{}) map[string]string {
+	flattened := make(map[string]string)
+	for i, v := range data {
+		switch vt := v.(type) {
+		case json.Number:
+			if z, err := vt.Int64(); err == nil {
+				flattened[strconv.Itoa(i)] = fmt.Sprintf("%d", z)
+			} else if f, err := vt.Float64(); err == nil {
+				flattened[strconv.Itoa(i)] = fmt.Sprintf("%g", f)
+			} else {
+				flattened[strconv.Itoa(i)] = vt.String()
+			}
+		case string:
+			flattened[strconv.Itoa(i)] = vt
+		case []interface{}:
+			flattenedArrayFields := getFlattenedArrayFields(vt)
+			for k, v := range flattenedArrayFields {
+				flattened[fmt.Sprintf("%d.%s", i, k)] = v
+			}
+		case map[string]interface{}:
+			flattenedFields := getFlattenedFields(vt)
+			for k, v := range flattenedFields {
+				flattened[fmt.Sprintf("%d.%s", i, k)] = v
+			}
+		default:
+			flattened[strconv.Itoa(i)] = fmt.Sprintf("%v", vt)
+		}
+	}
+	return flattened
 }
 
 // UnmarshalJSON sets the fields of the handler.
@@ -183,6 +220,11 @@ func (h *JSONHandler) UnmarshalJSON(data []byte) bool {
 			h.Fields[key] = v.String()
 		case string:
 			h.Fields[key] = fmt.Sprintf("%q", v)
+		case []interface{}:
+			flattenedArrayFields := getFlattenedArrayFields(v)
+			for k, v := range flattenedArrayFields {
+				h.Fields[key+"."+k] = v
+			}
 		case map[string]interface{}:
 			flattenedFields := getFlattenedFields(v)
 			for keyNested, val := range flattenedFields {

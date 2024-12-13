@@ -540,9 +540,10 @@ func newApp() *cli.App {
 						return fmt.Errorf("this feature requires a valid machine ID, which requires an environment. failed to login: %v", err)
 					}
 				}
+				llIceptor := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
 				apiHttpClient := getHTTPClient(cctx, getAPIUrl(cctx))
 				apiClientOpts := []connect.ClientOption{
-					connect.WithInterceptors(auth.Interceptors(ll, getTokenSource(cctx))...),
+					connect.WithInterceptors(auth.Interceptors(llIceptor, getTokenSource(cctx))...),
 				}
 
 				machineID = uint64(*state.MachineID)

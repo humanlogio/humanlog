@@ -26,6 +26,7 @@ var TimeFormats = []string{
 	time.StampNano,
 	"2006/01/02 15:04:05",
 	"2006/01/02 15:04:05.999999999",
+	"06-01-02 15:04:05,999",
 }
 
 func parseTimeFloat64(value float64) time.Time {
@@ -86,6 +87,18 @@ func tryParseTime(value interface{}) (time.Time, bool) {
 		return parseTimeFloat64(float64(v)), true
 	case int64:
 		return parseTimeFloat64(float64(v)), true
+	case []interface{}:
+		if len(v) == 1 {
+			if timeStr, ok := v[0].(string); ok {
+				for _, layout := range TimeFormats {
+					t, err := time.Parse(layout, timeStr)
+					if err == nil {
+						t = fixTimebeforeUnixZero(t)
+						return t, true
+					}
+				}
+			}
+		}
 	}
 	return t, false
 }
