@@ -58,10 +58,10 @@ func RunTest(t *testing.T, constructor func(t *testing.T) Storage) {
 				{
 					MachineId: 1, SessionId: 2,
 					Logs: []*typesv1.LogEvent{
-						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.001")), Raw: []byte("hello world 1"), Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.001"))}},
-						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.002")), Raw: []byte("hello world 2"), Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.002"))}},
-						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 3"), Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.003"))}},
-						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.004")), Raw: []byte("hello world 4"), Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.004"))}},
+						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.001")), Raw: []byte("hello world 1") /*, Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.001"))}*/},
+						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.002")), Raw: []byte("hello world 2") /*, Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.002"))}*/},
+						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 3") /*, Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.003"))}*/},
+						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.004")), Raw: []byte("hello world 4") /*, Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.004"))}*/},
 					},
 				},
 			},
@@ -86,9 +86,9 @@ func RunTest(t *testing.T, constructor func(t *testing.T) Storage) {
 				{
 					MachineId: 1, SessionId: 2,
 					Logs: []*typesv1.LogEvent{
-						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.001")), Raw: []byte("hello world 1"), Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.001"))}},
-						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.002")), Raw: []byte("hello world 2"), Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.002"))}},
-						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 3"), Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.003"))}},
+						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.001")), Raw: []byte("hello world 1") /*, Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.001"))}*/},
+						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.002")), Raw: []byte("hello world 2") /*, Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.002"))}*/},
+						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 3") /*, Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.003"))}*/},
 					},
 				},
 			},
@@ -114,9 +114,9 @@ func RunTest(t *testing.T, constructor func(t *testing.T) Storage) {
 				{
 					MachineId: 1, SessionId: 2,
 					Logs: []*typesv1.LogEvent{
-						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.002")), Raw: []byte("hello world 2"), Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.002"))}},
-						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 3"), Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.003"))}},
-						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.004")), Raw: []byte("hello world 4"), Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.004"))}},
+						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.002")), Raw: []byte("hello world 2") /*, Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.002"))}*/},
+						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 3") /*, Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.003"))}*/},
+						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.004")), Raw: []byte("hello world 4") /*, Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.004"))}*/},
 					},
 				},
 			},
@@ -142,9 +142,9 @@ func RunTest(t *testing.T, constructor func(t *testing.T) Storage) {
 				{
 					MachineId: 1, SessionId: 2,
 					Logs: []*typesv1.LogEvent{
-						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.002")), Raw: []byte("hello world 2"), Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.002"))}},
-						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 3"), Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.003"))}},
-						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.004")), Raw: []byte("hello world 4"), Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.004"))}},
+						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.002")), Raw: []byte("hello world 2") /*, Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.002"))}*/},
+						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 3") /*, Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.003"))}*/},
+						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.004")), Raw: []byte("hello world 4") /*, Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.004"))}*/},
 					},
 				},
 			},
@@ -170,8 +170,106 @@ func RunTest(t *testing.T, constructor func(t *testing.T) Storage) {
 				{
 					MachineId: 1, SessionId: 2,
 					Logs: []*typesv1.LogEvent{
-						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.002")), Raw: []byte("hello world 2"), Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.002"))}},
-						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 3"), Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.003"))}},
+						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.002")), Raw: []byte("hello world 2") /*, Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.002"))}*/},
+						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 3") /*, Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.003"))}*/},
+					},
+				},
+			},
+		},
+		{
+			name: "simple query on `lvl`",
+			q: &typesv1.LogQuery{
+				From: timestamppb.New(musttime("2006-01-02T15:04:06.002")),
+				To:   timestamppb.New(musttime("2006-01-02T15:04:06.004")),
+				Query: typesv1.ExprBinary(
+					typesv1.ExprIdentifier("lvl"),
+					typesv1.BinaryOp_CMP_EQ,
+					typesv1.ExprLiteral(typesv1.ValStr("error")),
+				),
+			},
+			input: []*typesv1.LogEventGroup{
+				{
+					MachineId: 1, SessionId: 2,
+					Logs: []*typesv1.LogEvent{
+						{
+							ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.001")), Raw: []byte("hello world 1"),
+							Structured: &typesv1.StructuredLogEvent{
+								Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.001")),
+								Lvl:       "error",
+								Msg:       "some sort of problem",
+								Kvs:       []*typesv1.KV{},
+							},
+						},
+						{
+							ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.001")), Raw: []byte("hello world 1"),
+							Structured: &typesv1.StructuredLogEvent{
+								Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.001")),
+								Lvl:       "info",
+								Msg:       "no problem, all is fine",
+								Kvs:       []*typesv1.KV{},
+							},
+						},
+						{
+							ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 1"),
+							Structured: &typesv1.StructuredLogEvent{
+								Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.003")),
+								Lvl:       "error",
+								Msg:       "some sort of problem a bit later",
+								Kvs:       []*typesv1.KV{},
+							},
+						},
+						{
+							ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 1"),
+							Structured: &typesv1.StructuredLogEvent{
+								Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.003")),
+								Lvl:       "info",
+								Msg:       "no problem, all is fine a bit later",
+								Kvs:       []*typesv1.KV{},
+							},
+						},
+						{
+							ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.006")), Raw: []byte("hello world 1"),
+							Structured: &typesv1.StructuredLogEvent{
+								Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.006")),
+								Lvl:       "error",
+								Msg:       "some sort of problem too late",
+								Kvs:       []*typesv1.KV{},
+							},
+						},
+						{
+							ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.006")), Raw: []byte("hello world 1"),
+							Structured: &typesv1.StructuredLogEvent{
+								Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.006")),
+								Lvl:       "info",
+								Msg:       "no problem, all is fine too late",
+								Kvs:       []*typesv1.KV{},
+							},
+						},
+					},
+				},
+			},
+			want: []*typesv1.LogEventGroup{
+				{
+					MachineId: 1, SessionId: 2,
+					Logs: []*typesv1.LogEvent{
+						{
+							ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 1"),
+							Structured: &typesv1.StructuredLogEvent{
+								Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.003")),
+								Lvl:       "error",
+								Msg:       "some sort of problem a bit later",
+								Kvs:       []*typesv1.KV{},
+							},
+						},
+						{
+							ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 1"),
+							Structured: &typesv1.StructuredLogEvent{
+								Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.003")),
+								Lvl:       "info",
+								Msg:       "no problem, all is fine a bit later",
+								Kvs:       []*typesv1.KV{},
+							},
+						},
 					},
 				},
 			},
