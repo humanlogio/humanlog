@@ -5,9 +5,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -213,7 +214,8 @@ func RunTest(t *testing.T, constructor func(t *testing.T) Storage) {
 
 			require.Len(t, got, len(tt.want))
 			for i := range tt.want {
-				require.Equal(t, protojson.Format(tt.want[i]), protojson.Format(got[i]))
+				diff := cmp.Diff(tt.want[i], got[i], protocmp.Transform())
+				require.Empty(t, diff)
 			}
 		})
 	}

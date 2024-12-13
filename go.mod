@@ -19,6 +19,7 @@ require (
 	github.com/fatih/color v1.16.0
 	github.com/gen2brain/beeep v0.0.0-20240516210008-9c006672e7f4
 	github.com/go-logfmt/logfmt v0.5.1
+	github.com/google/go-cmp v0.6.0
 	github.com/google/uuid v1.6.0
 	github.com/humanlogio/api/go v0.0.0-20241208082433-416862db1fa7
 	github.com/humanlogio/humanlog-pro v0.0.0-20241129104809-3580d74828a9
