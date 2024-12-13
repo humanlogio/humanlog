@@ -223,7 +223,7 @@ func newMemStorageSink(ll *slog.Logger, id SinkID) *MemStorageSink {
 func (snk *MemStorageSink) queryLogger(q *typesv1.LogQuery) *slog.Logger {
 	ll := snk.ll.With(
 		slog.Bool("sink.closed", snk.closed),
-		slog.String("query", q.Query),
+		slog.String("query", q.Query.String()),
 	)
 	if q.From != nil {
 		ll = ll.With(slog.Time("from", q.From.AsTime()))

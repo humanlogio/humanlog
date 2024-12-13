@@ -40,7 +40,7 @@ func tryZapDevPrefix(d []byte, ev *typesv1.StructuredLogEvent, handler *JSONHand
 			ev.Lvl = strings.ToLower(string(matches[2]))
 			ev.Msg = string(matches[4])
 			ev.Kvs = append(ev.Kvs, &typesv1.KV{
-				Key: "caller", Value: string(matches[3]),
+				Key: "caller", Value: typesv1.ValStr(string(matches[3])),
 			})
 			return true
 		}
@@ -64,7 +64,7 @@ func tryZapDevDCPrefix(d []byte, ev *typesv1.StructuredLogEvent, handler *JSONHa
 			ev.Msg = string(matches[4])
 			ev.Kvs = append(
 				ev.Kvs,
-				&typesv1.KV{Key: "caller", Value: string(matches[3])},
+				&typesv1.KV{Key: "caller", Value: typesv1.ValStr(string(matches[3]))},
 			)
 			return true
 		}

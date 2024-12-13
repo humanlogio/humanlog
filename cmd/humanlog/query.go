@@ -17,6 +17,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/term"
 	"github.com/crazy3lf/colorconv"
+	"github.com/humanlogio/api/go/pkg/logql"
 	"github.com/humanlogio/api/go/svc/environment/v1/environmentv1connect"
 	"github.com/humanlogio/api/go/svc/organization/v1/organizationv1connect"
 	queryv1 "github.com/humanlogio/api/go/svc/query/v1"
@@ -330,12 +331,16 @@ func queryApiWatchCmd(
 			if state.CurrentEnvironmentID != nil {
 				environmentID = *state.CurrentEnvironmentID
 			}
+			lq, err := logql.ParseLogQuery(query)
+			if err != nil {
+				return fmt.Errorf("parsing query: %v", err)
+			}
 			req := &queryv1.WatchQueryRequest{
 				EnvironmentId: environmentID,
 				Query: &typesv1.LogQuery{
 					From:  from,
 					To:    to,
-					Query: query,
+					Query: lq.Query,
 				},
 			}
 			res, err := queryClient.WatchQuery(ctx, connect.NewRequest(req))

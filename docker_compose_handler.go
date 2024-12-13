@@ -24,7 +24,7 @@ func tryDockerComposePrefix(d []byte, ev *typesv1.StructuredLogEvent, nextHandle
 	if matches != nil {
 		if nextHandler.TryHandle(matches[2], ev) {
 			ev.Kvs = append(ev.Kvs, &typesv1.KV{
-				Key: "service", Value: string(matches[1]),
+				Key: "service", Value: typesv1.ValStr(string(matches[1])),
 			})
 			return true
 		}
@@ -34,7 +34,7 @@ func tryDockerComposePrefix(d []byte, ev *typesv1.StructuredLogEvent, nextHandle
 		case *JSONHandler:
 			if tryZapDevDCPrefix(matches[2], ev, h) {
 				ev.Kvs = append(ev.Kvs, &typesv1.KV{
-					Key: "service", Value: string(matches[1]),
+					Key: "service", Value: typesv1.ValStr(string(matches[1])),
 				})
 				return true
 			}

@@ -4,7 +4,7 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/humanlogio/api/go/pkg/lang"
+	"github.com/humanlogio/api/go/pkg/logql"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
 )
 
@@ -53,7 +53,7 @@ func (m *QueryBar) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		if key.Matches(msg, m.submitQuery) {
 			q := m.textArea.Value()
-			qq, err := lang.ParseLogQuery(q)
+			qq, err := logql.ParseLogQuery(q)
 			if err != nil {
 				m.problems = append(m.problems, err.Error())
 			} else {
