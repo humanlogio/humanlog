@@ -230,6 +230,15 @@ func (std *Stdio) ReceiveWithPostProcess(ctx context.Context, ev *typesv1.LogEve
 	kvs := make(map[string]string, len(data.Kvs))
 	for _, kv := range data.Kvs {
 		key := kv.Key
+		// value could be one of the following:
+		// - string
+		// - int64
+		// - float64
+		// - bool
+		// - time.Time
+		// - time.Duration
+		// - []any
+		// - map[string]any
 		value, err := logql.ResolveVal(kv.Value, logql.MakeFlatGoMap, logql.MakeFlatMapGoSlice)
 		if err != nil {
 			return err
@@ -249,7 +258,7 @@ func toString(value *typesv1.Val) (string, error) {
 	}
 	switch t := v.(type) {
 	case string:
-		return t, nil
+		return fmt.Sprintf("%q", t), nil
 	case int64:
 		return fmt.Sprintf("%d", t), nil
 	case float64:
@@ -257,9 +266,9 @@ func toString(value *typesv1.Val) (string, error) {
 	case bool:
 		return fmt.Sprintf("%t", t), nil
 	case time.Time:
-		return t.Format(time.RFC3339Nano), nil
+		return fmt.Sprintf("%q", t.Format(time.RFC3339Nano)), nil
 	case time.Duration:
-		return t.String(), nil
+		return fmt.Sprintf("%q", t.String()), nil
 	default:
 		return "", fmt.Errorf("unsupported type: %T", t)
 	}
@@ -268,7 +277,7 @@ func toString(value *typesv1.Val) (string, error) {
 func put(ref *map[string]string, key string, value any) {
 	switch t := value.(type) {
 	case string:
-		(*ref)[key] = t
+		(*ref)[key] = fmt.Sprintf("%q", t)
 	case int64:
 		(*ref)[key] = fmt.Sprintf("%d", t)
 	case float64:
@@ -276,9 +285,9 @@ func put(ref *map[string]string, key string, value any) {
 	case bool:
 		(*ref)[key] = fmt.Sprintf("%t", t)
 	case time.Time:
-		(*ref)[key] = t.Format(time.RFC3339Nano)
+		(*ref)[key] = fmt.Sprintf("%q", t.Format(time.RFC3339Nano))
 	case time.Duration:
-		(*ref)[key] = t.String()
+		(*ref)[key] = fmt.Sprintf("%q", t.String())
 	case map[string]any:
 		for k, v := range t {
 			put(ref, key+"."+k, v)

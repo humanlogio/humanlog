@@ -2,6 +2,7 @@ package stdiosink
 
 import (
 	"testing"
+	"time"
 
 	"github.com/humanlogio/api/go/pkg/logql"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
@@ -38,23 +39,25 @@ func TestPutKV(t *testing.T) {
 						typesv1.ValF64(float64(5.3)),
 						typesv1.ValBool(true),
 					),
+					typesv1.ValTime(time.Date(2024, 12, 13, 19, 36, 0, 0, time.UTC)),
 				),
 				))),
 			want: map[string]string{
-				"root.a":     "lorem",
+				"root.a":     "\"lorem\"",
 				"root.b":     "1",
 				"root.c":     "3.14",
 				"root.d":     "true",
-				"root.e.f":   "foo",
-				"root.g.0":   "bar",
+				"root.e.f":   "\"foo\"",
+				"root.g.0":   "\"bar\"",
 				"root.g.1":   "2",
 				"root.g.2":   "4.2",
 				"root.g.3":   "false",
-				"root.g.4.h": "baz",
-				"root.g.5.0": "qux",
+				"root.g.4.h": "\"baz\"",
+				"root.g.5.0": "\"qux\"",
 				"root.g.5.1": "3",
 				"root.g.5.2": "5.3",
 				"root.g.5.3": "true",
+				"root.g.6":   "\"2024-12-13T19:36:00Z\"",
 			},
 		},
 	}
