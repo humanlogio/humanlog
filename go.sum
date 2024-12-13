@@ -82,6 +82,8 @@ github.com/gsterjov/go-libsecret v0.0.0-20161001094733-a6f4afe4910c h1:6rhixN/i8
 github.com/gsterjov/go-libsecret v0.0.0-20161001094733-a6f4afe4910c/go.mod h1:NMPJylDgVpX0MLRlPy15sqSwOFv/U1GZ2m21JhFfek0=
 github.com/humanlogio/api/go v0.0.0-20241208082433-416862db1fa7 h1:lsiJGrN2E5qW6yvD6TKTAHa8lURmnh6KAuHvRfU8csU=
 github.com/humanlogio/api/go v0.0.0-20241208082433-416862db1fa7/go.mod h1:+hU/MU1g6QvtbeknKOlUI1yEStVqkPJ8jmYIj63OV5I=
+github.com/humanlogio/api/go v0.0.0-20241211090836-a1e1ce8a4f72 h1:68dDinP4+R4eaEaVXOCiZEwypLk3aUEw4gnF7QL+oH0=
+github.com/humanlogio/api/go v0.0.0-20241211090836-a1e1ce8a4f72/go.mod h1:pFt3YKuAVJk5nziOiKXTKyq5fj4aA9azq6xOx/932KQ=
 github.com/humanlogio/humanlog-pro v0.0.0-20241129104809-3580d74828a9 h1:tdUCzFh8qvnWNCmxub0KSj1lIiCeWqvRjsMSSIApneE=
 github.com/humanlogio/humanlog-pro v0.0.0-20241129104809-3580d74828a9/go.mod h1:zq05mTZQXvKheFiAGlPx6+VSo29jw2ER8oy8DIQKW2Q=
 github.com/klauspost/compress v1.17.9 h1:6KIumPrER1LHsvBVuDa0r5xaG0Es51mhhB9BQB2qeMA=
