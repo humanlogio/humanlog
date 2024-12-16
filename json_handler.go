@@ -110,7 +110,11 @@ func getFlattenedFields(v map[string]interface{}) map[string]*typesv1.Val {
 			}
 			extValues[key] = typesv1.ValStr(valTyped.String())
 		case string:
-			extValues[key] = typesv1.ValStr(valTyped)
+			if t, ok := tryParseTime(valTyped); ok {
+				extValues[key] = typesv1.ValTime(t)
+			} else {
+				extValues[key] = typesv1.ValStr(valTyped)
+			}
 		case bool:
 			extValues[key] = typesv1.ValBool(valTyped)
 		case []interface{}:
@@ -143,7 +147,11 @@ func getFlattenedArrayFields(data []interface{}) map[string]*typesv1.Val {
 				flattened[strconv.Itoa(i)] = typesv1.ValStr(vt.String())
 			}
 		case string:
-			flattened[strconv.Itoa(i)] = typesv1.ValStr(vt)
+			if t, ok := tryParseTime(vt); ok {
+				flattened[strconv.Itoa(i)] = typesv1.ValTime(t)
+			} else {
+				flattened[strconv.Itoa(i)] = typesv1.ValStr(vt)
+			}
 		case bool:
 			flattened[strconv.Itoa(i)] = typesv1.ValBool(vt)
 		case []interface{}:
@@ -223,7 +231,11 @@ func (h *JSONHandler) UnmarshalJSON(data []byte) bool {
 			}
 			h.Fields[key] = typesv1.ValStr(v.String())
 		case string:
-			h.Fields[key] = typesv1.ValStr(v)
+			if t, ok := tryParseTime(v); ok {
+				h.Fields[key] = typesv1.ValTime(t)
+			} else {
+				h.Fields[key] = typesv1.ValStr(v)
+			}
 		case bool:
 			h.Fields[key] = typesv1.ValBool(v)
 		case []interface{}:
