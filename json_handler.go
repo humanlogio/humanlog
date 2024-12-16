@@ -111,6 +111,8 @@ func getFlattenedFields(v map[string]interface{}) map[string]*typesv1.Val {
 			extValues[key] = typesv1.ValStr(valTyped.String())
 		case string:
 			extValues[key] = typesv1.ValStr(valTyped)
+		case bool:
+			extValues[key] = typesv1.ValBool(valTyped)
 		case []interface{}:
 			flattenedArrayFields := getFlattenedArrayFields(valTyped)
 			for k, v := range flattenedArrayFields {
@@ -142,6 +144,8 @@ func getFlattenedArrayFields(data []interface{}) map[string]*typesv1.Val {
 			}
 		case string:
 			flattened[strconv.Itoa(i)] = typesv1.ValStr(vt)
+		case bool:
+			flattened[strconv.Itoa(i)] = typesv1.ValBool(vt)
 		case []interface{}:
 			flattenedArrayFields := getFlattenedArrayFields(vt)
 			for k, v := range flattenedArrayFields {
@@ -220,6 +224,8 @@ func (h *JSONHandler) UnmarshalJSON(data []byte) bool {
 			h.Fields[key] = typesv1.ValStr(v.String())
 		case string:
 			h.Fields[key] = typesv1.ValStr(v)
+		case bool:
+			h.Fields[key] = typesv1.ValBool(v)
 		case []interface{}:
 			flattenedArrayFields := getFlattenedArrayFields(v)
 			for k, v := range flattenedArrayFields {
