@@ -165,7 +165,7 @@ func TestJsonHandler_TryHandle_LargeNumbers(t *testing.T) {
 		t.Fatalf("failed to handle log")
 	}
 	require.Equal(t, 1.2345, h.Fields["storage.some.float"].GetF64())
-	require.Equal(t, 1730187806608637000, h.Fields["storage.session.id"].GetI64())
+	require.Equal(t, int64(1730187806608637000), h.Fields["storage.session.id"].GetI64())
 }
 
 func TestJsonHandler_TryHandle_FlattendArrayFields(t *testing.T) {
@@ -190,13 +190,13 @@ func TestJsonHandler_TryHandle_FlattenedArrayFields_NestedArray(t *testing.T) {
 	if !handler.TryHandle(raw, ev) {
 		t.Fatalf("failed to handle log")
 	}
-	require.Equal(t, "1", handler.Fields["peers.0.0"].GetI64())
-	require.Equal(t, "2", handler.Fields["peers.0.1"].GetI64())
-	require.Equal(t, "3.14", handler.Fields["peers.0.2"].GetF64())
-	require.Equal(t, "4", handler.Fields["peers.1.0"].GetI64())
-	require.Equal(t, "50.55", handler.Fields["peers.1.1"].GetF64())
-	require.Equal(t, "6", handler.Fields["peers.1.2.0"].GetI64())
-	require.Equal(t, "7", handler.Fields["peers.1.2.1"].GetI64())
+	require.Equal(t, int64(1), handler.Fields["peers.0.0"].GetI64())
+	require.Equal(t, int64(2), handler.Fields["peers.0.1"].GetI64())
+	require.Equal(t, float64(3.14), handler.Fields["peers.0.2"].GetF64())
+	require.Equal(t, int64(4), handler.Fields["peers.1.0"].GetI64())
+	require.Equal(t, float64(50.55), handler.Fields["peers.1.1"].GetF64())
+	require.Equal(t, int64(6), handler.Fields["peers.1.2.0"].GetI64())
+	require.Equal(t, int64(7), handler.Fields["peers.1.2.1"].GetI64())
 	require.Equal(t, "hello", handler.Fields["peers.2.0"].GetStr())
 	require.Equal(t, "world", handler.Fields["peers.2.1"].GetStr())
 	require.Equal(t, "bar", handler.Fields["peers.3.foo"].GetStr())
