@@ -94,15 +94,15 @@ func TestLargePayload(t *testing.T) {
 func TestFlatteningNestedObjects_with_a_big_number(t *testing.T) {
 
 	ctx := context.Background()
-	payload := `{"time":"2024-10-29T16:45:54.384776+09:00","level":"DEBUG","source":{"function":"github.com/humanlogio/humanlog/internal/memstorage.(*MemStorageSink).firstMatch","file":"/Users/antoine/code/src/github.com/humanlogio/humanlog/internal/memstorage/memory.go","line":243},"msg":"first match found at index","storage":{"machine.id":5089,"session.id":1730187806608637000,"i":0}}`
+	payload := `{"time":"2024-10-29T16:45:54.384776Z","level":"DEBUG","source":{"function":"github.com/humanlogio/humanlog/internal/memstorage.(*MemStorageSink).firstMatch","file":"/Users/antoine/code/src/github.com/humanlogio/humanlog/internal/memstorage/memory.go","line":243},"msg":"first match found at index","storage":{"machine.id":5089,"session.id":1730187806608637000,"i":0}}`
 
 	now := time.Date(2024, 11, 26, 4, 0, 0, 0, time.UTC)
 	want := []*typesv1.LogEvent{
 		{
 			ParsedAt: timestamppb.New(now),
-			Raw:      []byte(`{"time":"2024-10-29T16:45:54.384776+09:00","level":"DEBUG","source":{"function":"github.com/humanlogio/humanlog/internal/memstorage.(*MemStorageSink).firstMatch","file":"/Users/antoine/code/src/github.com/humanlogio/humanlog/internal/memstorage/memory.go","line":243},"msg":"first match found at index","storage":{"machine.id":5089,"session.id":1730187806608637000,"i":0}}`),
+			Raw:      []byte(`{"time":"2024-10-29T16:45:54.384776Z","level":"DEBUG","source":{"function":"github.com/humanlogio/humanlog/internal/memstorage.(*MemStorageSink).firstMatch","file":"/Users/antoine/code/src/github.com/humanlogio/humanlog/internal/memstorage/memory.go","line":243},"msg":"first match found at index","storage":{"machine.id":5089,"session.id":1730187806608637000,"i":0}}`),
 			Structured: &typesv1.StructuredLogEvent{
-				Timestamp: timestamppb.New(time.Date(2024, 10, 29, 16, 45, 54, 384776000, time.Local)),
+				Timestamp: timestamppb.New(time.Date(2024, 10, 29, 16, 45, 54, 384776000, time.UTC)),
 				Lvl:       "DEBUG",
 				Msg:       "first match found at index",
 				Kvs: []*typesv1.KV{
