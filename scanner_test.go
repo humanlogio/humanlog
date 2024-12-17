@@ -163,7 +163,7 @@ func TestFlatteningNestedObjects_simple(t *testing.T) {
 				Kvs: []*typesv1.KV{
 					{
 						Key:   "storage.from",
-						Value: typesv1.ValTime(time.Date(2024, 10, 29, 5, 47, 0, 0, time.UTC)),
+						Value: typesv1.ValStr(time.Date(2024, 10, 29, 5, 47, 0, 0, time.UTC).Format(time.RFC3339)),
 					},
 				},
 			},
