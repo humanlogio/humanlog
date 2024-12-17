@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/fatih/color"
+	"github.com/humanlogio/api/go/pkg/logql"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
 	"github.com/humanlogio/humanlog/internal/pkg/config"
 	"github.com/humanlogio/humanlog/pkg/sink"
@@ -228,12 +229,63 @@ func (std *Stdio) ReceiveWithPostProcess(ctx context.Context, ev *typesv1.LogEve
 
 	kvs := make(map[string]string, len(data.Kvs))
 	for _, kv := range data.Kvs {
-		kvs[kv.Key] = kv.Value
+		key := kv.Key
+		value, err := logql.ResolveVal(kv.Value, logql.MakeFlatGoMap, logql.MakeFlatMapGoSlice)
+		if err != nil {
+			return err
+		}
+		put(&kvs, key, value)
 	}
 	std.lastRaw = false
 	std.lastLevel = ev.Structured.Lvl
 	std.lastKVs = kvs
 	return nil
+}
+
+func toString(value *typesv1.Val) (string, error) {
+	v, err := logql.ResolveVal(value, nil, nil)
+	if err != nil {
+		return "", err
+	}
+	switch t := v.(type) {
+	case string:
+		return t, nil
+	case int64:
+		return fmt.Sprintf("%d", t), nil
+	case float64:
+		return fmt.Sprintf("%g", t), nil
+	case bool:
+		return fmt.Sprintf("%t", t), nil
+	case time.Time:
+		return t.Format(time.RFC3339Nano), nil
+	case time.Duration:
+		return t.String(), nil
+	default:
+		return "", fmt.Errorf("unsupported type: %T", t)
+	}
+}
+
+func put(ref *map[string]string, key string, value any) {
+	switch t := value.(type) {
+	case string:
+		(*ref)[key] = t
+	case int64:
+		(*ref)[key] = fmt.Sprintf("%d", t)
+	case float64:
+		(*ref)[key] = fmt.Sprintf("%g", t)
+	case bool:
+		(*ref)[key] = fmt.Sprintf("%t", t)
+	case time.Time:
+		(*ref)[key] = t.Format(time.RFC3339Nano)
+	case time.Duration:
+		(*ref)[key] = t.String()
+	case map[string]any:
+		for k, v := range t {
+			put(ref, key+"."+k, v)
+		}
+	default:
+		(*ref)[key] = fmt.Sprintf("%v", t)
+	}
 }
 
 func (std *Stdio) joinKVs(data *typesv1.StructuredLogEvent, sep string) []string {
@@ -246,19 +298,23 @@ func (std *Stdio) joinKVs(data *typesv1.StructuredLogEvent, sep string) []string
 		if !std.opts.shouldShowKey(k) {
 			continue
 		}
+		w, err := toString(v)
+		if err != nil {
+			continue
+		}
 
 		if skipUnchanged {
-			if lastV, ok := std.lastKVs[k]; ok && lastV == v && !std.opts.shouldShowUnchanged(k) {
+			if lastV, ok := std.lastKVs[k]; ok && lastV == w && !std.opts.shouldShowUnchanged(k) {
 				continue
 			}
 		}
 		kstr := std.opts.Palette.KeyColor.Sprint(k)
 
 		var vstr string
-		if std.opts.Truncates && len(v) > std.opts.TruncateLength {
-			vstr = v[:std.opts.TruncateLength] + "..."
+		if std.opts.Truncates && len(w) > std.opts.TruncateLength {
+			vstr = w[:std.opts.TruncateLength] + "..."
 		} else {
-			vstr = v
+			vstr = w
 		}
 		vstr = std.opts.Palette.ValColor.Sprint(vstr)
 		kv = append(kv, kstr+sep+vstr)

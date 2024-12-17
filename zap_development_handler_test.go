@@ -229,7 +229,7 @@ func Test_tryZapDevPrefix(t *testing.T) {
 func findFieldValue(ev *typesv1.StructuredLogEvent, field string) string {
 	for _, kv := range ev.Kvs {
 		if kv.Key == field {
-			return kv.Value
+			return kv.Value.GetStr()
 		}
 	}
 	return ""

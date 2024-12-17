@@ -16,14 +16,14 @@ type LogfmtHandler struct {
 	Level   string
 	Time    time.Time
 	Message string
-	Fields  map[string]string
+	Fields  map[string]*typesv1.Val
 }
 
 func (h *LogfmtHandler) clear() {
 	h.Level = ""
 	h.Time = time.Time{}
 	h.Message = ""
-	h.Fields = make(map[string]string)
+	h.Fields = make(map[string]*typesv1.Val)
 }
 
 // CanHandle tells if this line can be handled by this handler.
@@ -47,7 +47,7 @@ func (h *LogfmtHandler) TryHandle(d []byte, out *typesv1.StructuredLogEvent) boo
 // HandleLogfmt sets the fields of the handler.
 func (h *LogfmtHandler) UnmarshalLogfmt(data []byte) bool {
 	if h.Fields == nil {
-		h.Fields = make(map[string]string)
+		h.Fields = make(map[string]*typesv1.Val)
 	}
 	dec := logfmt.NewDecoder(bytes.NewReader(data))
 	for dec.ScanRecord() {
@@ -97,7 +97,7 @@ func (h *LogfmtHandler) UnmarshalLogfmt(data []byte) bool {
 				}
 			}
 
-			h.Fields[string(key)] = string(val)
+			h.Fields[string(key)] = typesv1.ValStr(string(val))
 		}
 	}
 	return dec.Err() == nil

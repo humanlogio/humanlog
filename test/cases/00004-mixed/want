@@ -1,4 +1,4 @@
 Aug 10 03:03:24 |INFO| Started Worker Namespace=runtime TaskQueue=runtimed
 Aug 10 03:05:19 |ERRO| processing job error=worker error from receive: twirp error internal: failed to do request: Post "http://localhost:18081/twirp/aqueduct.api.v1.JobQueueService/Receive": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
 Aug 10 03:06:20 |DEBU| inbound request twirp_svc=ManagementsAPI twirp_method=GetEnableStatus twirp_req=*managements.GetEnableStatusRequest
-Aug 10 03:03:18 |INFO| temporal-sys-tq-scanner-workflow workflow successfully started service="worker" logging-call-at="scanner.go:202"
+Aug 10 03:03:18 |INFO| temporal-sys-tq-scanner-workflow workflow successfully started service=worker logging-call-at=scanner.go:202
