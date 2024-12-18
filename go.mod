@@ -21,8 +21,8 @@ require (
 	github.com/go-logfmt/logfmt v0.5.1
 	github.com/google/go-cmp v0.6.0
 	github.com/google/uuid v1.6.0
-	github.com/humanlogio/api/go v0.0.0-20241211090836-a1e1ce8a4f72
-	github.com/humanlogio/humanlog-pro v0.0.0-20241129104809-3580d74828a9
+	github.com/humanlogio/api/go v0.0.0-20241216091509-0fcc02eed938
+	github.com/humanlogio/humanlog-pro v0.0.0-20241217115348-251a98ffde3c
 	github.com/kr/logfmt v0.0.0-20210122060352-19f9bcb100e6
 	github.com/lrstanley/bubblezone v0.0.0-20240914071701-b48c55a5e78e
 	github.com/matoous/go-nanoid v1.5.0
@@ -87,3 +87,5 @@ require (
 	golang.org/x/xerrors v0.0.0-20231012003039-104605ab7028 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+// replace github.com/humanlogio/api/go => ../api/go
