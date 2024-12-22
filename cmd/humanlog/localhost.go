@@ -101,6 +101,13 @@ func startLocalhostServer(
 	hdl = withCORS(hdl)
 
 	srv := http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if r := recover(); r != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				fmt.Fprintf(w, "oh noes the sky is falling")
+				ll.ErrorContext(ctx, "handler panicked!", slog.Any("panic", r))
+			}
+		}()
 		hdl.ServeHTTP(w, r)
 	})}
 
