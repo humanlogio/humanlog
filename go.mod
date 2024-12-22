@@ -21,7 +21,7 @@ require (
 	github.com/go-logfmt/logfmt v0.5.1
 	github.com/google/go-cmp v0.6.0
 	github.com/google/uuid v1.6.0
-	github.com/humanlogio/api/go v0.0.0-20241222094300-0b4f4b67d589
+	github.com/humanlogio/api/go v0.0.0-20241222135339-d80f3e9c70c3
 	github.com/humanlogio/humanlog-pro v0.0.0-20241222102640-7d8e5c5aa73f
 	github.com/kr/logfmt v0.0.0-20210122060352-19f9bcb100e6
 	github.com/lrstanley/bubblezone v0.0.0-20240914071701-b48c55a5e78e
@@ -89,3 +89,5 @@ require (
 )
 
 // replace github.com/humanlogio/api/go => ../api/go
+
+// replace github.com/humanlogio/humanlog-pro => ../humanlog-pro
