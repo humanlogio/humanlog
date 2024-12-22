@@ -274,15 +274,22 @@ func (svc *Service) SummarizeEvents(ctx context.Context, req *connect.Request[qr
 }
 func (svc *Service) WatchQuery(ctx context.Context, req *connect.Request[qrv1.WatchQueryRequest], stream *connect.ServerStream[qrv1.WatchQueryResponse]) error {
 	query := req.Msg.GetQuery()
-	if query == nil {
+	if query == nil || query.Query == nil {
 		if req.Msg.PlaintextQuery == nil {
 			return connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("need either a `query` object or a `plaintext_query` string"))
 		}
 		var err error
-		query, err = logql.Parse(req.Msg.PlaintextQuery.Query)
+		q, err := logql.Parse(req.Msg.PlaintextQuery.Query)
 		if err != nil {
 			return connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("parsing `plaintext_query`: %v", err))
 		}
+		if query != nil && query.From != nil && q.From == nil {
+			q.From = query.From
+		}
+		if query != nil && query.To != nil && q.To == nil {
+			q.To = query.To
+		}
+		query = q
 	}
 
 	ll := svc.ll.With(
