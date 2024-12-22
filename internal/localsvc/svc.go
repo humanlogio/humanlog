@@ -292,9 +292,7 @@ func (svc *Service) WatchQuery(ctx context.Context, req *connect.Request[qrv1.Wa
 		query = q
 	}
 
-	ll := svc.ll.With(
-		slog.String("query.query", query.Query.String()),
-	)
+	ll := svc.ll.With(slog.String("query.query", query.Query.String()))
 
 	if query.From != nil {
 		ll = ll.With(slog.String("query.from", query.From.AsTime().Format(time.RFC3339Nano)))
