@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"github.com/humanlogio/api/go/pkg/logql"
 	igv1 "github.com/humanlogio/api/go/svc/ingest/v1"
 	igsvcpb "github.com/humanlogio/api/go/svc/ingest/v1/ingestv1connect"
 	lhv1 "github.com/humanlogio/api/go/svc/localhost/v1"
@@ -273,10 +274,21 @@ func (svc *Service) SummarizeEvents(ctx context.Context, req *connect.Request[qr
 }
 func (svc *Service) WatchQuery(ctx context.Context, req *connect.Request[qrv1.WatchQueryRequest], stream *connect.ServerStream[qrv1.WatchQueryResponse]) error {
 	query := req.Msg.GetQuery()
+	if query == nil {
+		if req.Msg.PlaintextQuery == nil {
+			return connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("need either a `query` object or a `plaintext_query` string"))
+		}
+		var err error
+		query, err = logql.Parse(req.Msg.PlaintextQuery.Query)
+		if err != nil {
+			return connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("parsing `plaintext_query`: %v", err))
+		}
+	}
 
 	ll := svc.ll.With(
 		slog.String("query.query", query.Query.String()),
 	)
+
 	if query.From != nil {
 		ll = ll.With(slog.String("query.from", query.From.AsTime().Format(time.RFC3339Nano)))
 	}

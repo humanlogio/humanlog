@@ -53,7 +53,7 @@ func (m *QueryBar) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		if key.Matches(msg, m.submitQuery) {
 			q := m.textArea.Value()
-			qq, err := logql.ParseLogQuery(q)
+			qq, err := logql.Parse(q)
 			if err != nil {
 				m.problems = append(m.problems, err.Error())
 			} else {

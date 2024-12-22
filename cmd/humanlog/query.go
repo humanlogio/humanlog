@@ -331,7 +331,7 @@ func queryApiWatchCmd(
 			if state.CurrentEnvironmentID != nil {
 				environmentID = *state.CurrentEnvironmentID
 			}
-			lq, err := logql.ParseLogQuery(query)
+			lq, err := logql.Parse(query)
 			if err != nil {
 				return fmt.Errorf("parsing query: %v", err)
 			}
