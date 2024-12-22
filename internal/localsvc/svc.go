@@ -303,32 +303,8 @@ func (svc *Service) WatchQuery(ctx context.Context, req *connect.Request[qrv1.Wa
 		ll = ll.With(slog.String("query.to", query.To.AsTime().Format(time.RFC3339Nano)))
 	}
 
-	// ticker := time.NewTicker(time.Second)
-	// defer ticker.Stop()
-	// for i := 0; ; i++ {
-	// 	select {
-	// 	case now := <-ticker.C:
-
-	// 		err := stream.Send(&qrv1.WatchQueryResponse{
-	// 			Events: []*typesv1.LogEventGroup{
-	// 				{
-	// 					MachineId: 1,
-	// 					SessionId: 1,
-	// 					Logs: []*typesv1.LogEvent{
-	// 						{ParsedAt: timestamppb.New(now), Raw: []byte(fmt.Sprintf("it's now %d o-clock", now.Hour()))},
-	// 					},
-	// 				},
-	// 			},
-	// 		})
-	// 		ll.DebugContext(ctx, "send a message group", slog.Any("err", err))
-
-	// 	case <-ctx.Done():
-	// 		return nil
-	// 	}
-	// }
-
 	ll.DebugContext(ctx, "running query through storage")
-	cursors, err := svc.storage.Query(ctx, req.Msg.Query)
+	cursors, err := svc.storage.Query(ctx, query)
 	if err != nil {
 		return connect.NewError(connect.CodeInternal, fmt.Errorf("querying local storage: %v", err))
 	}

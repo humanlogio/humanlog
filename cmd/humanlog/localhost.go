@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"runtime/debug"
 	"strconv"
 	"sync"
 	"time"
@@ -104,8 +105,8 @@ func startLocalhostServer(
 		defer func() {
 			if r := recover(); r != nil {
 				w.WriteHeader(http.StatusInternalServerError)
-				fmt.Fprintf(w, "oh noes the sky is falling")
-				ll.ErrorContext(ctx, "handler panicked!", slog.Any("panic", r))
+				fmt.Fprintf(w, "oh noes the sky is falling\n\n%s", string(debug.Stack()))
+				panic(r)
 			}
 		}()
 		hdl.ServeHTTP(w, r)
