@@ -17,7 +17,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/term"
 	"github.com/crazy3lf/colorconv"
-	"github.com/humanlogio/api/go/pkg/logql"
 	"github.com/humanlogio/api/go/svc/environment/v1/environmentv1connect"
 	"github.com/humanlogio/api/go/svc/organization/v1/organizationv1connect"
 	queryv1 "github.com/humanlogio/api/go/svc/query/v1"
@@ -331,42 +330,70 @@ func queryApiWatchCmd(
 			if state.CurrentEnvironmentID != nil {
 				environmentID = *state.CurrentEnvironmentID
 			}
-			lq, err := logql.Parse(query)
+			parseRes, err := queryClient.Parse(ctx, connect.NewRequest(&queryv1.ParseRequest{Query: query}))
 			if err != nil {
 				return fmt.Errorf("parsing query: %v", err)
 			}
-			req := &queryv1.WatchQueryRequest{
-				EnvironmentId: environmentID,
-				Query: &typesv1.LogQuery{
-					From:  from,
-					To:    to,
-					Query: lq.Query,
-				},
+			lq := parseRes.Msg.Query
+
+			if lq.Timerange == nil {
+				lq.Timerange = new(typesv1.Timerange)
 			}
-			res, err := queryClient.WatchQuery(ctx, connect.NewRequest(req))
-			if err != nil {
-				return fmt.Errorf("calling WatchQuery: %v", err)
+			if lq.Timerange.From == nil && from != nil {
+				lq.Timerange.From = typesv1.ExprLiteral(typesv1.ValTimestamp(from))
 			}
-			defer res.Close()
+			if lq.Timerange.To == nil && to != nil {
+				lq.Timerange.To = typesv1.ExprLiteral(typesv1.ValTimestamp(to))
+			}
 
 			sink := stdiosink.NewStdio(os.Stdout, sinkOpts)
+			var (
+				limit = int32(10)
+				req   = &queryv1.QueryRequest{
+					EnvironmentId: environmentID,
+					Query:         lq,
+					Cursor:        nil,
+					Limit:         limit,
+				}
+			)
+			for {
 
-			for res.Receive() {
-				events := res.Msg().Events
-				for _, leg := range events {
-					prefix := getPrefix(leg.MachineId, leg.SessionId)
+				res, err := queryClient.Query(ctx, connect.NewRequest(req))
+				if err != nil {
+					return fmt.Errorf("calling Query: %v", err)
+				}
+				data := res.Msg.Data
+				var events []*typesv1.IngestedLogEvent
+				switch shape := data.Shape.(type) {
+				case *typesv1.Data_Tabular:
+					switch tshape := shape.Tabular.Shape.(type) {
+					case *typesv1.Tabular_LogEvents:
+						events = tshape.LogEvents.Events
+					default:
+						return fmt.Errorf("todo: handle data shape %T", tshape)
+					}
+				default:
+					return fmt.Errorf("todo: handle data shape %T", shape)
+				}
+
+				for _, ev := range events {
+					prefix := getPrefix(ev.MachineId, ev.SessionId)
 					postProcess := func(pattern string) string {
 						return prefix + pattern
 					}
-					for _, ev := range leg.Logs {
-						if err := sink.ReceiveWithPostProcess(ctx, ev, postProcess); err != nil {
-							return fmt.Errorf("printing log: %v", err)
-						}
+					ev := &typesv1.LogEvent{
+						ParsedAt:   ev.ParsedAt,
+						Raw:        ev.Raw,
+						Structured: ev.Structured,
+					}
+					if err := sink.ReceiveWithPostProcess(ctx, ev, postProcess); err != nil {
+						return fmt.Errorf("printing log: %v", err)
 					}
 				}
-			}
-			if err := res.Err(); err != nil {
-				return fmt.Errorf("querying: %v", err)
+				if res.Msg.Next == nil {
+					break
+				}
+				req.Cursor = res.Msg.Next
 			}
 			return nil
 		},

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"slices"
 	"time"
 
 	"connectrpc.com/connect"
@@ -19,7 +18,6 @@ import (
 	"github.com/humanlogio/humanlog/internal/pkg/state"
 	"github.com/humanlogio/humanlog/pkg/localstorage"
 	"github.com/humanlogio/humanlog/pkg/sink"
-	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -213,260 +211,78 @@ func (svc *Service) SummarizeEvents(ctx context.Context, req *connect.Request[qr
 		slog.Int("environment_id", int(req.Msg.EnvironmentId)),
 	)
 
-	cursors, err := svc.storage.Query(ctx, &typesv1.LogQuery{
-		From: req.Msg.From,
-		To:   req.Msg.To,
-	})
+	data, _, err := svc.storage.Query(ctx, &typesv1.LogQuery{
+		Timerange: &typesv1.Timerange{
+			From: typesv1.ExprLiteral(typesv1.ValTimestamp(req.Msg.From)),
+			To:   typesv1.ExprLiteral(typesv1.ValTimestamp(req.Msg.To)),
+		},
+		Query: &typesv1.Statements{
+			Statements: []*typesv1.Statement{
+				{
+					Stmt: &typesv1.Statement_Summarize{
+						Summarize: &typesv1.SummarizeOperator{
+							AggregateFunction: &typesv1.FuncCall{Name: "count"},
+							By: &typesv1.SummarizeOperator_ByOperator{Scalars: []*typesv1.Expr{
+								typesv1.ExprIdentifier("ts"),
+							}},
+						},
+					},
+				},
+			},
+		},
+	}, nil, int(req.Msg.BucketCount))
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("summarizing local storage: %v", err))
 	}
-	ll = ll.With(slog.Int("cursor_len", len(cursors)))
-	ll.DebugContext(ctx, "queried, got cursors")
+	ll.DebugContext(ctx, "queried")
 
-	from := req.Msg.From.AsTime()
-	to := req.Msg.To.AsTime()
-	width := to.Sub(from) / time.Duration(req.Msg.BucketCount)
+	shape, ok := data.Shape.(*typesv1.Data_ScalarTimeseries)
+	if !ok {
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("expected scalar timeseries, got %T", data.Shape))
+	}
+	sts := shape.ScalarTimeseries
 
-	type bucket struct {
-		ts    time.Time
-		count int
-	}
-	var buckets []bucket
-	for now := from; now.Before(to) || now.Equal(to); now = now.Add(width) {
-		buckets = append(buckets, bucket{ts: now})
-	}
-	ll = ll.With(slog.Duration("width", width))
-
-	for cursor := range cursors {
-		for cursor.Next(ctx) {
-			ev := new(typesv1.LogEvent)
-			if err := cursor.Event(ev); err != nil {
-				return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("scanning events: %v", err))
-			}
-			ts := ev.ParsedAt.AsTime().Truncate(width)
-			loc, _ := slices.BinarySearchFunc(buckets, ts, func(a bucket, t time.Time) int {
-				return a.ts.Compare(t)
-			})
-			buckets[loc].count++
-		}
-		if err := cursor.Err(); err != nil {
-			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("counting summary: %v", err))
-		}
-		if err := cursor.Close(); err != nil {
-			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("closing cursor: %v", err))
-		}
-	}
-	ll.DebugContext(ctx, "iterated all cursors")
-	out := &qrv1.SummarizeEventsResponse{
-		BucketWidth: durationpb.New(width),
-	}
-	for _, bucket := range buckets {
-		if bucket.count == 0 {
-			continue
+	out := &qrv1.SummarizeEventsResponse{}
+	for _, bucket := range sts.Scalars {
+		v, ok := bucket.Scalar.Kind.(*typesv1.Scalar_I64)
+		if !ok {
+			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("expected timeseries of i64, got %T", bucket.Scalar.Kind))
 		}
 		out.Buckets = append(out.Buckets, &qrv1.SummarizeEventsResponse_Bucket{
-			Ts:         timestamppb.New(bucket.ts),
-			EventCount: uint64(bucket.count),
+			Ts:         bucket.Ts,
+			EventCount: uint64(v.I64),
 		})
 	}
 	ll.DebugContext(ctx, "non-zero buckets filled", slog.Int("buckets_len", len(out.Buckets)))
 	return connect.NewResponse(out), nil
 }
+
 func (svc *Service) WatchQuery(ctx context.Context, req *connect.Request[qrv1.WatchQueryRequest], stream *connect.ServerStream[qrv1.WatchQueryResponse]) error {
+	return connect.NewError(connect.CodeUnimplemented, fmt.Errorf("watching queries is going away for now"))
+}
+
+func (svc *Service) Parse(ctx context.Context, req *connect.Request[qrv1.ParseRequest]) (*connect.Response[qrv1.ParseResponse], error) {
 	query := req.Msg.GetQuery()
-	if query == nil || query.Query == nil {
-		if req.Msg.PlaintextQuery == nil {
-			return connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("need either a `query` object or a `plaintext_query` string"))
-		}
-		var err error
-		q, err := logql.Parse(req.Msg.PlaintextQuery.Query)
-		if err != nil {
-			return connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("parsing `plaintext_query`: %v", err))
-		}
-		if query != nil && query.From != nil && q.From == nil {
-			q.From = query.From
-		}
-		if query != nil && query.To != nil && q.To == nil {
-			q.To = query.To
-		}
-		query = q
-	}
-
-	ll := svc.ll.With(slog.String("query.query", query.Query.String()))
-
-	if query.From != nil {
-		ll = ll.With(slog.String("query.from", query.From.AsTime().Format(time.RFC3339Nano)))
-	}
-	if query.To != nil {
-		ll = ll.With(slog.String("query.to", query.To.AsTime().Format(time.RFC3339Nano)))
-	}
-
-	ll.DebugContext(ctx, "running query through storage")
-	cursors, err := svc.storage.Query(ctx, query)
+	q, err := logql.Parse(query)
 	if err != nil {
-		return connect.NewError(connect.CodeInternal, fmt.Errorf("querying local storage: %v", err))
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("parsing `query`: %v", err))
 	}
-	ll.DebugContext(ctx, "received cursors", slog.Int("cursor_len", len(cursors)))
+	out := &qrv1.ParseResponse{Query: q}
+	return connect.NewResponse(out), nil
+}
 
-	legc := make(chan *typesv1.LogEventGroup)
-
-	iterateCursor := func(ctx context.Context, cursor localstorage.Cursor) error {
-		defer func() {
-			_ = cursor.Close()
-		}()
-		var (
-			lastSend             = time.Now()
-			machineID, sessionID = cursor.IDs()
-			evs                  []*typesv1.LogEvent
-		)
-		ll := ll.With(
-			slog.Int64("machine_id", machineID),
-			slog.Int64("session_id", sessionID),
-		)
-		for cursor.Next(ctx) {
-			ev := new(typesv1.LogEvent)
-			if err := cursor.Event(ev); err != nil {
-				return err
-			}
-			evs = append(evs, ev)
-			now := time.Now()
-			if now.Sub(lastSend) > 100*time.Millisecond {
-				ll.DebugContext(ctx, "cursor batch sent", slog.Int("batch_len", len(evs)))
-				lastSend = now
-				select {
-				case legc <- &typesv1.LogEventGroup{
-					MachineId: machineID,
-					SessionId: sessionID,
-					Logs:      evs,
-				}:
-				case <-ctx.Done():
-					return nil
-				}
-				evs = evs[:0]
-			}
-		}
-		if err := cursor.Err(); err != nil {
-			ll.ErrorContext(ctx, "failed to advance query cursor", slog.Any("err", err))
-		}
-		ll.DebugContext(ctx, "cursor done, sending last batch", slog.Int("batch_len", len(evs)))
-		select {
-		case <-ctx.Done():
-			return nil
-		default:
-
-		}
-		select {
-		case legc <- &typesv1.LogEventGroup{
-			MachineId: machineID,
-			SessionId: sessionID,
-			Logs:      evs,
-		}:
-		case <-ctx.Done():
-		}
-		return nil
+func (svc *Service) Query(ctx context.Context, req *connect.Request[qrv1.QueryRequest]) (*connect.Response[qrv1.QueryResponse], error) {
+	query := req.Msg.GetQuery()
+	if query == nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("required: `query`"))
 	}
-
-	allCursorsStarted := make(chan struct{})
-
-	cursorCtx, cancelCursors := context.WithCancel(ctx)
-	defer cancelCursors()
-	eg, cursorCtx := errgroup.WithContext(cursorCtx)
-	go func() {
-		defer close(allCursorsStarted)
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case cursor, more := <-cursors:
-				if !more {
-					return
-				}
-				eg.Go(func() error { return iterateCursor(cursorCtx, cursor) })
-			}
-		}
-	}()
-
-	doneSending := make(chan struct{})
-	go func() {
-		defer func() {
-			close(doneSending)
-			cancelCursors()
-		}()
-		var (
-			sender = time.NewTicker(100 * time.Millisecond)
-			legs   []*typesv1.LogEventGroup
-		)
-		defer sender.Stop()
-
-		ll.DebugContext(ctx, "accumulator: starting accumulation loop")
-		defer func() {
-			ll.DebugContext(ctx, "accumulator: done accumulating")
-			if len(legs) > 0 {
-				err = stream.Send(&qrv1.WatchQueryResponse{
-					Events: legs,
-				})
-				if err != nil {
-					ll.ErrorContext(ctx, "accumulator: failed to send response", slog.Any("err", err))
-					return
-				}
-			}
-		}()
-	wait_for_more_leg:
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case leg, more := <-legc:
-				if !more {
-					break wait_for_more_leg
-				}
-				// try to append to an existing LEG first
-				ll.DebugContext(ctx, "accumulator: received cursor batch", slog.Int("leg_count", len(legs)))
-				for _, eleg := range legs {
-					if eleg != nil && leg != nil && eleg.MachineId == leg.MachineId &&
-						eleg.SessionId == leg.SessionId {
-						ll.DebugContext(ctx, "accumulator: appending to existing log event group")
-						eleg.Logs = append(eleg.Logs, leg.Logs...)
-						continue wait_for_more_leg
-					}
-				}
-				// didn't have an existing LEG for it, add it
-				if leg != nil {
-					ll.DebugContext(ctx, "accumulator: creating new log event group")
-					legs = append(legs, leg)
-				}
-			case <-sender.C:
-				if len(legs) < 1 {
-					continue
-				}
-				ll.DebugContext(ctx, "accumulator: sending watch query response")
-				err := stream.Send(&qrv1.WatchQueryResponse{
-					Events: legs,
-				})
-				legs = legs[:0]
-				if err != nil {
-					ll.ErrorContext(ctx, "accumulator: failed to send response", slog.Any("err", err))
-					return
-				}
-			}
-		}
-	}()
-
-	ll.DebugContext(ctx, "accumulator: streaming started")
-	select {
-	case <-allCursorsStarted:
-		err = eg.Wait()
-	case <-ctx.Done():
-	}
-	ll.DebugContext(ctx, "accumulator: all data consumed, finishing")
-	close(legc)
+	data, cursor, err := svc.storage.Query(ctx, query, req.Msg.Cursor, int(req.Msg.Limit))
 	if err != nil {
-		return connect.NewError(connect.CodeInternal, fmt.Errorf("streaming localhost log for query: %v", err))
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("querying local storage: %v", err))
 	}
-	select {
-	case <-ctx.Done():
-	case <-doneSending:
+	out := &qrv1.QueryResponse{
+		Next: cursor,
+		Data: data,
 	}
-	ll.DebugContext(ctx, "accumulator: finished")
-	return nil
+	return connect.NewResponse(out), nil
 }
