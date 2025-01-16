@@ -6,7 +6,9 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/humanlogio/api/go/pkg/logql"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
+	"github.com/humanlogio/humanlog/pkg/sink"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -15,263 +17,196 @@ import (
 func RunTest(t *testing.T, constructor func(t *testing.T) Storage) {
 	tests := []struct {
 		name    string
-		q       *typesv1.LogQuery
+		q       string
+		limit   int
 		waitFor time.Duration
-		input   []*typesv1.LogEventGroup
-		want    []*typesv1.LogEventGroup
+		input   []*typesv1.IngestedLogEvent
+		want    []*typesv1.Data
 	}{
 		{
-			name: "nothing",
-			q: &typesv1.LogQuery{
-				To: timestamppb.New(musttime("2006-01-02T15:04:06.000")),
+			name:  "nothing",
+			q:     `{from==2006-01-02T15:04:06.000}`,
+			limit: 4,
+			input: []*typesv1.IngestedLogEvent{
+				{MachineId: 1, SessionId: 2, EventId: 1, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.001")), Raw: []byte("hello world 1")},
+				{MachineId: 1, SessionId: 2, EventId: 2, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.002")), Raw: []byte("hello world 2")},
+				{MachineId: 1, SessionId: 2, EventId: 3, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 3")},
+				{MachineId: 1, SessionId: 2, EventId: 4, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.004")), Raw: []byte("hello world 4")},
 			},
-			input: []*typesv1.LogEventGroup{
-				{
-					MachineId: 1, SessionId: 2,
-					Logs: []*typesv1.LogEvent{
-						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.001")), Raw: []byte("hello world 1")},
-						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.002")), Raw: []byte("hello world 2")},
-						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 3")},
-						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.004")), Raw: []byte("hello world 4")},
-					},
-				},
-			},
-			want: []*typesv1.LogEventGroup{},
-		},
-		{
-			name: "all",
-			q: &typesv1.LogQuery{
-				To: timestamppb.New(musttime("2006-01-02T15:04:06.005")),
-			},
-			input: []*typesv1.LogEventGroup{
-				{
-					MachineId: 1, SessionId: 2,
-					Logs: []*typesv1.LogEvent{
-						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.001")), Raw: []byte("hello world 1")},
-						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.002")), Raw: []byte("hello world 2")},
-						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 3")},
-						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.004")), Raw: []byte("hello world 4")},
-					},
-				},
-			},
-			want: []*typesv1.LogEventGroup{
-				{
-					MachineId: 1, SessionId: 2,
-					Logs: []*typesv1.LogEvent{
-						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.001")), Raw: []byte("hello world 1") /*, Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.001"))}*/},
-						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.002")), Raw: []byte("hello world 2") /*, Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.002"))}*/},
-						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 3") /*, Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.003"))}*/},
-						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.004")), Raw: []byte("hello world 4") /*, Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.004"))}*/},
-					},
-				},
+			want: []*typesv1.Data{
+				dataLogEvents(nil),
 			},
 		},
 		{
-			name: "skip last",
-			q: &typesv1.LogQuery{
-				To: timestamppb.New(musttime("2006-01-02T15:04:06.004")),
+			name:  "all",
+			q:     `{to==2006-01-02T15:04:06.005}`,
+			limit: 4,
+			input: []*typesv1.IngestedLogEvent{
+				{MachineId: 1, SessionId: 2, EventId: 1, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.001")), Raw: []byte("hello world 1")},
+				{MachineId: 1, SessionId: 2, EventId: 2, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.002")), Raw: []byte("hello world 2")},
+				{MachineId: 1, SessionId: 2, EventId: 3, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 3")},
+				{MachineId: 1, SessionId: 2, EventId: 4, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.004")), Raw: []byte("hello world 4")},
 			},
-			input: []*typesv1.LogEventGroup{
-				{
-					MachineId: 1, SessionId: 2,
-					Logs: []*typesv1.LogEvent{
-						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.001")), Raw: []byte("hello world 1")},
-						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.002")), Raw: []byte("hello world 2")},
-						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 3")},
-						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.004")), Raw: []byte("hello world 4")},
-					},
-				},
-			},
-			want: []*typesv1.LogEventGroup{
-				{
-					MachineId: 1, SessionId: 2,
-					Logs: []*typesv1.LogEvent{
-						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.001")), Raw: []byte("hello world 1") /*, Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.001"))}*/},
-						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.002")), Raw: []byte("hello world 2") /*, Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.002"))}*/},
-						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 3") /*, Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.003"))}*/},
-					},
-				},
+			want: []*typesv1.Data{
+				dataLogEvents([]*typesv1.IngestedLogEvent{
+					{MachineId: 1, SessionId: 2, EventId: 1, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.001")), Raw: []byte("hello world 1")},
+					{MachineId: 1, SessionId: 2, EventId: 2, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.002")), Raw: []byte("hello world 2")},
+					{MachineId: 1, SessionId: 2, EventId: 3, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 3")},
+					{MachineId: 1, SessionId: 2, EventId: 4, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.004")), Raw: []byte("hello world 4")},
+				}),
 			},
 		},
 		{
-			name: "skip first",
-			q: &typesv1.LogQuery{
-				From: timestamppb.New(musttime("2006-01-02T15:04:06.002")),
-				To:   timestamppb.New(musttime("2006-01-02T15:04:06.005")),
+			name:  "skip last",
+			q:     `{to==2006-01-02T15:04:06.004}`,
+			limit: 4,
+			input: []*typesv1.IngestedLogEvent{
+				{MachineId: 1, SessionId: 2, EventId: 1, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.001")), Raw: []byte("hello world 1")},
+				{MachineId: 1, SessionId: 2, EventId: 2, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.002")), Raw: []byte("hello world 2")},
+				{MachineId: 1, SessionId: 2, EventId: 3, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 3")},
+				{MachineId: 1, SessionId: 2, EventId: 4, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.004")), Raw: []byte("hello world 4")},
 			},
-			input: []*typesv1.LogEventGroup{
-				{
-					MachineId: 1, SessionId: 2,
-					Logs: []*typesv1.LogEvent{
-						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.001")), Raw: []byte("hello world 1")},
-						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.002")), Raw: []byte("hello world 2")},
-						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 3")},
-						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.004")), Raw: []byte("hello world 4")},
-					},
-				},
-			},
-			want: []*typesv1.LogEventGroup{
-				{
-					MachineId: 1, SessionId: 2,
-					Logs: []*typesv1.LogEvent{
-						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.002")), Raw: []byte("hello world 2") /*, Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.002"))}*/},
-						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 3") /*, Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.003"))}*/},
-						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.004")), Raw: []byte("hello world 4") /*, Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.004"))}*/},
-					},
-				},
+			want: []*typesv1.Data{
+				dataLogEvents([]*typesv1.IngestedLogEvent{
+					{MachineId: 1, SessionId: 2, EventId: 1, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.001")), Raw: []byte("hello world 1")},
+					{MachineId: 1, SessionId: 2, EventId: 2, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.002")), Raw: []byte("hello world 2")},
+					{MachineId: 1, SessionId: 2, EventId: 3, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 3")},
+				}),
 			},
 		},
 		{
-			name: "from only",
-			q: &typesv1.LogQuery{
-				From: timestamppb.New(musttime("2006-01-02T15:04:06.002")),
+			name:  "skip first",
+			q:     `{from==2006-01-02T15:04:06.002 to==2006-01-02T15:04:06.005}`,
+			limit: 4,
+			input: []*typesv1.IngestedLogEvent{
+				{MachineId: 1, SessionId: 2, EventId: 1, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.001")), Raw: []byte("hello world 1")},
+				{MachineId: 1, SessionId: 2, EventId: 2, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.002")), Raw: []byte("hello world 2")},
+				{MachineId: 1, SessionId: 2, EventId: 3, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 3")},
+				{MachineId: 1, SessionId: 2, EventId: 4, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.004")), Raw: []byte("hello world 4")},
 			},
+			want: []*typesv1.Data{
+				dataLogEvents([]*typesv1.IngestedLogEvent{
+					{MachineId: 1, SessionId: 2, EventId: 2, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.002")), Raw: []byte("hello world 2")},
+					{MachineId: 1, SessionId: 2, EventId: 3, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 3")},
+					{MachineId: 1, SessionId: 2, EventId: 4, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.004")), Raw: []byte("hello world 4")},
+				}),
+			},
+		},
+		{
+			name:    "from only",
+			q:       `{from==2006-01-02T15:04:06.002}`,
 			waitFor: time.Second,
-			input: []*typesv1.LogEventGroup{
-				{
-					MachineId: 1, SessionId: 2,
-					Logs: []*typesv1.LogEvent{
-						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.001")), Raw: []byte("hello world 1")},
-						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.002")), Raw: []byte("hello world 2")},
-						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 3")},
-						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.004")), Raw: []byte("hello world 4")},
-					},
-				},
+			limit:   4,
+			input: []*typesv1.IngestedLogEvent{
+				{MachineId: 1, SessionId: 2, EventId: 1, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.001")), Raw: []byte("hello world 1")},
+				{MachineId: 1, SessionId: 2, EventId: 2, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.002")), Raw: []byte("hello world 2")},
+				{MachineId: 1, SessionId: 2, EventId: 3, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 3")},
+				{MachineId: 1, SessionId: 2, EventId: 4, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.004")), Raw: []byte("hello world 4")},
 			},
-			want: []*typesv1.LogEventGroup{
-				{
-					MachineId: 1, SessionId: 2,
-					Logs: []*typesv1.LogEvent{
-						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.002")), Raw: []byte("hello world 2") /*, Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.002"))}*/},
-						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 3") /*, Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.003"))}*/},
-						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.004")), Raw: []byte("hello world 4") /*, Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.004"))}*/},
-					},
-				},
+			want: []*typesv1.Data{
+				dataLogEvents([]*typesv1.IngestedLogEvent{
+					{MachineId: 1, SessionId: 2, EventId: 2, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.002")), Raw: []byte("hello world 2")},
+					{MachineId: 1, SessionId: 2, EventId: 3, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 3")},
+					{MachineId: 1, SessionId: 2, EventId: 4, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.004")), Raw: []byte("hello world 4")},
+				}),
 			},
 		},
 		{
-			name: "slice",
-			q: &typesv1.LogQuery{
-				From: timestamppb.New(musttime("2006-01-02T15:04:06.002")),
-				To:   timestamppb.New(musttime("2006-01-02T15:04:06.004")),
+			name:  "slice",
+			q:     `{from==2006-01-02T15:04:06.002 to==2006-01-02T15:04:06.004}`,
+			limit: 4,
+			input: []*typesv1.IngestedLogEvent{
+				{MachineId: 1, SessionId: 2, EventId: 1, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.001")), Raw: []byte("hello world 1")},
+				{MachineId: 1, SessionId: 2, EventId: 2, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.002")), Raw: []byte("hello world 2")},
+				{MachineId: 1, SessionId: 2, EventId: 3, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 3")},
+				{MachineId: 1, SessionId: 2, EventId: 4, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.004")), Raw: []byte("hello world 4")},
 			},
-			input: []*typesv1.LogEventGroup{
-				{
-					MachineId: 1, SessionId: 2,
-					Logs: []*typesv1.LogEvent{
-						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.001")), Raw: []byte("hello world 1")},
-						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.002")), Raw: []byte("hello world 2")},
-						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 3")},
-						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.004")), Raw: []byte("hello world 4")},
-					},
-				},
-			},
-			want: []*typesv1.LogEventGroup{
-				{
-					MachineId: 1, SessionId: 2,
-					Logs: []*typesv1.LogEvent{
-						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.002")), Raw: []byte("hello world 2") /*, Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.002"))}*/},
-						{ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 3") /*, Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.003"))}*/},
-					},
-				},
+			want: []*typesv1.Data{
+				dataLogEvents([]*typesv1.IngestedLogEvent{
+					{MachineId: 1, SessionId: 2, EventId: 2, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.002")), Raw: []byte("hello world 2")},
+					{MachineId: 1, SessionId: 2, EventId: 3, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 3")},
+				}),
 			},
 		},
 		{
-			name: "simple query on `lvl`",
-			q: &typesv1.LogQuery{
-				From: timestamppb.New(musttime("2006-01-02T15:04:06.002")),
-				To:   timestamppb.New(musttime("2006-01-02T15:04:06.004")),
-				Query: typesv1.ExprBinary(
-					typesv1.ExprIdentifier("lvl"),
-					typesv1.BinaryOp_CMP_EQ,
-					typesv1.ExprLiteral(typesv1.ValStr("error")),
-				),
-			},
-			input: []*typesv1.LogEventGroup{
+			name:  "simple query on `lvl`",
+			q:     `{from==2006-01-02T15:04:06.002 to==2006-01-02T15:04:06.004} | filter lvl=="error"`,
+			limit: 4,
+			input: []*typesv1.IngestedLogEvent{
 				{
-					MachineId: 1, SessionId: 2,
-					Logs: []*typesv1.LogEvent{
-						{
-							ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.001")), Raw: []byte("hello world 1"),
-							Structured: &typesv1.StructuredLogEvent{
-								Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.001")),
-								Lvl:       "error",
-								Msg:       "some sort of problem",
-								Kvs:       []*typesv1.KV{},
-							},
-						},
-						{
-							ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.001")), Raw: []byte("hello world 1"),
-							Structured: &typesv1.StructuredLogEvent{
-								Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.001")),
-								Lvl:       "info",
-								Msg:       "no problem, all is fine",
-								Kvs:       []*typesv1.KV{},
-							},
-						},
-						{
-							ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 1"),
-							Structured: &typesv1.StructuredLogEvent{
-								Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.003")),
-								Lvl:       "error",
-								Msg:       "some sort of problem a bit later",
-								Kvs:       []*typesv1.KV{},
-							},
-						},
-						{
-							ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 1"),
-							Structured: &typesv1.StructuredLogEvent{
-								Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.003")),
-								Lvl:       "info",
-								Msg:       "no problem, all is fine a bit later",
-								Kvs:       []*typesv1.KV{},
-							},
-						},
-						{
-							ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.006")), Raw: []byte("hello world 1"),
-							Structured: &typesv1.StructuredLogEvent{
-								Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.006")),
-								Lvl:       "error",
-								Msg:       "some sort of problem too late",
-								Kvs:       []*typesv1.KV{},
-							},
-						},
-						{
-							ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.006")), Raw: []byte("hello world 1"),
-							Structured: &typesv1.StructuredLogEvent{
-								Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.006")),
-								Lvl:       "info",
-								Msg:       "no problem, all is fine too late",
-								Kvs:       []*typesv1.KV{},
-							},
-						},
+					MachineId: 1, SessionId: 2, EventId: 1,
+					ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.001")), Raw: []byte("hello world 1"),
+					Structured: &typesv1.StructuredLogEvent{
+						Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.001")),
+						Lvl:       "error",
+						Msg:       "some sort of problem",
+						Kvs:       []*typesv1.KV{},
+					},
+				},
+				{
+					MachineId: 1, SessionId: 2, EventId: 2,
+					ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.001")), Raw: []byte("hello world 1"),
+					Structured: &typesv1.StructuredLogEvent{
+						Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.001")),
+						Lvl:       "info",
+						Msg:       "no problem, all is fine",
+						Kvs:       []*typesv1.KV{},
+					},
+				},
+				{
+					MachineId: 1, SessionId: 2, EventId: 3,
+					ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 1"),
+					Structured: &typesv1.StructuredLogEvent{
+						Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.003")),
+						Lvl:       "error",
+						Msg:       "some sort of problem a bit later",
+						Kvs:       []*typesv1.KV{},
+					},
+				},
+				{
+					MachineId: 1, SessionId: 2, EventId: 4,
+					ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 1"),
+					Structured: &typesv1.StructuredLogEvent{
+						Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.003")),
+						Lvl:       "info",
+						Msg:       "no problem, all is fine a bit later",
+						Kvs:       []*typesv1.KV{},
+					},
+				},
+				{
+					MachineId: 1, SessionId: 2, EventId: 5,
+					ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.006")), Raw: []byte("hello world 1"),
+					Structured: &typesv1.StructuredLogEvent{
+						Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.006")),
+						Lvl:       "error",
+						Msg:       "some sort of problem too late",
+						Kvs:       []*typesv1.KV{},
+					},
+				},
+				{
+					MachineId: 1, SessionId: 2, EventId: 6,
+					ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.006")), Raw: []byte("hello world 1"),
+					Structured: &typesv1.StructuredLogEvent{
+						Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.006")),
+						Lvl:       "info",
+						Msg:       "no problem, all is fine too late",
+						Kvs:       []*typesv1.KV{},
 					},
 				},
 			},
-			want: []*typesv1.LogEventGroup{
-				{
-					MachineId: 1, SessionId: 2,
-					Logs: []*typesv1.LogEvent{
-						{
-							ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 1"),
-							Structured: &typesv1.StructuredLogEvent{
-								Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.003")),
-								Lvl:       "error",
-								Msg:       "some sort of problem a bit later",
-								Kvs:       []*typesv1.KV{},
-							},
-						},
-						{
-							ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 1"),
-							Structured: &typesv1.StructuredLogEvent{
-								Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.003")),
-								Lvl:       "info",
-								Msg:       "no problem, all is fine a bit later",
-								Kvs:       []*typesv1.KV{},
-							},
+			want: []*typesv1.Data{
+				dataLogEvents([]*typesv1.IngestedLogEvent{
+					{
+						MachineId: 1, SessionId: 2, EventId: 3,
+						ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 1"),
+						Structured: &typesv1.StructuredLogEvent{
+							Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.003")),
+							Lvl:       "error",
+							Msg:       "some sort of problem a bit later",
+							Kvs:       []*typesv1.KV{},
 						},
 					},
-				},
+				}),
 			},
 		},
 	}
@@ -283,14 +218,20 @@ func RunTest(t *testing.T, constructor func(t *testing.T) Storage) {
 			db := constructor(t)
 			defer db.Close()
 
-			for _, leg := range tt.input {
-				snk, _, err := db.SinkFor(ctx, leg.MachineId, leg.SessionId)
+			var snk sink.Sink
+			defer func() {
+				err := snk.Close(ctx)
 				require.NoError(t, err)
-				for _, ev := range leg.Logs {
-					err = snk.Receive(ctx, ev)
+			}()
+			for _, ev := range tt.input {
+				if ev == nil {
+					var err error
+					snk, _, err = db.SinkFor(ctx, ev.MachineId, ev.SessionId)
 					require.NoError(t, err)
 				}
-				err = snk.Close(ctx)
+				err := snk.Receive(ctx, &typesv1.LogEvent{
+					ParsedAt: ev.ParsedAt, Raw: ev.Raw, Structured: ev.Structured,
+				})
 				require.NoError(t, err)
 			}
 
@@ -300,10 +241,25 @@ func RunTest(t *testing.T, constructor func(t *testing.T) Storage) {
 				queryctx, cancel = context.WithTimeout(ctx, tt.waitFor)
 				defer cancel()
 			}
-			now := time.Now()
-			cursors, err := db.Query(queryctx, tt.q)
+
+			q, err := logql.Parse(tt.q)
 			require.NoError(t, err)
-			got := drainCursors(t, queryctx, cursors)
+
+			now := time.Now()
+
+			var (
+				got []*typesv1.Data
+				c   *typesv1.Cursor
+			)
+			for {
+				out, next, err := db.Query(queryctx, q, c, int(tt.limit))
+				require.NoError(t, err)
+				got = append(got, out)
+				c = next
+				if next == nil {
+					break
+				}
+			}
 
 			if tt.waitFor != 0 {
 				queriedFor := time.Since(now)
@@ -344,4 +300,18 @@ func musttime(str string) time.Time {
 		panic(err)
 	}
 	return t
+}
+
+func dataLogEvents(events []*typesv1.IngestedLogEvent) *typesv1.Data {
+	return &typesv1.Data{
+		Shape: &typesv1.Data_Tabular{
+			Tabular: &typesv1.Tabular{
+				Shape: &typesv1.Tabular_LogEvents{
+					LogEvents: &typesv1.LogEvents{
+						Events: events,
+					},
+				},
+			},
+		},
+	}
 }

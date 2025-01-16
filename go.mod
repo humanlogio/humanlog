@@ -21,8 +21,8 @@ require (
 	github.com/go-logfmt/logfmt v0.5.1
 	github.com/google/go-cmp v0.6.0
 	github.com/google/uuid v1.6.0
-	github.com/humanlogio/api/go v0.0.0-20241230081858-bc6f5e961690
-	github.com/humanlogio/humanlog-pro v0.0.0-20241230082014-6009a105cc14
+	github.com/humanlogio/api/go v0.0.0-20250116060656-5a4f995d272b
+	github.com/humanlogio/humanlog-pro v0.0.0-20250116061420-d6e45be80bd0
 	github.com/kr/logfmt v0.0.0-20210122060352-19f9bcb100e6
 	github.com/lrstanley/bubblezone v0.0.0-20240914071701-b48c55a5e78e
 	github.com/matoous/go-nanoid v1.5.0
@@ -31,14 +31,12 @@ require (
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
 	github.com/rs/cors v1.11.0
 	github.com/stretchr/testify v1.10.0
-	github.com/teivah/broadcast v0.1.0
 	github.com/urfave/cli v1.22.14
 	golang.org/x/exp v0.0.0-20240909161429-701f63a606c0
 	golang.org/x/net v0.30.0
-	golang.org/x/sync v0.9.0
 	golang.org/x/sys v0.27.0
 	gonum.org/v1/gonum v0.15.1
-	google.golang.org/protobuf v1.36.0
+	google.golang.org/protobuf v1.36.2
 )
 
 require (
@@ -79,8 +77,10 @@ require (
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/tadvi/systray v0.0.0-20190226123456-11a2b8fa57af // indirect
+	github.com/teivah/broadcast v0.1.0 // indirect
 	github.com/zeebo/xxh3 v1.0.2 // indirect
 	golang.org/x/mod v0.21.0 // indirect
+	golang.org/x/sync v0.9.0 // indirect
 	golang.org/x/term v0.25.0 // indirect
 	golang.org/x/text v0.19.0 // indirect
 	golang.org/x/tools v0.26.0 // indirect

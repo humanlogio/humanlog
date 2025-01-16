@@ -33,7 +33,6 @@ import (
 
 	// imported for side-effect of `init()` registration
 	_ "github.com/humanlogio/humanlog/internal/diskstorage"
-	_ "github.com/humanlogio/humanlog/internal/memstorage"
 )
 
 func startLocalhostServer(

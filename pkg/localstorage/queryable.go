@@ -49,7 +49,9 @@ type Storage interface {
 }
 
 type Queryable interface {
-	Query(context.Context, *typesv1.LogQuery) (<-chan Cursor, error)
+	WatchLogQuery(context.Context, *typesv1.LogQuery) (<-chan Cursor, error)
+
+	Query(ctx context.Context, q *typesv1.LogQuery, c *typesv1.Cursor, limit int) (*typesv1.Data, *typesv1.Cursor, error)
 }
 
 type Cursor interface {
