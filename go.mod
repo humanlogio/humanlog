@@ -22,7 +22,7 @@ require (
 	github.com/google/go-cmp v0.6.0
 	github.com/google/uuid v1.6.0
 	github.com/humanlogio/api/go v0.0.0-20250116081124-40e208b75cd5
-	github.com/humanlogio/humanlog-pro v0.0.0-20250117072941-559a585c66b2
+	github.com/humanlogio/humanlog-pro v0.0.0-20250117074700-b89ae2e7e2fa
 	github.com/kr/logfmt v0.0.0-20210122060352-19f9bcb100e6
 	github.com/lrstanley/bubblezone v0.0.0-20240914071701-b48c55a5e78e
 	github.com/matoous/go-nanoid v1.5.0
