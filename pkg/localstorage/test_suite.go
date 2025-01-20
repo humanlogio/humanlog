@@ -25,7 +25,7 @@ func RunTest(t *testing.T, constructor func(t *testing.T) Storage) {
 	}{
 		{
 			name:  "nothing",
-			q:     `{from==2006-01-02T15:04:06.000}`,
+			q:     `{from==2006-01-02T15:04:06.00000000Z}`,
 			limit: 4,
 			input: []*typesv1.IngestedLogEvent{
 				{MachineId: 1, SessionId: 2, EventId: 1, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.001")), Raw: []byte("hello world 1")},
@@ -224,7 +224,7 @@ func RunTest(t *testing.T, constructor func(t *testing.T) Storage) {
 				require.NoError(t, err)
 			}()
 			for _, ev := range tt.input {
-				if ev == nil {
+				if snk == nil {
 					var err error
 					snk, _, err = db.SinkFor(ctx, ev.MachineId, ev.SessionId)
 					require.NoError(t, err)
