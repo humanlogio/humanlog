@@ -16,16 +16,15 @@ import (
 
 func RunTest(t *testing.T, constructor func(t *testing.T) Storage) {
 	tests := []struct {
-		name    string
-		q       string
-		limit   int
-		waitFor time.Duration
-		input   []*typesv1.IngestedLogEvent
-		want    []*typesv1.Data
+		name  string
+		q     string
+		limit int
+		input []*typesv1.IngestedLogEvent
+		want  []*typesv1.Data
 	}{
 		{
 			name:  "nothing",
-			q:     `{from==2006-01-02T15:04:06.00000000Z}`,
+			q:     `{from==2006-01-02T15:04:06.00500000Z}`,
 			limit: 4,
 			input: []*typesv1.IngestedLogEvent{
 				{MachineId: 1, SessionId: 2, EventId: 1, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.001")), Raw: []byte("hello world 1")},
@@ -39,8 +38,8 @@ func RunTest(t *testing.T, constructor func(t *testing.T) Storage) {
 		},
 		{
 			name:  "all",
-			q:     `{to==2006-01-02T15:04:06.005}`,
-			limit: 4,
+			q:     `{to==2006-01-02T15:04:06.00500000Z}`,
+			limit: 5,
 			input: []*typesv1.IngestedLogEvent{
 				{MachineId: 1, SessionId: 2, EventId: 1, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.001")), Raw: []byte("hello world 1")},
 				{MachineId: 1, SessionId: 2, EventId: 2, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.002")), Raw: []byte("hello world 2")},
@@ -49,16 +48,78 @@ func RunTest(t *testing.T, constructor func(t *testing.T) Storage) {
 			},
 			want: []*typesv1.Data{
 				dataLogEvents([]*typesv1.IngestedLogEvent{
-					{MachineId: 1, SessionId: 2, EventId: 1, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.001")), Raw: []byte("hello world 1")},
-					{MachineId: 1, SessionId: 2, EventId: 2, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.002")), Raw: []byte("hello world 2")},
-					{MachineId: 1, SessionId: 2, EventId: 3, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 3")},
-					{MachineId: 1, SessionId: 2, EventId: 4, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.004")), Raw: []byte("hello world 4")},
+					{MachineId: 1, SessionId: 2, EventId: 1, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.001")), Raw: []byte("hello world 1"), Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.001"))}},
+					{MachineId: 1, SessionId: 2, EventId: 2, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.002")), Raw: []byte("hello world 2"), Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.002"))}},
+					{MachineId: 1, SessionId: 2, EventId: 3, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 3"), Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.003"))}},
+					{MachineId: 1, SessionId: 2, EventId: 4, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.004")), Raw: []byte("hello world 4"), Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.004"))}},
 				}),
 			},
 		},
 		{
+			name:  "all",
+			q:     `{to==2006-01-02T15:04:06.00500000Z}`,
+			limit: 5,
+			input: []*typesv1.IngestedLogEvent{
+				{MachineId: 1, SessionId: 2, EventId: 1, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.001")), Raw: []byte("hello world 1")},
+				{MachineId: 1, SessionId: 2, EventId: 2, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.002")), Raw: []byte("hello world 2")},
+				{MachineId: 1, SessionId: 2, EventId: 3, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 3")},
+				{MachineId: 1, SessionId: 2, EventId: 4, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.004")), Raw: []byte("hello world 4")},
+			},
+			want: []*typesv1.Data{
+				dataLogEvents([]*typesv1.IngestedLogEvent{
+					{MachineId: 1, SessionId: 2, EventId: 1, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.001")), Raw: []byte("hello world 1"), Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.001"))}},
+					{MachineId: 1, SessionId: 2, EventId: 2, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.002")), Raw: []byte("hello world 2"), Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.002"))}},
+					{MachineId: 1, SessionId: 2, EventId: 3, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 3"), Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.003"))}},
+					{MachineId: 1, SessionId: 2, EventId: 4, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.004")), Raw: []byte("hello world 4"), Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.004"))}},
+				}),
+			},
+		},
+		{
+			name:  "all with pagination",
+			q:     `{to==2006-01-02T15:04:06.00500000Z}`,
+			limit: 3,
+			input: []*typesv1.IngestedLogEvent{
+				{MachineId: 1, SessionId: 2, EventId: 1, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.001")), Raw: []byte("hello world 1")},
+				{MachineId: 1, SessionId: 2, EventId: 2, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.002")), Raw: []byte("hello world 2")},
+				{MachineId: 1, SessionId: 2, EventId: 3, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 3")},
+				{MachineId: 1, SessionId: 2, EventId: 4, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.004")), Raw: []byte("hello world 4")},
+			},
+			want: []*typesv1.Data{
+				dataLogEvents([]*typesv1.IngestedLogEvent{
+					{MachineId: 1, SessionId: 2, EventId: 1, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.001")), Raw: []byte("hello world 1"), Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.001"))}},
+					{MachineId: 1, SessionId: 2, EventId: 2, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.002")), Raw: []byte("hello world 2"), Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.002"))}},
+					{MachineId: 1, SessionId: 2, EventId: 3, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 3"), Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.003"))}},
+				}),
+				dataLogEvents([]*typesv1.IngestedLogEvent{
+					{MachineId: 1, SessionId: 2, EventId: 4, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.004")), Raw: []byte("hello world 4"), Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.004"))}},
+				}),
+			},
+		},
+		{
+			name:  "all with pagination overflow",
+			q:     `{to==2006-01-02T15:04:06.00500000Z}`,
+			limit: 2,
+			input: []*typesv1.IngestedLogEvent{
+				{MachineId: 1, SessionId: 2, EventId: 1, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.001")), Raw: []byte("hello world 1")},
+				{MachineId: 1, SessionId: 2, EventId: 2, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.002")), Raw: []byte("hello world 2")},
+				{MachineId: 1, SessionId: 2, EventId: 3, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 3")},
+				{MachineId: 1, SessionId: 2, EventId: 4, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.004")), Raw: []byte("hello world 4")},
+			},
+			want: []*typesv1.Data{
+				dataLogEvents([]*typesv1.IngestedLogEvent{
+					{MachineId: 1, SessionId: 2, EventId: 1, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.001")), Raw: []byte("hello world 1"), Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.001"))}},
+					{MachineId: 1, SessionId: 2, EventId: 2, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.002")), Raw: []byte("hello world 2"), Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.002"))}},
+				}),
+				dataLogEvents([]*typesv1.IngestedLogEvent{
+					{MachineId: 1, SessionId: 2, EventId: 3, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 3"), Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.003"))}},
+					{MachineId: 1, SessionId: 2, EventId: 4, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.004")), Raw: []byte("hello world 4"), Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.004"))}},
+				}),
+				dataLogEvents(nil),
+			},
+		},
+		{
 			name:  "skip last",
-			q:     `{to==2006-01-02T15:04:06.004}`,
+			q:     `{to==2006-01-02T15:04:06.004000000Z}`,
 			limit: 4,
 			input: []*typesv1.IngestedLogEvent{
 				{MachineId: 1, SessionId: 2, EventId: 1, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.001")), Raw: []byte("hello world 1")},
@@ -68,15 +129,15 @@ func RunTest(t *testing.T, constructor func(t *testing.T) Storage) {
 			},
 			want: []*typesv1.Data{
 				dataLogEvents([]*typesv1.IngestedLogEvent{
-					{MachineId: 1, SessionId: 2, EventId: 1, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.001")), Raw: []byte("hello world 1")},
-					{MachineId: 1, SessionId: 2, EventId: 2, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.002")), Raw: []byte("hello world 2")},
-					{MachineId: 1, SessionId: 2, EventId: 3, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 3")},
+					{MachineId: 1, SessionId: 2, EventId: 1, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.001")), Raw: []byte("hello world 1"), Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.001"))}},
+					{MachineId: 1, SessionId: 2, EventId: 2, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.002")), Raw: []byte("hello world 2"), Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.002"))}},
+					{MachineId: 1, SessionId: 2, EventId: 3, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 3"), Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.003"))}},
 				}),
 			},
 		},
 		{
 			name:  "skip first",
-			q:     `{from==2006-01-02T15:04:06.002 to==2006-01-02T15:04:06.005}`,
+			q:     `{from==2006-01-02T15:04:06.002000000Z to==2006-01-02T15:04:06.005000000Z}`,
 			limit: 4,
 			input: []*typesv1.IngestedLogEvent{
 				{MachineId: 1, SessionId: 2, EventId: 1, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.001")), Raw: []byte("hello world 1")},
@@ -86,17 +147,16 @@ func RunTest(t *testing.T, constructor func(t *testing.T) Storage) {
 			},
 			want: []*typesv1.Data{
 				dataLogEvents([]*typesv1.IngestedLogEvent{
-					{MachineId: 1, SessionId: 2, EventId: 2, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.002")), Raw: []byte("hello world 2")},
-					{MachineId: 1, SessionId: 2, EventId: 3, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 3")},
-					{MachineId: 1, SessionId: 2, EventId: 4, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.004")), Raw: []byte("hello world 4")},
+					{MachineId: 1, SessionId: 2, EventId: 2, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.002")), Raw: []byte("hello world 2"), Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.002"))}},
+					{MachineId: 1, SessionId: 2, EventId: 3, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 3"), Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.003"))}},
+					{MachineId: 1, SessionId: 2, EventId: 4, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.004")), Raw: []byte("hello world 4"), Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.004"))}},
 				}),
 			},
 		},
 		{
-			name:    "from only",
-			q:       `{from==2006-01-02T15:04:06.002}`,
-			waitFor: time.Second,
-			limit:   4,
+			name:  "from only",
+			q:     `{from==2006-01-02T15:04:06.002000000Z}`,
+			limit: 4,
 			input: []*typesv1.IngestedLogEvent{
 				{MachineId: 1, SessionId: 2, EventId: 1, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.001")), Raw: []byte("hello world 1")},
 				{MachineId: 1, SessionId: 2, EventId: 2, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.002")), Raw: []byte("hello world 2")},
@@ -105,15 +165,15 @@ func RunTest(t *testing.T, constructor func(t *testing.T) Storage) {
 			},
 			want: []*typesv1.Data{
 				dataLogEvents([]*typesv1.IngestedLogEvent{
-					{MachineId: 1, SessionId: 2, EventId: 2, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.002")), Raw: []byte("hello world 2")},
-					{MachineId: 1, SessionId: 2, EventId: 3, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 3")},
-					{MachineId: 1, SessionId: 2, EventId: 4, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.004")), Raw: []byte("hello world 4")},
+					{MachineId: 1, SessionId: 2, EventId: 2, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.002")), Raw: []byte("hello world 2"), Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.002"))}},
+					{MachineId: 1, SessionId: 2, EventId: 3, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 3"), Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.003"))}},
+					{MachineId: 1, SessionId: 2, EventId: 4, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.004")), Raw: []byte("hello world 4"), Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.004"))}},
 				}),
 			},
 		},
 		{
 			name:  "slice",
-			q:     `{from==2006-01-02T15:04:06.002 to==2006-01-02T15:04:06.004}`,
+			q:     `{from==2006-01-02T15:04:06.002000000Z to==2006-01-02T15:04:06.004000000Z}`,
 			limit: 4,
 			input: []*typesv1.IngestedLogEvent{
 				{MachineId: 1, SessionId: 2, EventId: 1, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.001")), Raw: []byte("hello world 1")},
@@ -123,14 +183,14 @@ func RunTest(t *testing.T, constructor func(t *testing.T) Storage) {
 			},
 			want: []*typesv1.Data{
 				dataLogEvents([]*typesv1.IngestedLogEvent{
-					{MachineId: 1, SessionId: 2, EventId: 2, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.002")), Raw: []byte("hello world 2")},
-					{MachineId: 1, SessionId: 2, EventId: 3, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 3")},
+					{MachineId: 1, SessionId: 2, EventId: 2, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.002")), Raw: []byte("hello world 2"), Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.002"))}},
+					{MachineId: 1, SessionId: 2, EventId: 3, ParsedAt: timestamppb.New(musttime("2006-01-02T15:04:06.003")), Raw: []byte("hello world 3"), Structured: &typesv1.StructuredLogEvent{Timestamp: timestamppb.New(musttime("2006-01-02T15:04:06.003"))}},
 				}),
 			},
 		},
 		{
 			name:  "simple query on `lvl`",
-			q:     `{from==2006-01-02T15:04:06.002 to==2006-01-02T15:04:06.004} | filter lvl=="error"`,
+			q:     `{from==2006-01-02T15:04:06.002000000Z to==2006-01-02T15:04:06.004000000Z} filter lvl=="error"`,
 			limit: 4,
 			input: []*typesv1.IngestedLogEvent{
 				{
@@ -235,35 +295,22 @@ func RunTest(t *testing.T, constructor func(t *testing.T) Storage) {
 				require.NoError(t, err)
 			}
 
-			queryctx := ctx
-			if tt.waitFor != 0 {
-				var cancel context.CancelFunc
-				queryctx, cancel = context.WithTimeout(ctx, tt.waitFor)
-				defer cancel()
-			}
-
 			q, err := logql.Parse(tt.q)
 			require.NoError(t, err)
-
-			now := time.Now()
 
 			var (
 				got []*typesv1.Data
 				c   *typesv1.Cursor
 			)
 			for {
-				out, next, err := db.Query(queryctx, q, c, int(tt.limit))
+				out, next, err := db.Query(ctx, q, c, int(tt.limit))
 				require.NoError(t, err)
 				got = append(got, out)
 				c = next
 				if next == nil {
 					break
 				}
-			}
-
-			if tt.waitFor != 0 {
-				queriedFor := time.Since(now)
-				require.InDelta(t, tt.waitFor.Milliseconds(), queriedFor.Milliseconds(), 30)
+				require.LessOrEqual(t, len(got), len(tt.want))
 			}
 
 			require.Len(t, got, len(tt.want))
