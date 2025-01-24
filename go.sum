@@ -94,6 +94,8 @@ github.com/humanlogio/humanlog-pro v0.0.0-20250123094022-df6426f97650 h1:OWUrbZi
 github.com/humanlogio/humanlog-pro v0.0.0-20250123094022-df6426f97650/go.mod h1:9kTX1F99QI1LzdNud42mnKITI7/LSPlkwHQJQh9My7w=
 github.com/humanlogio/humanlog-pro v0.0.0-20250123094351-5253418e3b0e h1:QBPM91nRbch3kVhc6DihPjqm2rZI+L9/TajrgCKtxAA=
 github.com/humanlogio/humanlog-pro v0.0.0-20250123094351-5253418e3b0e/go.mod h1:9kTX1F99QI1LzdNud42mnKITI7/LSPlkwHQJQh9My7w=
+github.com/humanlogio/humanlog-pro v0.0.0-20250124065627-302c7623d55f h1:X5NgOAUyjykntrOFWAOZc+vEnF0imVxfvrqqY4mi3GA=
+github.com/humanlogio/humanlog-pro v0.0.0-20250124065627-302c7623d55f/go.mod h1:9kTX1F99QI1LzdNud42mnKITI7/LSPlkwHQJQh9My7w=
 github.com/klauspost/asmfmt v1.3.2 h1:4Ri7ox3EwapiOjCki+hw14RyKk201CN4rzyCJRFLpK4=
 github.com/klauspost/asmfmt v1.3.2/go.mod h1:AG8TuvYojzulgDAMCnYn50l/5QV3Bs/tp6j0HLHbNSE=
 github.com/klauspost/compress v1.17.11 h1:In6xLpyWOi1+C7tXUUWv2ot1QvBjxevKAaI6IXrJmUc=
