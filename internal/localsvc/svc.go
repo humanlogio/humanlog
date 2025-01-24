@@ -242,21 +242,33 @@ func (svc *Service) SummarizeEvents(ctx context.Context, req *connect.Request[qr
 	}
 	ll.DebugContext(ctx, "queried")
 
-	shape, ok := data.Shape.(*typesv1.Data_ScalarTimeseries)
+	shape, ok := data.Shape.(*typesv1.Data_Tabular)
 	if !ok {
-		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("expected scalar timeseries, got %T", data.Shape))
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("expected tabular data, got %T", data.Shape))
 	}
-	sts := shape.ScalarTimeseries
+	freeform, ok := shape.Tabular.Shape.(*typesv1.Tabular_FreeForm)
+	if !ok {
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("expected a freeform's table, got %T", shape.Tabular.Shape))
+	}
+	table := freeform.FreeForm
+	header := table.Type
+	if len(header.Columns) != 2 {
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("expected 2 columns in table, got %d", len(header.Columns)))
+	}
+	if sc := header.Columns[0].Type.GetScalar(); sc != typesv1.ScalarType_ts {
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("expected 1st column to be a timestamp, got %v", header.Columns[0].Type))
+	}
+	if sc := header.Columns[1].Type.GetScalar(); sc != typesv1.ScalarType_i64 {
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("expected 2nd column to be an i64, got %v", header.Columns[1].Type))
+	}
 
 	out := &qrv1.SummarizeEventsResponse{}
-	for _, bucket := range sts.Scalars {
-		v, ok := bucket.Scalar.Kind.(*typesv1.Scalar_I64)
-		if !ok {
-			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("expected timeseries of i64, got %T", bucket.Scalar.Kind))
-		}
+	for _, row := range table.Rows {
+		ts := row.Items[0].GetTs()
+		count := row.Items[1].GetI64()
 		out.Buckets = append(out.Buckets, &qrv1.SummarizeEventsResponse_Bucket{
-			Ts:         bucket.Ts,
-			EventCount: uint64(v.I64),
+			Ts:         ts,
+			EventCount: uint64(count),
 		})
 	}
 	ll.DebugContext(ctx, "non-zero buckets filled", slog.Int("buckets_len", len(out.Buckets)))
