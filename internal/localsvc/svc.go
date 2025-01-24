@@ -211,6 +211,9 @@ func (svc *Service) SummarizeEvents(ctx context.Context, req *connect.Request[qr
 		slog.Int("environment_id", int(req.Msg.EnvironmentId)),
 	)
 
+	period := req.Msg.To.AsTime().Sub(req.Msg.From.AsTime())
+	bucketWidth := period / time.Duration(req.Msg.BucketCount)
+
 	data, _, err := svc.storage.Query(ctx, &typesv1.LogQuery{
 		Timerange: &typesv1.Timerange{
 			From: typesv1.ExprLiteral(typesv1.ValTimestamp(req.Msg.From)),
@@ -223,7 +226,10 @@ func (svc *Service) SummarizeEvents(ctx context.Context, req *connect.Request[qr
 						Summarize: &typesv1.SummarizeOperator{
 							AggregateFunction: &typesv1.FuncCall{Name: "count"},
 							By: &typesv1.SummarizeOperator_ByOperator{Scalars: []*typesv1.Expr{
-								typesv1.ExprIdentifier("ts"),
+								typesv1.ExprFuncCall("bin",
+									typesv1.ExprIdentifier("ts"),
+									typesv1.ExprLiteral(typesv1.ValDuration(bucketWidth)),
+								),
 							}},
 						},
 					},
