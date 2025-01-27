@@ -172,10 +172,10 @@ func queryApiSummarizeCmd(
 			}
 
 			res, err := queryClient.SummarizeEvents(ctx, connect.NewRequest(&queryv1.SummarizeEventsRequest{
-				EnvironmentId: *state.CurrentEnvironmentID,
-				BucketCount:   uint32(cctx.Int(bucket.Name)),
-				From:          from,
-				To:            to,
+				// EnvironmentId: *state.CurrentEnvironmentID,
+				BucketCount: uint32(cctx.Int(bucket.Name)),
+				From:        from,
+				To:          to,
 			}))
 			if err != nil {
 				return fmt.Errorf("querying summary data: %v", err)
