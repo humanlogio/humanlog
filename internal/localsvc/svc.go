@@ -304,3 +304,20 @@ func (svc *Service) Query(ctx context.Context, req *connect.Request[qrv1.QueryRe
 	}
 	return connect.NewResponse(out), nil
 }
+
+func (svc *Service) ListSymbols(ctx context.Context, req *connect.Request[qrv1.ListSymbolsRequest]) (*connect.Response[qrv1.ListSymbolsResponse], error) {
+	symbols, next, err := svc.storage.ListSymbols(ctx, req.Msg.Cursor, int(req.Msg.Limit))
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("querying local storage: %v", err))
+	}
+	out := &qrv1.ListSymbolsResponse{
+		Next:  next,
+		Items: make([]*qrv1.ListSymbolsResponse_ListItem, 0, len(symbols)),
+	}
+	for _, sym := range symbols {
+		out.Items = append(out.Items, &qrv1.ListSymbolsResponse_ListItem{
+			Symbol: sym,
+		})
+	}
+	return connect.NewResponse(out), nil
+}
