@@ -279,7 +279,6 @@ func newApp() *cli.App {
 					return "", nil
 				},
 			})
-
 		}
 		getTokenSource = func(cctx *cli.Context) *auth.UserRefreshableTokenSource {
 			return auth.NewRefreshableTokenSource(func() (keyring.Keyring, error) {
@@ -396,6 +395,7 @@ func newApp() *cli.App {
 		onboardingCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getBaseSiteURL, getHTTPClient),
 		versionCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getBaseSiteURL, getHTTPClient),
 		authCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getHTTPClient),
+		serviceCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getHTTPClient),
 		organizationCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getHTTPClient),
 		environmentCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getHTTPClient),
 		machineCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getHTTPClient),
