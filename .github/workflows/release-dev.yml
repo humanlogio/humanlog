@@ -24,7 +24,7 @@ jobs:
           goos: linux
           goarch: arm64
           goenvs: CC=aarch64-linux-gnu-gcc CXX=x86_64-linux-gnu-g++
-          preinstall: sudo apt install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+          preinstall: sudo apt install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu gcc libgtk-3-dev libayatana-appindicator3-dev
         - name: darwin-amd64
           runner: macos-latest
           tags: pro
