@@ -88,7 +88,9 @@ func (uai *userAuthInjector) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc
 			return nil, err
 		}
 		uai.ll.DebugContext(ctx, "unary auth injection", slog.String("peer.addr", req.Peer().Addr))
-		req.Header().Set("Authorization", "Bearer "+userToken.Token)
+		if userToken != nil {
+			req.Header().Set("Authorization", "Bearer "+userToken.Token)
+		}
 		return next(ctx, req)
 	}
 }
@@ -101,7 +103,9 @@ func (uai *userAuthInjector) WrapStreamingClient(next connect.StreamingClientFun
 			panic(err)
 		}
 		uai.ll.DebugContext(ctx, "streaming client auth injection", slog.String("peer.addr", conn.Peer().Addr))
-		conn.RequestHeader().Set("Authorization", "Bearer "+userToken.Token)
+		if userToken != nil {
+			conn.RequestHeader().Set("Authorization", "Bearer "+userToken.Token)
+		}
 		return conn
 	}
 }
@@ -113,7 +117,9 @@ func (uai *userAuthInjector) WrapStreamingHandler(next connect.StreamingHandlerF
 			return err
 		}
 		uai.ll.DebugContext(ctx, "streaming duplex injection", slog.String("peer.addr", shc.Peer().Addr))
-		shc.RequestHeader().Set("Authorization", "Bearer "+userToken.Token)
+		if userToken != nil {
+			shc.RequestHeader().Set("Authorization", "Bearer "+userToken.Token)
+		}
 		return next(ctx, shc)
 	}
 }
