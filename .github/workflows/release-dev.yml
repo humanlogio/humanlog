@@ -19,6 +19,7 @@ jobs:
           tags: pro
           goos: linux
           goarch: amd64
+          preinstall: sudo apt install -y gcc libgtk-3-dev libayatana-appindicator3-dev
         - name: linux-arm64
           runner: ubuntu-latest
           goos: linux
