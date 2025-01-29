@@ -22,13 +22,11 @@ import (
 	"github.com/blang/semver"
 	"github.com/charmbracelet/huh"
 	"github.com/gen2brain/beeep"
-	"github.com/humanlogio/api/go/svc/feature/v1/featurev1connect"
 	types "github.com/humanlogio/api/go/types/v1"
 	"github.com/humanlogio/humanlog"
 	"github.com/humanlogio/humanlog/internal/pkg/config"
 	"github.com/humanlogio/humanlog/internal/pkg/state"
 	"github.com/humanlogio/humanlog/pkg/auth"
-	"github.com/humanlogio/humanlog/pkg/localstorage"
 	"github.com/humanlogio/humanlog/pkg/sink"
 	"github.com/humanlogio/humanlog/pkg/sink/stdiosink"
 	"github.com/humanlogio/humanlog/pkg/sink/teesink"
@@ -540,23 +538,13 @@ func newApp() *cli.App {
 						return fmt.Errorf("this feature requires a valid machine ID, which requires an environment. failed to login: %v", err)
 					}
 				}
-				llIceptor := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
-				apiHttpClient := getHTTPClient(cctx, getAPIUrl(cctx))
-				apiClientOpts := []connect.ClientOption{
-					connect.WithInterceptors(auth.Interceptors(llIceptor, getTokenSource(cctx))...),
-				}
 
 				machineID = uint64(*state.MachineID)
-				localhostSink, done, err := startLocalhostServer(
-					ctx, ll, cfg, state, machineID, localhostCfg.Port,
+				localhostSink, done, err := dialLocalhostServer(
+					ctx, ll, machineID, localhostCfg.Port,
 					getLocalhostHTTPClient(cctx),
-					version,
-					&localstorage.AppCtx{
-						EnsureLoggedIn: func(ctx context.Context) error {
-							_, err := ensureLoggedIn(ctx, cctx, state, getTokenSource(cctx), apiURL, getHTTPClient(cctx, apiURL))
-							return err
-						},
-						Features: featurev1connect.NewFeatureServiceClient(apiHttpClient, apiURL, apiClientOpts...),
+					func(err error) {
+						logerror("unable to ingest logs with localhost: %v", err)
 					},
 				)
 				if err != nil {

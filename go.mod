@@ -18,11 +18,13 @@ require (
 	github.com/crazy3lf/colorconv v1.2.0
 	github.com/fatih/color v1.16.0
 	github.com/gen2brain/beeep v0.0.0-20240516210008-9c006672e7f4
+	github.com/getlantern/systray v1.2.2
 	github.com/go-logfmt/logfmt v0.5.1
 	github.com/google/go-cmp v0.6.0
 	github.com/google/uuid v1.6.0
 	github.com/humanlogio/api/go v0.0.0-20250127064259-48177538af31
 	github.com/humanlogio/humanlog-pro v0.0.0-20250127072929-9301280fd950
+	github.com/kardianos/service v1.2.2
 	github.com/kr/logfmt v0.0.0-20210122060352-19f9bcb100e6
 	github.com/lrstanley/bubblezone v0.0.0-20240914071701-b48c55a5e78e
 	github.com/matoous/go-nanoid v1.5.0
@@ -59,7 +61,6 @@ require (
 	github.com/getlantern/hex v0.0.0-20190417191902-c6586a6fe0b7 // indirect
 	github.com/getlantern/hidden v0.0.0-20190325191715-f02dbb02be55 // indirect
 	github.com/getlantern/ops v0.0.0-20190325191751-d70cb0d6f85f // indirect
-	github.com/getlantern/systray v1.2.2 // indirect
 	github.com/go-stack/stack v1.8.0 // indirect
 	github.com/go-toast/toast v0.0.0-20190211030409-01e6764cf0a4 // indirect
 	github.com/goccy/go-json v0.10.3 // indirect

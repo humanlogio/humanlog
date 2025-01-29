@@ -101,6 +101,7 @@ type Features struct {
 	ReleaseChannel  *string         `json:"release_channel"`
 	SendLogsToCloud *bool           `json:"send_logs_to_cloud"`
 	ServeLocalhost  *ServeLocalhost `json:"serve_localhost"`
+	ShowInSystray   *bool           `json:"show_in_systray"`
 }
 
 type ServeLocalhost struct {
