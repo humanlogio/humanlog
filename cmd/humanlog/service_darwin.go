@@ -19,6 +19,7 @@ import (
 	"connectrpc.com/connect"
 	connectcors "connectrpc.com/cors"
 	"github.com/blang/semver"
+	"github.com/gen2brain/beeep"
 	"github.com/getlantern/systray"
 	"github.com/humanlogio/api/go/svc/auth/v1/authv1connect"
 	cliupdatepb "github.com/humanlogio/api/go/svc/cliupdate/v1"
@@ -692,79 +693,73 @@ func newSystrayController(ctx context.Context, ll *slog.Logger, client serviceCl
 func (ctrl *systrayController) NotifyError(ctx context.Context, err error) error {
 	ctrl.mu.Lock()
 	defer ctrl.mu.Unlock()
-	return err // TODO: implement desktop notifications
+	if err := beeep.Alert("humanlog has problems!", err.Error(), ""); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (ctrl *systrayController) NotifyUnauthenticated(ctx context.Context) error {
 	ctrl.mu.Lock()
 	defer ctrl.mu.Unlock()
-	// changed := false
-	// if ctrl.model.user != nil || ctrl.model.userOrg != nil || ctrl.model.curOrg != nil {
 	ctrl.model.user = nil
 	ctrl.model.userOrg = nil
 	ctrl.model.curOrg = nil
-	// changed = true
-	// }
-	// if changed {
+	err := beeep.Notify(
+		"humanlog: signed out",
+		"successfully signed out of humanlog",
+		"",
+	)
+	if err != nil {
+		ctrl.ll.ErrorContext(ctx, "can't desktop notify", slog.Any("err", err))
+	}
 	return ctrl.renderLoginMenuItem(ctx)
-	// }
-	// return nil
 }
 
 func (ctrl *systrayController) NotifyAuthenticated(ctx context.Context, user *typesv1.User, defaultOrg, currentOrg *typesv1.Organization) error {
 	ctrl.mu.Lock()
 	defer ctrl.mu.Unlock()
-	// changed := false
-	// if ctrl.model.user == nil || ctrl.model.user != user {
 	ctrl.model.user = user
-	// changed = true
-	// }
-	// if ctrl.model.userOrg == nil || ctrl.model.userOrg != defaultOrg {
 	ctrl.model.userOrg = defaultOrg
-	// changed = true
-	// }
-	// if ctrl.model.curOrg == nil || ctrl.model.curOrg != currentOrg {
 	ctrl.model.curOrg = currentOrg
-	// changed = true
-	// }
-	// if changed {
+	err := beeep.Notify(
+		"humanlog: signed in",
+		fmt.Sprintf("humanlog is signed in as %s (%s)", user.FirstName, user.Email),
+		"",
+	)
+	if err != nil {
+		ctrl.ll.ErrorContext(ctx, "can't desktop notify", slog.Any("err", err))
+	}
 	return ctrl.renderLoginMenuItem(ctx)
-	// }
-	// return nil
 }
 
 func (ctrl *systrayController) NotifyUpdateAvailable(ctx context.Context, currentV, nextV *typesv1.Version) error {
 	ctrl.mu.Lock()
 	defer ctrl.mu.Unlock()
-	// changed := false
-
-	// if ctrl.model.currentVersion == nil || ctrl.model.currentVersion != currentV {
 	currentSV, err := currentV.AsSemver()
 	if err != nil {
 		return fmt.Errorf("converting current version into semver: %v", err)
 	}
 	ctrl.model.currentVersion = currentV
 	ctrl.model.currentVersionSV = currentSV
-	// 	changed = true
-	// }
-	// if ctrl.model.nextVersion == nil || ctrl.model.nextVersion != nextV {
 	nextSV, err := nextV.AsSemver()
 	if err != nil {
 		return fmt.Errorf("converting next version into semver: %v", err)
 	}
 	ctrl.model.nextVersion = nextV
 	ctrl.model.nextVersionSV = nextSV
-	// changed = true
-	// }
 	hasUpdate := ctrl.model.currentVersionSV.LT(ctrl.model.nextVersionSV)
-	// if ctrl.model.hasUpdate != hasUpdate {
 	ctrl.model.hasUpdate = hasUpdate
-	// changed = true
-	// }
-	// if changed {
+
+	err = beeep.Notify(
+		"humanlog update available",
+		fmt.Sprintf("version %s is available, you can update now", nextSV.String()),
+		"",
+	)
+	if err != nil {
+		ctrl.ll.ErrorContext(ctx, "can't desktop notify", slog.Any("err", err))
+	}
 	return ctrl.renderUpdateMenuItem(ctx)
-	// }
-	// return nil
 }
 
 func (ctrl *systrayController) renderLoginMenuItem(ctx context.Context) error {
