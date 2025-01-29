@@ -20,6 +20,7 @@ import (
 	"github.com/humanlogio/api/go/svc/organization/v1/organizationv1connect"
 	tokenv1 "github.com/humanlogio/api/go/svc/token/v1"
 	"github.com/humanlogio/api/go/svc/token/v1/tokenv1connect"
+	userpb "github.com/humanlogio/api/go/svc/user/v1"
 	userv1 "github.com/humanlogio/api/go/svc/user/v1"
 	"github.com/humanlogio/api/go/svc/user/v1/userv1connect"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
@@ -169,6 +170,17 @@ poll_for_tokens:
 		return nil, fmt.Errorf("saving state")
 	}
 	return userToken, nil
+}
+
+func performLogoutFlow(ctx context.Context, userSvc userv1connect.UserServiceClient, tokenSource *auth.UserRefreshableTokenSource) error {
+	res, err := userSvc.GetLogoutURL(ctx, connect.NewRequest(&userpb.GetLogoutURLRequest{}))
+	if err != nil {
+		return fmt.Errorf("retrieving logout URL")
+	}
+	if err := browser.OpenURL(res.Msg.GetLogoutUrl()); err != nil {
+		return fmt.Errorf("opening logout URL")
+	}
+	return tokenSource.ClearToken(ctx)
 }
 
 func ensureOrgSelected(
