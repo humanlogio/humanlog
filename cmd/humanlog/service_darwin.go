@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/user"
 	"runtime"
@@ -179,6 +180,7 @@ func serviceCmd(
 					ctx := getCtx(cctx)
 					cfg := getCfg(cctx)
 					ll := getLogger(cctx)
+					baseSiteURL := getBaseSiteURL(cctx)
 
 					eg, ctx := errgroup.WithContext(ctx)
 
@@ -187,7 +189,7 @@ func serviceCmd(
 					if cfg.ExperimentalFeatures != nil && cfg.ExperimentalFeatures.ShowInSystray != nil && *cfg.ExperimentalFeatures.ShowInSystray {
 						trayll := ll.WithGroup("systray")
 						onReady := func() {
-							sysctrl, err := newSystrayController(ctx, trayll, svcHandler, version)
+							sysctrl, err := newSystrayController(ctx, trayll, svcHandler, version, baseSiteURL)
 							if err != nil {
 								trayll.ErrorContext(ctx, "running humanlog systray controller", slog.Any("err", err))
 							} else {
@@ -381,6 +383,9 @@ func (hdl *serviceHandler) runLocalhost(
 	}, retry.UseBaseSleep(20*time.Millisecond), retry.UseCapSleep(time.Second))
 	if err != nil {
 		return fmt.Errorf("unable to obtain localhost listener: %v", err)
+	}
+	if l == nil {
+		return fmt.Errorf("never obtained listener, giving up")
 	}
 	defer l.Close()
 	ll.InfoContext(ctx, "obtained listener")
@@ -626,7 +631,8 @@ var _ systrayClient = (*systrayController)(nil)
 type systrayController struct {
 	ll *slog.Logger
 
-	client serviceClient
+	client      serviceClient
+	baseSiteURL *url.URL
 
 	mu sync.Mutex
 
@@ -643,19 +649,25 @@ type systrayController struct {
 }
 
 type systrayModel struct {
-	currentVersion      *typesv1.Version
-	currentVersionSV    semver.Version
-	nextVersion         *typesv1.Version
-	nextVersionSV       semver.Version
-	hasUpdate           bool
-	lastNotifiedVersion semver.Version
+	currentVersion       *typesv1.Version
+	currentVersionSV     semver.Version
+	nextVersion          *typesv1.Version
+	nextVersionSV        semver.Version
+	hasUpdate            bool
+	lastNotifiedVersion  semver.Version
+	requestedUpdateCheck bool
 
 	user    *typesv1.User
 	userOrg *typesv1.Organization
 	curOrg  *typesv1.Organization
 }
 
-func newSystrayController(ctx context.Context, ll *slog.Logger, client serviceClient, currentVersion *typesv1.Version) (*systrayController, error) {
+func newSystrayController(ctx context.Context, ll *slog.Logger, client serviceClient, currentVersion *typesv1.Version, baseSiteURL string) (*systrayController, error) {
+
+	baseSiteU, err := url.Parse(baseSiteURL)
+	if err != nil {
+		return nil, fmt.Errorf("parsing base site URL: %v", err)
+	}
 
 	mdl := &systrayModel{currentVersion: currentVersion}
 
@@ -696,6 +708,7 @@ func newSystrayController(ctx context.Context, ll *slog.Logger, client serviceCl
 	ctrl := &systrayController{
 		ll:                         ll,
 		client:                     client,
+		baseSiteURL:                baseSiteU,
 		model:                      mdl,
 		mUserMenuItem:              mUserMenuItem,
 		mUserMenuItem_Sub_Settings: mUserMenuItem_Sub_Settings,
@@ -739,7 +752,7 @@ func (ctrl *systrayController) NotifyUnauthenticated(ctx context.Context) error 
 			"",
 		)
 		if err != nil {
-			ctrl.ll.ErrorContext(ctx, "can't desktop notify", slog.Any("err", err))
+			ctrl.ll.ErrorContext(ctx, "can't notify desktop", slog.Any("err", err))
 		}
 	}
 	return ctrl.renderLoginMenuItem(ctx)
@@ -759,7 +772,7 @@ func (ctrl *systrayController) NotifyAuthenticated(ctx context.Context, user *ty
 			"",
 		)
 		if err != nil {
-			ctrl.ll.ErrorContext(ctx, "can't desktop notify", slog.Any("err", err))
+			ctrl.ll.ErrorContext(ctx, "can't notify desktop", slog.Any("err", err))
 		}
 	}
 	return ctrl.renderLoginMenuItem(ctx)
@@ -790,11 +803,36 @@ func (ctrl *systrayController) NotifyUpdateAvailable(ctx context.Context, curren
 			"",
 		)
 		if err != nil {
-			ctrl.ll.ErrorContext(ctx, "can't desktop notify", slog.Any("err", err))
+			ctrl.ll.ErrorContext(ctx, "can't notify desktop", slog.Any("err", err))
 		} else {
 			ctrl.model.lastNotifiedVersion = nextSV
 		}
 	}
+	if ctrl.model.requestedUpdateCheck {
+
+		if hasUpdate {
+			err = beeep.Notify(
+				"humanlog update available",
+				fmt.Sprintf("version %s is available, you can update now", nextSV.String()),
+				"",
+			)
+			if err != nil {
+				ctrl.ll.ErrorContext(ctx, "can't notify desktop", slog.Any("err", err))
+			}
+		} else {
+			err = beeep.Notify(
+				"humanlog is up to date",
+				fmt.Sprintf("you're running the latest version (%s)", currentSV.String()),
+				"",
+			)
+			if err != nil {
+				ctrl.ll.ErrorContext(ctx, "can't notify desktop", slog.Any("err", err))
+			}
+		}
+
+		ctrl.model.requestedUpdateCheck = false
+	}
+
 	return ctrl.renderUpdateMenuItem(ctx)
 }
 
@@ -822,7 +860,6 @@ func (ctrl *systrayController) renderUpdateMenuItem(ctx context.Context) error {
 	current := ctrl.model.currentVersionSV
 	mi := ctrl.mUpdate
 	if !hasUpdate {
-
 		mi.SetTitle(fmt.Sprintf("%s (latest, click to check)", current.String()))
 	} else {
 		nextVersion := ctrl.model.nextVersionSV
@@ -834,13 +871,14 @@ func (ctrl *systrayController) renderUpdateMenuItem(ctx context.Context) error {
 }
 
 func (ctrl *systrayController) registerClickUserSettings(ctx context.Context, mi *systray.MenuItem) context.CancelFunc {
+	userSettingsPath := ctrl.baseSiteURL.JoinPath("/user/edit")
 	return onClick(ctx, mi, func(ctx context.Context) {
 		if mi.Disabled() {
 			ctrl.ll.DebugContext(ctx, "clicked user settings, but button disabled")
 			return
 		}
 		ctrl.ll.DebugContext(ctx, "clicked user settings")
-		browser.OpenURL("https://humanlog.dev/user/edit")
+		browser.OpenURL(userSettingsPath.String())
 	})
 }
 
@@ -882,6 +920,9 @@ func (ctrl *systrayController) registerClickUpdate(ctx context.Context, mi *syst
 				ctrl.NotifyError(ctx, err)
 			}
 		} else {
+			ctrl.mu.Lock()
+			ctrl.model.requestedUpdateCheck = true
+			ctrl.mu.Unlock()
 			if err := ctrl.client.CheckUpdate(ctx); err != nil {
 				ctrl.NotifyError(ctx, err)
 			}
@@ -890,24 +931,26 @@ func (ctrl *systrayController) registerClickUpdate(ctx context.Context, mi *syst
 }
 
 func (ctrl *systrayController) registerClickQuery(ctx context.Context, mi *systray.MenuItem) context.CancelFunc {
+	queryPath := ctrl.baseSiteURL.JoinPath("/localhost")
 	return onClick(ctx, mi, func(ctx context.Context) {
 		if mi.Disabled() {
 			ctrl.ll.DebugContext(ctx, "clicked query, but button disabled")
 			return
 		}
 		ctrl.ll.DebugContext(ctx, "clicked query")
-		browser.OpenURL("https://humanlog.dev/localhost")
+		browser.OpenURL(queryPath.String())
 	})
 }
 
 func (ctrl *systrayController) registerClickLocalhostSettings(ctx context.Context, mi *systray.MenuItem) context.CancelFunc {
+	settingsPath := ctrl.baseSiteURL.JoinPath("/localhost/edit")
 	return onClick(ctx, mi, func(ctx context.Context) {
 		if mi.Disabled() {
 			ctrl.ll.DebugContext(ctx, "clicked settings, but button disabled")
 			return
 		}
 		ctrl.ll.DebugContext(ctx, "clicked settings")
-		browser.OpenURL("https://humanlog.dev/localhost/edit")
+		browser.OpenURL(settingsPath.String())
 	})
 }
 
