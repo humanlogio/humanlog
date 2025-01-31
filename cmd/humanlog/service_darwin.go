@@ -517,10 +517,7 @@ func (hdl *serviceHandler) checkAuth(ctx context.Context) error {
 
 func (hdl *serviceHandler) checkUpdate(ctx context.Context, channel *string) error {
 	ll := hdl.ll
-	currentSV, err := version.AsSemver()
-	if err != nil {
-		return fmt.Errorf("parsing current version: %v", err)
-	}
+	ll.InfoContext(ctx, "checking for updates")
 	res, err := hdl.updateSvc.GetNextUpdate(ctx, connect.NewRequest(&cliupdatepb.GetNextUpdateRequest{
 		ProjectName:            "humanlog",
 		CurrentVersion:         version,
@@ -541,9 +538,6 @@ func (hdl *serviceHandler) checkUpdate(ctx context.Context, channel *string) err
 	}
 	if err := updateFromResMeta(hdl.state, msg.Meta, &nextSV, &lastCheckAt); err != nil {
 		ll.ErrorContext(ctx, "failed to persist internal state", slog.Any("err", err))
-	}
-	if !currentSV.LT(nextSV) {
-		return nil
 	}
 	return hdl.notifyUpdateAvailable(ctx, version, msg.NextVersion)
 }
@@ -781,6 +775,7 @@ func (ctrl *systrayController) NotifyAuthenticated(ctx context.Context, user *ty
 func (ctrl *systrayController) NotifyUpdateAvailable(ctx context.Context, currentV, nextV *typesv1.Version) error {
 	ctrl.mu.Lock()
 	defer ctrl.mu.Unlock()
+	ctrl.ll.InfoContext(ctx, "notified of an update being available")
 	currentSV, err := currentV.AsSemver()
 	if err != nil {
 		return fmt.Errorf("converting current version into semver: %v", err)
@@ -920,6 +915,7 @@ func (ctrl *systrayController) registerClickUpdate(ctx context.Context, mi *syst
 				ctrl.NotifyError(ctx, err)
 			}
 		} else {
+			ctrl.ll.InfoContext(ctx, "starting a manually requested update check")
 			ctrl.mu.Lock()
 			ctrl.model.requestedUpdateCheck = true
 			ctrl.mu.Unlock()
