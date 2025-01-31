@@ -230,6 +230,7 @@ type serviceClient interface {
 	DoLogout(ctx context.Context) error
 	DoLogin(ctx context.Context) error
 	DoUpdate(ctx context.Context) error
+	CheckUpdate(ctx context.Context) error
 }
 
 var _ serviceClient = (*serviceHandler)(nil)
@@ -564,6 +565,14 @@ func (hdl *serviceHandler) DoUpdate(ctx context.Context) error {
 	return selfupdate.UpgradeInPlace(ctx, baseSiteURL, channelName, os.Stdout, os.Stderr, os.Stdin)
 }
 
+func (hdl *serviceHandler) CheckUpdate(ctx context.Context) error {
+	var channelName *string
+	if hdl.config.ExperimentalFeatures != nil {
+		channelName = hdl.config.ExperimentalFeatures.ReleaseChannel
+	}
+	return hdl.checkUpdate(ctx, channelName)
+}
+
 func (hdl *serviceHandler) registerClient(client systrayClient) {
 	ctx := hdl.ctx
 	ll := hdl.ll
@@ -609,7 +618,7 @@ func (hdl *serviceHandler) notifyUpdateAvailable(ctx context.Context, oldV, newV
 	if hdl.client == nil {
 		return nil
 	}
-	return hdl.client.NotifyUpdateAvailable(ctx, newV, newV)
+	return hdl.client.NotifyUpdateAvailable(ctx, oldV, newV)
 }
 
 var _ systrayClient = (*systrayController)(nil)
@@ -673,10 +682,9 @@ func newSystrayController(ctx context.Context, ll *slog.Logger, client serviceCl
 
 	mSettings := systray.AddMenuItem("Settings...", "Configure humanlog on your machine")
 	mUpdate := systray.AddMenuItem(
-		currentSV.String(),
+		fmt.Sprintf("%s (latest, click to check)", currentSV.String()),
 		fmt.Sprintf("Currently running humanlog version %s", currentSV.String()),
 	)
-	mUpdate.Disable()
 
 	mQuit := systray.AddMenuItem("Quit", "Quit the whole app")
 	_ = onClick(ctx, mQuit, func(ctx context.Context) {
@@ -814,8 +822,8 @@ func (ctrl *systrayController) renderUpdateMenuItem(ctx context.Context) error {
 	current := ctrl.model.currentVersionSV
 	mi := ctrl.mUpdate
 	if !hasUpdate {
-		mi.SetTitle(fmt.Sprintf("%s (latest)", current.String()))
-		mi.Disable()
+
+		mi.SetTitle(fmt.Sprintf("%s (latest, click to check)", current.String()))
 	} else {
 		nextVersion := ctrl.model.nextVersionSV
 		mi.SetTitle(fmt.Sprintf("Update available! (%s)", nextVersion.String()))
@@ -865,12 +873,18 @@ func (ctrl *systrayController) registerClickUserLogout(ctx context.Context, mi *
 func (ctrl *systrayController) registerClickUpdate(ctx context.Context, mi *systray.MenuItem) context.CancelFunc {
 	return onClick(ctx, mi, func(ctx context.Context) {
 		if mi.Disabled() {
-			ctrl.ll.DebugContext(ctx, "clicked updated, but button disabled")
+			ctrl.ll.DebugContext(ctx, "clicked update, but button disabled")
 			return
 		}
-		ctrl.ll.DebugContext(ctx, "clicked updated")
-		if err := ctrl.client.DoUpdate(ctx); err != nil {
-			ctrl.NotifyError(ctx, err)
+		ctrl.ll.DebugContext(ctx, "clicked update")
+		if ctrl.model.hasUpdate {
+			if err := ctrl.client.DoUpdate(ctx); err != nil {
+				ctrl.NotifyError(ctx, err)
+			}
+		} else {
+			if err := ctrl.client.CheckUpdate(ctx); err != nil {
+				ctrl.NotifyError(ctx, err)
+			}
 		}
 	})
 }

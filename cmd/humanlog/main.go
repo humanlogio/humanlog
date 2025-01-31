@@ -469,7 +469,6 @@ func newApp() *cli.App {
 
 		if cfg.ExperimentalFeatures != nil {
 			if cfg.ExperimentalFeatures.SendLogsToCloud != nil && *cfg.ExperimentalFeatures.SendLogsToCloud {
-				// TODO(antoine): remove this codepath, it's redundant with the localhost port path
 				ll := getLogger(cctx)
 				apiURL := getAPIUrl(cctx)
 				notifyUnableToIngest := func(err error) {
