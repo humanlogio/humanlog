@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"os"
 	"os/user"
 	"runtime"
 	"runtime/debug"
@@ -34,6 +35,7 @@ import (
 	"github.com/humanlogio/humanlog/internal/errutil"
 	"github.com/humanlogio/humanlog/internal/localsvc"
 	"github.com/humanlogio/humanlog/internal/pkg/config"
+	"github.com/humanlogio/humanlog/internal/pkg/selfupdate"
 	"github.com/humanlogio/humanlog/internal/pkg/state"
 	"github.com/humanlogio/humanlog/pkg/auth"
 	"github.com/humanlogio/humanlog/pkg/localstorage"
@@ -61,6 +63,7 @@ func serviceCmd(
 	getState func(cctx *cli.Context) *state.State,
 	getTokenSource func(cctx *cli.Context) *auth.UserRefreshableTokenSource,
 	getAPIUrl func(cctx *cli.Context) string,
+	getBaseSiteURL func(cctx *cli.Context) string,
 	getHTTPClient func(cctx *cli.Context, apiURL string) *http.Client,
 ) cli.Command {
 	var (
@@ -84,6 +87,7 @@ func serviceCmd(
 			state := getState(cctx)
 			tokenSource := getTokenSource(cctx)
 			apiURL := getAPIUrl(cctx)
+			baseSiteURL := getBaseSiteURL(cctx)
 			httpClient := getHTTPClient(cctx, apiURL)
 
 			publicClOpts := connect.WithInterceptors(auth.NewRefreshedUserAuthInterceptor(ll, tokenSource))
@@ -109,6 +113,7 @@ func serviceCmd(
 				ll,
 				config,
 				state,
+				baseSiteURL,
 				tokenSource,
 				cliupdatev1connect.NewUpdateServiceClient(httpClient, apiURL, publicClOpts),
 				authv1connect.NewAuthServiceClient(httpClient, apiURL, publicClOpts),
@@ -181,9 +186,8 @@ func serviceCmd(
 
 					if cfg.ExperimentalFeatures != nil && cfg.ExperimentalFeatures.ShowInSystray != nil && *cfg.ExperimentalFeatures.ShowInSystray {
 						trayll := ll.WithGroup("systray")
-						mdl := &systrayModel{currentVersion: version}
 						onReady := func() {
-							sysctrl, err := newSystrayController(ctx, trayll, svcHandler, mdl)
+							sysctrl, err := newSystrayController(ctx, trayll, svcHandler, version)
 							if err != nil {
 								trayll.ErrorContext(ctx, "running humanlog systray controller", slog.Any("err", err))
 							} else {
@@ -235,6 +239,7 @@ type serviceHandler struct {
 	ll          *slog.Logger
 	config      *config.Config
 	state       *state.State
+	baseSiteURL string
 	tokenSource *auth.UserRefreshableTokenSource
 
 	updateSvc  cliupdatev1connect.UpdateServiceClient
@@ -255,6 +260,7 @@ func newServiceHandler(
 	ll *slog.Logger,
 	cfg *config.Config,
 	state *state.State,
+	baseSiteURL string,
 	tokenSource *auth.UserRefreshableTokenSource,
 	updateSvc cliupdatev1connect.UpdateServiceClient,
 	authSvc authv1connect.AuthServiceClient,
@@ -267,6 +273,7 @@ func newServiceHandler(
 		ll:          ll,
 		config:      cfg,
 		state:       state,
+		baseSiteURL: baseSiteURL,
 		tokenSource: tokenSource,
 		updateSvc:   updateSvc,
 		authSvc:     authSvc,
@@ -549,7 +556,12 @@ func (hdl *serviceHandler) DoLogin(ctx context.Context) error {
 
 }
 func (hdl *serviceHandler) DoUpdate(ctx context.Context) error {
-	panic("todo")
+	baseSiteURL := hdl.baseSiteURL
+	var channelName *string
+	if hdl.config.ExperimentalFeatures != nil {
+		channelName = hdl.config.ExperimentalFeatures.ReleaseChannel
+	}
+	return selfupdate.UpgradeInPlace(ctx, baseSiteURL, channelName, os.Stdout, os.Stderr, os.Stdin)
 }
 
 func (hdl *serviceHandler) registerClient(client systrayClient) {
@@ -622,22 +634,27 @@ type systrayController struct {
 }
 
 type systrayModel struct {
-	currentVersion   *typesv1.Version
-	currentVersionSV semver.Version
-	nextVersion      *typesv1.Version
-	nextVersionSV    semver.Version
-	hasUpdate        bool
+	currentVersion      *typesv1.Version
+	currentVersionSV    semver.Version
+	nextVersion         *typesv1.Version
+	nextVersionSV       semver.Version
+	hasUpdate           bool
+	lastNotifiedVersion semver.Version
 
 	user    *typesv1.User
 	userOrg *typesv1.Organization
 	curOrg  *typesv1.Organization
 }
 
-func newSystrayController(ctx context.Context, ll *slog.Logger, client serviceClient, mdl *systrayModel) (*systrayController, error) {
+func newSystrayController(ctx context.Context, ll *slog.Logger, client serviceClient, currentVersion *typesv1.Version) (*systrayController, error) {
+
+	mdl := &systrayModel{currentVersion: currentVersion}
+
 	currentSV, err := mdl.currentVersion.AsSemver()
 	if err != nil {
 		return nil, fmt.Errorf("parsing current version: %v", err)
 	}
+	mdl.lastNotifiedVersion = currentSV
 
 	// systray.SetIcon(hlembed.IconDarkPNG)
 
@@ -702,16 +719,20 @@ func (ctrl *systrayController) NotifyError(ctx context.Context, err error) error
 func (ctrl *systrayController) NotifyUnauthenticated(ctx context.Context) error {
 	ctrl.mu.Lock()
 	defer ctrl.mu.Unlock()
+	wasSignedIn := ctrl.model.user != nil
 	ctrl.model.user = nil
 	ctrl.model.userOrg = nil
 	ctrl.model.curOrg = nil
-	err := beeep.Notify(
-		"humanlog: signed out",
-		"successfully signed out of humanlog",
-		"",
-	)
-	if err != nil {
-		ctrl.ll.ErrorContext(ctx, "can't desktop notify", slog.Any("err", err))
+
+	if wasSignedIn {
+		err := beeep.Notify(
+			"humanlog: signed out",
+			"successfully signed out of humanlog",
+			"",
+		)
+		if err != nil {
+			ctrl.ll.ErrorContext(ctx, "can't desktop notify", slog.Any("err", err))
+		}
 	}
 	return ctrl.renderLoginMenuItem(ctx)
 }
@@ -719,16 +740,19 @@ func (ctrl *systrayController) NotifyUnauthenticated(ctx context.Context) error 
 func (ctrl *systrayController) NotifyAuthenticated(ctx context.Context, user *typesv1.User, defaultOrg, currentOrg *typesv1.Organization) error {
 	ctrl.mu.Lock()
 	defer ctrl.mu.Unlock()
+	wasSignedOff := ctrl.model.user == nil
 	ctrl.model.user = user
 	ctrl.model.userOrg = defaultOrg
 	ctrl.model.curOrg = currentOrg
-	err := beeep.Notify(
-		"humanlog: signed in",
-		fmt.Sprintf("humanlog is signed in as %s (%s)", user.FirstName, user.Email),
-		"",
-	)
-	if err != nil {
-		ctrl.ll.ErrorContext(ctx, "can't desktop notify", slog.Any("err", err))
+	if wasSignedOff {
+		err := beeep.Notify(
+			"humanlog: signed in",
+			fmt.Sprintf("humanlog is signed in as %s (%s)", user.FirstName, user.Email),
+			"",
+		)
+		if err != nil {
+			ctrl.ll.ErrorContext(ctx, "can't desktop notify", slog.Any("err", err))
+		}
 	}
 	return ctrl.renderLoginMenuItem(ctx)
 }
@@ -751,13 +775,17 @@ func (ctrl *systrayController) NotifyUpdateAvailable(ctx context.Context, curren
 	hasUpdate := ctrl.model.currentVersionSV.LT(ctrl.model.nextVersionSV)
 	ctrl.model.hasUpdate = hasUpdate
 
-	err = beeep.Notify(
-		"humanlog update available",
-		fmt.Sprintf("version %s is available, you can update now", nextSV.String()),
-		"",
-	)
-	if err != nil {
-		ctrl.ll.ErrorContext(ctx, "can't desktop notify", slog.Any("err", err))
+	if !ctrl.model.lastNotifiedVersion.EQ(nextSV) {
+		err = beeep.Notify(
+			"humanlog update available",
+			fmt.Sprintf("version %s is available, you can update now", nextSV.String()),
+			"",
+		)
+		if err != nil {
+			ctrl.ll.ErrorContext(ctx, "can't desktop notify", slog.Any("err", err))
+		} else {
+			ctrl.model.lastNotifiedVersion = nextSV
+		}
 	}
 	return ctrl.renderUpdateMenuItem(ctx)
 }
