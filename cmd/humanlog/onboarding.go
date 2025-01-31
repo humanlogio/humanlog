@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
 
 	"github.com/charmbracelet/huh"
 	"github.com/humanlogio/api/go/svc/auth/v1/authv1connect"
@@ -30,6 +32,48 @@ func onboardingCmd(
 		Usage:  "Onboarding humanlog after installs or updates",
 		Hidden: true,
 		Action: func(cctx *cli.Context) error {
+			cfg := getCfg(cctx)
+
+			if cfg.ExperimentalFeatures != nil {
+				expcfg := cfg.ExperimentalFeatures
+				runsAsAService := expcfg.ServeLocalhost != nil
+				runsAsAService = runsAsAService || expcfg.ShowInSystray != nil && *expcfg.ShowInSystray
+				if runsAsAService {
+					_, svc, err := prepareServiceCmd(cctx,
+						getCtx,
+						getLogger,
+						getCfg,
+						getState,
+						getTokenSource,
+						getAPIUrl,
+						getBaseSiteURL,
+						getHTTPClient,
+					)
+					if err != nil {
+						logwarn("failed to get humanlog service details: %v", err)
+					} else {
+						if err := svc.Stop(); err != nil {
+							logwarn("failed to stop service (was it running?): %v", err)
+						}
+						if err := svc.Uninstall(); err != nil {
+							logwarn("failed to uninstall service (was it installed?): %v", err)
+						}
+						if err := svc.Install(); err != nil {
+							return fmt.Errorf("unable to install humanlog service, which is required for localhost querying and systray icon")
+						}
+						if err := svc.Start(); err != nil {
+							return fmt.Errorf("unable to start humanlog service, which is required for localhost querying and systray icon")
+						}
+						loginfo("humanlog service is configured")
+					}
+				}
+			}
+
+			if isTerminal(os.Stdin) {
+				return nil
+			}
+
+			// prompt for signup and stuff
 			wantsSignup := true
 			err := huh.NewConfirm().Title("Welcome to humanlog. New features are coming up soon!").
 				Description("Would you like to sign-up to learn more?").
