@@ -25,6 +25,7 @@ func serviceCmd(
 	getState func(cctx *cli.Context) *state.State,
 	getTokenSource func(cctx *cli.Context) *auth.UserRefreshableTokenSource,
 	getAPIUrl func(cctx *cli.Context) string,
+	getBaseSiteURL func(cctx *cli.Context) string,
 	getHTTPClient func(cctx *cli.Context, apiURL string) *http.Client,
 ) cli.Command {
 
