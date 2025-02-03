@@ -328,11 +328,21 @@ func (hdl *serviceHandler) run(ctx context.Context) error {
 			})
 		}
 		eg.Go(func() error {
-			return hdl.runLocalhost(ctx, ll, localhostCfg, version, app, registerOnCloseServer)
+			if err := hdl.runLocalhost(ctx, ll, localhostCfg, version, app, registerOnCloseServer); err != nil {
+				ll.ErrorContext(ctx, "unable to run localhost", slog.Any("err", err))
+				return err
+			}
+			return nil
 		})
 	}
 
-	eg.Go(func() error { return hdl.maintainState(ctx) })
+	eg.Go(func() error {
+		if err := hdl.maintainState(ctx); err != nil {
+			hdl.ll.ErrorContext(ctx, "unable to maintain state", slog.Any("err", err))
+			return err
+		}
+		return nil
+	})
 
 	return eg.Wait()
 }

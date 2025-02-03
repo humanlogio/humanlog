@@ -109,4 +109,5 @@ require (
 
 // replace github.com/humanlogio/api/go => ../api/go
 
+// TODO: comment this line when send PR
 // replace github.com/humanlogio/humanlog-pro => ../humanlog-pro

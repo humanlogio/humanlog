@@ -30,12 +30,12 @@ func runSystray(ctx context.Context, ll *slog.Logger, svcHandler *serviceHandler
 		ll.WarnContext(ctx, "exiting...")
 	}
 	ll.InfoContext(ctx, "enabling systray menu")
-	systray.Run(onReady, onExit) // systray must run on `main` goroutine
 	go func() {
 		<-ctx.Done()
 		ll.Warn("signal received, sending quit to systray...")
 		systray.Quit()
 	}()
+	systray.Run(onReady, onExit) // systray must run on `main` goroutine
 	return nil
 }
 
