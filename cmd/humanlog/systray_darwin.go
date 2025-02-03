@@ -277,7 +277,7 @@ func (ctrl *systrayController) renderUpdateMenuItem(ctx context.Context) error {
 		mi.SetTitle(fmt.Sprintf("%s (latest, click to check)", current.String()))
 	} else {
 		nextVersion := ctrl.model.nextVersionSV
-		mi.SetTitle(fmt.Sprintf("Update available! (%s)", nextVersion.String()))
+		mi.SetTitle(fmt.Sprintf("Click to update! A new version is available (%s)", nextVersion.String()))
 		mi.SetTooltip("Click to update")
 		mi.Enable()
 	}
