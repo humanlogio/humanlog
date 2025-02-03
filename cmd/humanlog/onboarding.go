@@ -113,7 +113,7 @@ func onboardingCmd(
 				}
 			}()
 
-			if !isTerminal(os.Stdin) || cctx.Bool(forceNonInteractiveFlag.Name) {
+			if !isTerminal(os.Stdout) || cctx.Bool(forceNonInteractiveFlag.Name) {
 
 				in := `# humanlog updates
 
