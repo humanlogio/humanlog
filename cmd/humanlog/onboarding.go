@@ -71,9 +71,11 @@ func onboardingCmd(
 		if err := svc.Install(); err != nil {
 			return fmt.Errorf("can't install service: %v", err)
 		}
+		loginfo("service installed")
 		if err := svc.Start(); err != nil {
 			return fmt.Errorf("can't start service: %v", err)
 		}
+		loginfo("service started")
 		return nil
 	}
 
