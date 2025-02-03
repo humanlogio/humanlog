@@ -63,10 +63,10 @@ func onboardingCmd(
 			return fmt.Errorf("failed to get humanlog service details: %v", err)
 		}
 		if err := svc.Stop(); err != nil {
-			logwarn("failed to stop service (was it running?): %v", err)
+			logdebug("failed to stop service (was it running?): %v", err)
 		}
 		if err := svc.Uninstall(); err != nil {
-			logwarn("failed to uninstall service (was it installed?): %v", err)
+			logdebug("failed to uninstall service (was it installed?): %v", err)
 		}
 		if err := svc.Install(); err != nil {
 			return fmt.Errorf("can't install service: %v", err)
@@ -149,17 +149,23 @@ Bye! <3`
 			var fields []huh.Field
 			// fields = append(fields, huh.NewNote().Title("Welcome to humanlog. New features are available and more are coming soon!"))
 			if promptQueryEngine {
+				wantsSignup = user == nil
+				var titleSignupExtra, titleDescriptionExtra string
+				if wantsSignup {
+					titleSignupExtra = "\nAnd since you are not logged in, this will also prompt you to log in.\n"
+					titleDescriptionExtra = " and signin"
+				}
 				fields = append(fields,
 					huh.NewConfirm().
 						Title("Humanlog now includes a log query engine, right here in your pocket.\n\n"+
 							"You can use it to query your logs, plot graphs and do general log observability stuff. All on your machine!\n\n"+
-							"To enable this feature, humanlog needs to run a background service.").
-						Description("Do you want to enable the log query engine?").
+							"To enable this feature, humanlog needs to run a background service.\n"+titleSignupExtra).
+						Description("Do you want to enable the log query engine"+titleDescriptionExtra+"?").
 						Affirmative("Yes!").Negative("No.").
 						Value(&wantsQueryEngine),
 				)
 				state.LastPromptedToEnableLocalhostAt = ptr(time.Now())
-				wantsSignup = user == nil
+
 			}
 			if promptSignup && !promptQueryEngine {
 				fields = append(fields,
