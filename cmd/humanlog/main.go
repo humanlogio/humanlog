@@ -270,9 +270,9 @@ func newApp() *cli.App {
 				return nil, err
 			}
 			return keyring.Open(keyring.Config{
-				ServiceName:            keyringName,
-				KeychainSynchronizable: true,
-				FileDir:                stateDir,
+				AllowedBackends: []keyring.BackendType{keyring.FileBackend},
+				ServiceName:     keyringName,
+				FileDir:         stateDir,
 				FilePasswordFunc: func(s string) (pwd string, err error) {
 					return "", nil
 				},

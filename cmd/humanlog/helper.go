@@ -67,13 +67,11 @@ func ensureLoggedIn(
 	} else {
 		// check that the token is valid
 		ll := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{}))
-		clOpts := connect.WithInterceptors(
-			auth.Interceptors(ll, tokenSource)...,
-		)
-		userClient := userv1connect.NewUserServiceClient(httpClient, apiURL, clOpts)
-		cerr := new(connect.Error)
-		_, err := userClient.Whoami(ctx, connect.NewRequest(&userv1.WhoamiRequest{}))
-		if errors.As(err, &cerr) && cerr.Code() == connect.CodeUnauthenticated {
+		user, err := checkUserLoggedIn(ctx, ll, httpClient, apiURL, tokenSource)
+		if err != nil {
+			return nil, fmt.Errorf("requesting whoami: %v", err)
+		}
+		if user == nil {
 			// token isn't valid anymore, login again
 			confirms := true
 			err := huh.NewConfirm().
@@ -94,11 +92,25 @@ func ensureLoggedIn(
 				return nil, fmt.Errorf("performing login: %v", err)
 			}
 			userToken = t
-		} else if err != nil {
-			return nil, fmt.Errorf("requesting whoami: %v", err)
 		}
 	}
 	return userToken, nil
+}
+
+func checkUserLoggedIn(ctx context.Context, ll *slog.Logger, httpClient *http.Client, apiURL string, tokenSource *auth.UserRefreshableTokenSource) (*typesv1.User, error) {
+	clOpts := connect.WithInterceptors(
+		auth.Interceptors(ll, tokenSource)...,
+	)
+	cerr := new(connect.Error)
+	userClient := userv1connect.NewUserServiceClient(httpClient, apiURL, clOpts)
+	res, err := userClient.Whoami(ctx, connect.NewRequest(&userv1.WhoamiRequest{}))
+	if errors.As(err, &cerr) && cerr.Code() == connect.CodeUnauthenticated {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return res.Msg.User, nil
 }
 
 func performLoginFlow(
