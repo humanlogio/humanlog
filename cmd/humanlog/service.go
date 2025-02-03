@@ -185,6 +185,18 @@ func prepareServiceCmd(
 	baseSiteURL := getBaseSiteURL(cctx)
 	httpClient := getHTTPClient(cctx, apiURL)
 
+	authCheckFrequency := time.Minute
+	updateCheckFrequency := time.Hour
+	if config.ExperimentalFeatures != nil {
+		// check for updates more often if you use
+		// experimental features
+		updateCheckFrequency = 10 * time.Minute
+		if config.ExperimentalFeatures.ReleaseChannel != nil {
+			// and even more frequently if using a non-default channel
+			updateCheckFrequency = time.Minute
+		}
+	}
+
 	publicClOpts := connect.WithInterceptors(auth.NewRefreshedUserAuthInterceptor(ll, tokenSource))
 	authedClOpts := connect.WithInterceptors(auth.Interceptors(ll, tokenSource)...)
 
@@ -209,6 +221,8 @@ func prepareServiceCmd(
 		state,
 		baseSiteURL,
 		tokenSource,
+		authCheckFrequency,
+		updateCheckFrequency,
 		cliupdatev1connect.NewUpdateServiceClient(httpClient, apiURL, publicClOpts),
 		authv1connect.NewAuthServiceClient(httpClient, apiURL, publicClOpts),
 		userv1connect.NewUserServiceClient(httpClient, apiURL, authedClOpts),
@@ -243,12 +257,14 @@ type serviceClient interface {
 var _ serviceClient = (*serviceHandler)(nil)
 
 type serviceHandler struct {
-	ctx         context.Context
-	ll          *slog.Logger
-	config      *config.Config
-	state       *state.State
-	baseSiteURL string
-	tokenSource *auth.UserRefreshableTokenSource
+	ctx                  context.Context
+	ll                   *slog.Logger
+	config               *config.Config
+	state                *state.State
+	baseSiteURL          string
+	tokenSource          *auth.UserRefreshableTokenSource
+	authCheckFrequency   time.Duration
+	updateCheckFrequency time.Duration
 
 	updateSvc  cliupdatev1connect.UpdateServiceClient
 	authSvc    authv1connect.AuthServiceClient
@@ -270,23 +286,33 @@ func newServiceHandler(
 	state *state.State,
 	baseSiteURL string,
 	tokenSource *auth.UserRefreshableTokenSource,
+	authCheckFrequency time.Duration,
+	updateCheckFrequency time.Duration,
 	updateSvc cliupdatev1connect.UpdateServiceClient,
 	authSvc authv1connect.AuthServiceClient,
 	userSvc userv1connect.UserServiceClient,
 	featureSvc featurev1connect.FeatureServiceClient,
 ) (*serviceHandler, error) {
+	if authCheckFrequency < time.Minute {
+		authCheckFrequency = time.Minute
+	}
+	if updateCheckFrequency < time.Minute {
+		updateCheckFrequency = time.Minute
+	}
 
 	hdl := &serviceHandler{
-		ctx:         ctx,
-		ll:          ll,
-		config:      cfg,
-		state:       state,
-		baseSiteURL: baseSiteURL,
-		tokenSource: tokenSource,
-		updateSvc:   updateSvc,
-		authSvc:     authSvc,
-		userSvc:     userSvc,
-		featureSvc:  featureSvc,
+		ctx:                  ctx,
+		ll:                   ll,
+		config:               cfg,
+		state:                state,
+		baseSiteURL:          baseSiteURL,
+		tokenSource:          tokenSource,
+		authCheckFrequency:   time.Minute,
+		updateCheckFrequency: time.Hour,
+		updateSvc:            updateSvc,
+		authSvc:              authSvc,
+		userSvc:              userSvc,
+		featureSvc:           featureSvc,
 	}
 
 	return hdl, nil
@@ -493,9 +519,9 @@ func (hdl *serviceHandler) maintainState(ctx context.Context) error {
 	hdl.primeState(ctx)
 	ll.InfoContext(ctx, "starting to maintain background state")
 
-	checkAuth := time.NewTicker(time.Minute)
+	checkAuth := time.NewTicker(hdl.authCheckFrequency)
 	defer checkAuth.Stop()
-	checkUpdate := time.NewTicker(1 * time.Hour)
+	checkUpdate := time.NewTicker(hdl.updateCheckFrequency)
 	defer checkUpdate.Stop()
 	for {
 		select {
