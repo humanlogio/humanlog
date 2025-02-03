@@ -97,6 +97,9 @@ func WriteStateFile(path string, state *State) error {
 	if err := os.Chmod(newf.Name(), 0600); err != nil {
 		return fmt.Errorf("setting permissions on temporary statefile: %w", err)
 	}
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return fmt.Errorf("ensuring target parent dir exists: %v", err)
+	}
 	if err := os.Rename(newf.Name(), path); err != nil {
 		return fmt.Errorf("replacing statefile at %q with %q: %w", path, newf.Name(), err)
 	}
@@ -115,6 +118,10 @@ type State struct {
 	// update mechanism
 	LatestKnownVersion           *semver.Version `json:"latest_known_version,omitempty"`
 	LastestKnownVersionUpdatedAt *time.Time      `json:"latest_known_version_updated_at"`
+
+	// prompts
+	LastPromptedToSignupAt          *time.Time `json:"last_prompted_to_signup_at"`
+	LastPromptedToEnableLocalhostAt *time.Time `json:"last_prompted_to_enable_localhost_at"`
 
 	// preferences set in the CLI/TUI when querying
 	CurrentOrgID         *int64 `json:"current_org_id,omitempty"`
