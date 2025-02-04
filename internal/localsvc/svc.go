@@ -63,6 +63,9 @@ func (svc *Service) GetHeartbeat(ctx context.Context, req *connect.Request[igv1.
 	}
 	heartbeat, err := svc.storage.Heartbeat(ctx, int64(*msg.MachineId), sessionID)
 	if err != nil {
+		if cerr, ok := err.(*connect.Error); ok {
+			return nil, cerr
+		}
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 	return connect.NewResponse(&igv1.GetHeartbeatResponse{
@@ -122,6 +125,9 @@ func (svc *Service) IngestStream(ctx context.Context, req *connect.ClientStream[
 	snk, heartbeatIn, err := svc.storage.SinkFor(ctx, machineID, sessionID)
 	if err != nil {
 		ll.ErrorContext(ctx, "obtaining sink for stream", slog.Any("err", err))
+		if cerr, ok := err.(*connect.Error); ok {
+			return nil, cerr
+		}
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("obtaining sink for stream: %v", err))
 	}
 	defer func() {
@@ -139,6 +145,9 @@ func (svc *Service) IngestStream(ctx context.Context, req *connect.ClientStream[
 		msg.Events = fixEventsTimestamps(ctx, ll, msg.Events)
 		if err := bsnk.ReceiveBatch(ctx, msg.Events); err != nil {
 			ll.ErrorContext(ctx, "ingesting event batch", slog.Any("err", err))
+			if cerr, ok := err.(*connect.Error); ok {
+				return nil, cerr
+			}
 			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("ingesting event batch: %v", err))
 		}
 		// then wait for more
@@ -147,6 +156,9 @@ func (svc *Service) IngestStream(ctx context.Context, req *connect.ClientStream[
 			msg.Events = fixEventsTimestamps(ctx, ll, msg.Events)
 			if err := bsnk.ReceiveBatch(ctx, msg.Events); err != nil {
 				ll.ErrorContext(ctx, "ingesting event batch", slog.Any("err", err))
+				if cerr, ok := err.(*connect.Error); ok {
+					return nil, cerr
+				}
 				return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("ingesting event batch: %v", err))
 			}
 		}
@@ -156,6 +168,9 @@ func (svc *Service) IngestStream(ctx context.Context, req *connect.ClientStream[
 		for _, ev := range msg.Events {
 			if err := snk.Receive(ctx, ev); err != nil {
 				ll.ErrorContext(ctx, "ingesting event", slog.Any("err", err))
+				if cerr, ok := err.(*connect.Error); ok {
+					return nil, cerr
+				}
 				return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("ingesting event: %v", err))
 			}
 		}
@@ -174,6 +189,9 @@ func (svc *Service) IngestStream(ctx context.Context, req *connect.ClientStream[
 				}
 				if err := snk.Receive(ctx, ev); err != nil {
 					ll.ErrorContext(ctx, "ingesting event", slog.Any("err", err))
+					if cerr, ok := err.(*connect.Error); ok {
+						return nil, cerr
+					}
 					return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("ingesting event: %v", err))
 				}
 			}
@@ -181,6 +199,9 @@ func (svc *Service) IngestStream(ctx context.Context, req *connect.ClientStream[
 	}
 	if err := req.Err(); err != nil {
 		ll.ErrorContext(ctx, "ingesting localhost stream", slog.Any("err", err))
+		if cerr, ok := err.(*connect.Error); ok {
+			return nil, cerr
+		}
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("ingesting localhost stream: %v", err))
 	}
 	res := &igv1.IngestStreamResponse{
@@ -238,6 +259,9 @@ func (svc *Service) SummarizeEvents(ctx context.Context, req *connect.Request[qr
 		},
 	}, nil, int(req.Msg.BucketCount))
 	if err != nil {
+		if cerr, ok := err.(*connect.Error); ok {
+			return nil, cerr
+		}
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("summarizing local storage: %v", err))
 	}
 	ll.DebugContext(ctx, "queried")
@@ -283,6 +307,9 @@ func (svc *Service) Parse(ctx context.Context, req *connect.Request[qrv1.ParseRe
 	query := req.Msg.GetQuery()
 	q, err := logql.Parse(query)
 	if err != nil {
+		if cerr, ok := err.(*connect.Error); ok {
+			return nil, cerr
+		}
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("parsing `query`: %v", err))
 	}
 	out := &qrv1.ParseResponse{Query: q}
@@ -296,6 +323,9 @@ func (svc *Service) Query(ctx context.Context, req *connect.Request[qrv1.QueryRe
 	}
 	data, cursor, err := svc.storage.Query(ctx, query, req.Msg.Cursor, int(req.Msg.Limit))
 	if err != nil {
+		if cerr, ok := err.(*connect.Error); ok {
+			return nil, cerr
+		}
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("querying local storage: %v", err))
 	}
 	out := &qrv1.QueryResponse{
@@ -308,6 +338,9 @@ func (svc *Service) Query(ctx context.Context, req *connect.Request[qrv1.QueryRe
 func (svc *Service) ListSymbols(ctx context.Context, req *connect.Request[qrv1.ListSymbolsRequest]) (*connect.Response[qrv1.ListSymbolsResponse], error) {
 	symbols, next, err := svc.storage.ListSymbols(ctx, req.Msg.Cursor, int(req.Msg.Limit))
 	if err != nil {
+		if cerr, ok := err.(*connect.Error); ok {
+			return nil, cerr
+		}
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("querying local storage: %v", err))
 	}
 	out := &qrv1.ListSymbolsResponse{
