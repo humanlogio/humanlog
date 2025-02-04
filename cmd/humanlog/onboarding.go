@@ -61,11 +61,13 @@ func onboardingCmd(
 		if err != nil {
 			return fmt.Errorf("failed to get humanlog service details: %v", err)
 		}
+		loginfo("uninstalling service if it existed")
 		if err := svc.Uninstall(); err != nil {
 			logdebug("failed to uninstall service (was it installed?): %v", err)
 		} else {
 			loginfo("uninstalled service")
 		}
+		loginfo("installing humanlog service")
 		if err := svc.Install(); err != nil {
 			return fmt.Errorf("can't install service: %v", err)
 		}
