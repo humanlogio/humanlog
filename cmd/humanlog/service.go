@@ -610,20 +610,25 @@ func (hdl *serviceHandler) DoLogin(ctx context.Context) error {
 
 }
 func (hdl *serviceHandler) DoUpdate(ctx context.Context) error {
+	ll := hdl.ll
 	baseSiteURL := hdl.baseSiteURL
 	var channelName *string
 	if hdl.config.ExperimentalFeatures != nil {
 		channelName = hdl.config.ExperimentalFeatures.ReleaseChannel
 	}
+	ll.InfoContext(ctx, "starting upgrade in place")
 	if err := selfupdate.UpgradeInPlace(ctx, baseSiteURL, channelName, os.Stdout, os.Stderr, os.Stdin); err != nil {
 		return fmt.Errorf("applying self-update: %v", err)
 	}
+	ll.InfoContext(ctx, "triggering self-shutdown, hoping the service manager will restart us")
 	// triggering self-shutdown
 	return hdl.shutdown(ctx)
 }
 
 func (hdl *serviceHandler) DoRestart(ctx context.Context) error {
+	ll := hdl.ll
 	// triggering self-shutdown
+	ll.InfoContext(ctx, "triggering self-shutdown, hoping the service manager will restart us")
 	return hdl.shutdown(ctx)
 }
 
