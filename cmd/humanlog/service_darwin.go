@@ -6,10 +6,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"html/template"
 	"os"
 	"os/user"
 	"path/filepath"
+	"text/template"
 
 	"golang.org/x/sys/execabs"
 

@@ -24,7 +24,7 @@ require (
 	github.com/google/go-cmp v0.6.0
 	github.com/google/uuid v1.6.0
 	github.com/humanlogio/api/go v0.0.0-20250127064259-48177538af31
-	github.com/humanlogio/humanlog-pro v0.0.0-20250204022627-5070ed8d53e5
+	github.com/humanlogio/humanlog-pro v0.0.0-20250204074124-0fdc6f66b1c3
 	github.com/kardianos/service v1.2.2
 	github.com/kr/logfmt v0.0.0-20210122060352-19f9bcb100e6
 	github.com/lrstanley/bubblezone v0.0.0-20240914071701-b48c55a5e78e

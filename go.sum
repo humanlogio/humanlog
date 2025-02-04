@@ -120,10 +120,12 @@ github.com/hexops/gotextdiff v1.0.3 h1:gitA9+qJrrTCsiCl7+kh75nPqQt1cx4ZkudSTLoUq
 github.com/hexops/gotextdiff v1.0.3/go.mod h1:pSWU5MAI3yDq+fZBTazCSJysOMbxWL1BSow5/V2vxeg=
 github.com/humanlogio/api/go v0.0.0-20250127064259-48177538af31 h1:L/prvbUFAEViPMhdC/uCp6C+Hhc7muqEHYyzEAB1BpQ=
 github.com/humanlogio/api/go v0.0.0-20250127064259-48177538af31/go.mod h1:sjMKAl97fvxNckIhcGWAxZwv6+c+I0thx5QvMc1ifaM=
-github.com/humanlogio/humanlog-pro v0.0.0-20250127072929-9301280fd950 h1:rklEk3LJU1FRjNxgnW3q3LePLe7mDvwzK86IAuQORco=
-github.com/humanlogio/humanlog-pro v0.0.0-20250127072929-9301280fd950/go.mod h1:hKV0lkjq/GkWng2vqg8gKsP1FVUaN8j7unO/B/el/So=
 github.com/humanlogio/humanlog-pro v0.0.0-20250204022627-5070ed8d53e5 h1:e0CfYAUqX7LUakvsxO+/euwdraKOyLJyyfOBI+/B1m0=
 github.com/humanlogio/humanlog-pro v0.0.0-20250204022627-5070ed8d53e5/go.mod h1:GCYCjBWQpnU5bB9qGiV5Jwll9BBNqDPcIljMCuzAeXU=
+github.com/humanlogio/humanlog-pro v0.0.0-20250204072446-2cbff29544d2 h1:K++qavH9UleEUS1brtNam0uXzG4Z97bQ72TiO51J9qo=
+github.com/humanlogio/humanlog-pro v0.0.0-20250204072446-2cbff29544d2/go.mod h1:GCYCjBWQpnU5bB9qGiV5Jwll9BBNqDPcIljMCuzAeXU=
+github.com/humanlogio/humanlog-pro v0.0.0-20250204074124-0fdc6f66b1c3 h1:pG2RyPnbCyJ6+kb4cqiQrZXslpJ28XJ3+RiRSasEH1U=
+github.com/humanlogio/humanlog-pro v0.0.0-20250204074124-0fdc6f66b1c3/go.mod h1:GCYCjBWQpnU5bB9qGiV5Jwll9BBNqDPcIljMCuzAeXU=
 github.com/kardianos/service v1.2.2 h1:ZvePhAHfvo0A7Mftk/tEzqEZ7Q4lgnR8sGz4xu1YX60=
 github.com/kardianos/service v1.2.2/go.mod h1:CIMRFEJVL+0DS1a3Nx06NaMn4Dz63Ng6O7dl0qH0zVM=
 github.com/klauspost/asmfmt v1.3.2 h1:4Ri7ox3EwapiOjCki+hw14RyKk201CN4rzyCJRFLpK4=
@@ -240,8 +242,6 @@ golang.org/x/sys v0.0.0-20220811171246-fbc7d0a398ab/go.mod h1:oPkhp1MJrh7nUepCBc
 golang.org/x/sys v0.1.0/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
 golang.org/x/sys v0.5.0/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
 golang.org/x/sys v0.6.0/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
-golang.org/x/sys v0.27.0 h1:wBqf8DvsY9Y/2P8gAfPDEYNuS30J4lPHJxXSb/nJZ+s=
-golang.org/x/sys v0.27.0/go.mod h1:/VUhepiaJMQUp4+oa/7Zr1D23ma6VTLIYjOOTFZPUcA=
 golang.org/x/sys v0.29.0 h1:TPYlXGxvx1MGTn2GiZDhnjPA9wZzZeGKHHmKhHYvgaU=
 golang.org/x/sys v0.29.0/go.mod h1:/VUhepiaJMQUp4+oa/7Zr1D23ma6VTLIYjOOTFZPUcA=
 golang.org/x/term v0.25.0 h1:WtHI/ltw4NvSUig5KARz9h521QvRC8RmF/cuYqifU24=
