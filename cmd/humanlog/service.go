@@ -138,7 +138,7 @@ func serviceCmd(
 					defer cancel()
 					eg, ctx := errgroup.WithContext(ctx)
 
-					eg.Go(func() error { return svcHandler.run(ctx) })
+					eg.Go(func() error { return svcHandler.run(ctx, cancel) })
 
 					if cfg.ExperimentalFeatures != nil && cfg.ExperimentalFeatures.ShowInSystray != nil && *cfg.ExperimentalFeatures.ShowInSystray {
 						trayll := ll.WithGroup("systray")
@@ -325,15 +325,15 @@ func (hdl *serviceHandler) Start(s ksvc.Service) error {
 	ll := hdl.ll
 	ctx, cancel := context.WithCancel(hdl.ctx)
 	ll.InfoContext(ctx, "starting service")
-	hdl.cancel = cancel
 
-	go hdl.run(ctx)
+	go hdl.run(ctx, cancel)
 
 	return nil
 }
 
-func (hdl *serviceHandler) run(ctx context.Context) error {
+func (hdl *serviceHandler) run(ctx context.Context, cancel context.CancelFunc) error {
 	cfg := hdl.config
+	hdl.cancel = cancel
 
 	eg, ctx := errgroup.WithContext(ctx)
 
@@ -377,11 +377,23 @@ func (hdl *serviceHandler) run(ctx context.Context) error {
 // It should not take more then a few seconds to execute.
 // Stop should not call os.Exit directly in the function.
 func (hdl *serviceHandler) Stop(s ksvc.Service) error {
-	ctx := hdl.ctx
+	return hdl.shutdown(hdl.ctx)
+}
+
+func (hdl *serviceHandler) shutdown(ctx context.Context) error {
 	ll := hdl.ll
 	ll.InfoContext(ctx, "stopping service")
-	tr := time.AfterFunc(10*time.Second, hdl.cancel) // give a stronger hint to quit after 10s
+	tr := time.AfterFunc(10*time.Second, func() {
+		ll.InfoContext(ctx, "trying harder to stop service cleanly...")
+		hdl.cancel()
+	}) // give a stronger hint to quit after 10s
 	defer tr.Stop()
+
+	dirtyExit := time.AfterFunc(15*time.Second, func() {
+		ll.InfoContext(ctx, "took too long to exit cleanly, shutting down the hard way")
+		os.Exit(1)
+	}) // just die violently after 15s
+	defer dirtyExit.Stop()
 	for _, onClose := range hdl.onClose {
 		if err := onClose(); err != nil {
 			return err
@@ -602,7 +614,11 @@ func (hdl *serviceHandler) DoUpdate(ctx context.Context) error {
 	if hdl.config.ExperimentalFeatures != nil {
 		channelName = hdl.config.ExperimentalFeatures.ReleaseChannel
 	}
-	return selfupdate.UpgradeInPlace(ctx, baseSiteURL, channelName, os.Stdout, os.Stderr, os.Stdin)
+	if err := selfupdate.UpgradeInPlace(ctx, baseSiteURL, channelName, os.Stdout, os.Stderr, os.Stdin); err != nil {
+		return fmt.Errorf("applying self-update: %v", err)
+	}
+	// triggering self-shutdown
+	return hdl.shutdown()
 }
 
 func (hdl *serviceHandler) CheckUpdate(ctx context.Context) error {

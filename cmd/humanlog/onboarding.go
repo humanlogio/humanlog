@@ -61,11 +61,6 @@ func onboardingCmd(
 		if err != nil {
 			return fmt.Errorf("failed to get humanlog service details: %v", err)
 		}
-		if err := svc.Stop(); err != nil {
-			logdebug("failed to stop service (was it running?): %v", err)
-		} else {
-			loginfo("stopped service")
-		}
 		if err := svc.Uninstall(); err != nil {
 			logdebug("failed to uninstall service (was it installed?): %v", err)
 		} else {
@@ -75,10 +70,11 @@ func onboardingCmd(
 			return fmt.Errorf("can't install service: %v", err)
 		}
 		loginfo("service installed")
-		if err := svc.Start(); err != nil {
-			return fmt.Errorf("can't start service: %v", err)
+		if os.Getenv("INSIDE_HUMANLOG_SELF_UPDATE") == "" {
+			// we're not self-updating, so we need to restart the service
+			_ = svc.Stop()
+			svc.Start()
 		}
-		loginfo("service started")
 		return nil
 	}
 

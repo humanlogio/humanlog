@@ -40,6 +40,7 @@ func UpgradeInPlace(ctx context.Context, baseSiteURL string, channelName *string
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
 	cmd.Stdin = stdin
+	cmd.Env = append(cmd.Env, "INSIDE_HUMANLOG_SELF_UPDATE=true")
 	if channelName != nil {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("HUMANLOG_CHANNEL=%s", *channelName))
 	}
