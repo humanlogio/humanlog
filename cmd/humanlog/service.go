@@ -138,11 +138,20 @@ func serviceCmd(
 					defer cancel()
 					eg, ctx := errgroup.WithContext(ctx)
 
-					eg.Go(func() error { return svcHandler.run(ctx, cancel) })
+					eg.Go(func() error {
+						err := svcHandler.run(ctx, cancel)
+						if err != nil {
+							ll.ErrorContext(ctx, "service stopped running with an error", slog.Any("err", err))
+							return err
+						}
+						ll.InfoContext(ctx, "service stopped running without problems")
+						return err
+					})
 
 					if cfg.ExperimentalFeatures != nil && cfg.ExperimentalFeatures.ShowInSystray != nil && *cfg.ExperimentalFeatures.ShowInSystray {
 						trayll := ll.WithGroup("systray")
 						if err := runSystray(ctx, trayll, svcHandler, version, baseSiteURL); err != nil {
+							trayll.ErrorContext(ctx, "systray stopped in error", slog.Any("err", err))
 							cancel()
 						}
 					} else {
@@ -150,7 +159,13 @@ func serviceCmd(
 						<-ctx.Done()
 					}
 
-					return eg.Wait()
+					if err := eg.Wait(); err != nil {
+						ll.ErrorContext(ctx, "service command group had an error", slog.Any("err", err))
+						return err
+					}
+					ll.InfoContext(ctx, "service command group is done")
+
+					return nil
 				},
 			},
 		},
@@ -351,6 +366,7 @@ func (hdl *serviceHandler) run(ctx context.Context, cancel context.CancelFunc) e
 			hdl.onCloseMu.Lock()
 			defer hdl.onCloseMu.Unlock()
 			hdl.onClose = append(hdl.onClose, func() error {
+				ll.InfoContext(ctx, "requesting to close server")
 				return srv.Close()
 			})
 		}
@@ -359,6 +375,7 @@ func (hdl *serviceHandler) run(ctx context.Context, cancel context.CancelFunc) e
 				ll.ErrorContext(ctx, "unable to run localhost", slog.Any("err", err))
 				return err
 			}
+			ll.InfoContext(ctx, "stopped running localhost")
 			return nil
 		})
 	}
@@ -368,10 +385,17 @@ func (hdl *serviceHandler) run(ctx context.Context, cancel context.CancelFunc) e
 			hdl.ll.ErrorContext(ctx, "unable to maintain state", slog.Any("err", err))
 			return err
 		}
+		hdl.ll.InfoContext(ctx, "stopped maintaining state")
 		return nil
 	})
 
-	return eg.Wait()
+	if err := eg.Wait(); err != nil {
+		hdl.ll.ErrorContext(ctx, "done waiting", slog.Any("err", err))
+		return err
+	}
+	hdl.ll.InfoContext(ctx, "shutting down")
+
+	return nil
 }
 
 // Stop provides a place to clean up program execution before it is terminated.
