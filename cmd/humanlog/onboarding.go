@@ -197,7 +197,11 @@ Bye! <3`
 			}
 
 			if wantsQueryEngine {
-				dbpath := "~/.humanlog/data/db.humanlog"
+				home, err := os.UserHomeDir()
+				if err != nil {
+					return fmt.Errorf("getting user home directory: %v", err)
+				}
+				dbpath := filepath.Join(home, ".humanlog", "data", "db.humanlog")
 				if err := os.MkdirAll(filepath.Dir(dbpath), 0755); err != nil {
 					return fmt.Errorf("creating directory for DB: %v", err)
 				}
