@@ -19,7 +19,7 @@ var DefaultConfig = Config{
 	LevelFields:         ptr([]string{"level", "lvl", "loglevel", "severity", "SeverityText"}),
 	SortLongest:         ptr(true),
 	SkipUnchanged:       ptr(true),
-	Truncates:           ptr(true),
+	Truncates:           ptr(false),
 	LightBg:             ptr(false),
 	ColorMode:           ptr("auto"),
 	TruncateLength:      ptr(15),
