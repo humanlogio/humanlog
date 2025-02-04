@@ -366,6 +366,7 @@ func (hdl *serviceHandler) run(ctx context.Context, cancel context.CancelFunc) e
 				return err
 			}
 			ll.InfoContext(ctx, "stopped running localhost")
+			cancel()
 			return nil
 		})
 	}
@@ -376,6 +377,7 @@ func (hdl *serviceHandler) run(ctx context.Context, cancel context.CancelFunc) e
 			return err
 		}
 		hdl.ll.InfoContext(ctx, "stopped maintaining state")
+		cancel()
 		return nil
 	})
 
