@@ -410,7 +410,7 @@ func newApp() *cli.App {
 			cfg.SkipUnchanged = ptr(cctx.BoolT(skipUnchanged.Name))
 		}
 		if cctx.IsSet(truncates.Name) {
-			cfg.Truncates = ptr(cctx.BoolT(truncates.Name))
+			cfg.Truncates = ptr(cctx.Bool(truncates.Name))
 		}
 		if cctx.IsSet(truncateLength.Name) {
 			cfg.TruncateLength = ptr(cctx.Int(truncateLength.Name))
