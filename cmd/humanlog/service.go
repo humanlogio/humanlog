@@ -251,6 +251,7 @@ type serviceClient interface {
 	DoLogout(ctx context.Context) error
 	DoLogin(ctx context.Context) error
 	DoUpdate(ctx context.Context) error
+	DoRestart(ctx context.Context) error
 	CheckUpdate(ctx context.Context) error
 }
 
@@ -618,7 +619,12 @@ func (hdl *serviceHandler) DoUpdate(ctx context.Context) error {
 		return fmt.Errorf("applying self-update: %v", err)
 	}
 	// triggering self-shutdown
-	return hdl.shutdown()
+	return hdl.shutdown(ctx)
+}
+
+func (hdl *serviceHandler) DoRestart(ctx context.Context) error {
+	// triggering self-shutdown
+	return hdl.shutdown(ctx)
 }
 
 func (hdl *serviceHandler) CheckUpdate(ctx context.Context) error {
