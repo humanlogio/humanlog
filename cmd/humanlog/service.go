@@ -133,7 +133,7 @@ func serviceCmd(
 					cfg := getCfg(cctx)
 					ll := getLogger(cctx)
 					baseSiteURL := getBaseSiteURL(cctx)
-
+					ll.InfoContext(ctx, "service preparing to start")
 					ctx, cancel := context.WithCancel(ctx)
 					defer cancel()
 					eg, ctx := errgroup.WithContext(ctx)
@@ -159,6 +159,7 @@ func serviceCmd(
 						<-ctx.Done()
 					}
 
+					ll.InfoContext(ctx, "service started, all command groups are on")
 					if err := eg.Wait(); err != nil {
 						ll.ErrorContext(ctx, "service command group had an error", slog.Any("err", err))
 						return err
@@ -608,13 +609,14 @@ func (hdl *serviceHandler) DoLogout(ctx context.Context) error {
 	}
 	return hdl.checkAuth(ctx)
 }
+
 func (hdl *serviceHandler) DoLogin(ctx context.Context) error {
 	if _, err := performLoginFlow(ctx, hdl.state, hdl.authSvc, hdl.tokenSource); err != nil {
 		return err
 	}
 	return hdl.checkAuth(ctx)
-
 }
+
 func (hdl *serviceHandler) DoUpdate(ctx context.Context) error {
 	ll := hdl.ll
 	baseSiteURL := hdl.baseSiteURL
