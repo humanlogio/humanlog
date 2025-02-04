@@ -158,7 +158,7 @@ func versionCmd(
 						log.Printf("you're already running the latest version: v%v", semverVersion.String())
 						return nil
 					}
-					return selfupdate.UpgradeInPlace(ctx, baseSiteURL, channelName, os.Stdout, os.Stderr, os.Stdin)
+					return selfupdate.UpgradeInPlace(ctx, baseSiteURL, channelName, os.Stdout, os.Stderr, os.Stdin, false)
 				},
 			},
 		},
