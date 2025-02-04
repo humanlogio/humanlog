@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/charmbracelet/glamour"
@@ -64,9 +63,13 @@ func onboardingCmd(
 		}
 		if err := svc.Stop(); err != nil {
 			logdebug("failed to stop service (was it running?): %v", err)
+		} else {
+			loginfo("stopped service")
 		}
 		if err := svc.Uninstall(); err != nil {
 			logdebug("failed to uninstall service (was it installed?): %v", err)
+		} else {
+			loginfo("uninstalled service")
 		}
 		if err := svc.Install(); err != nil {
 			return fmt.Errorf("can't install service: %v", err)
@@ -99,15 +102,19 @@ func onboardingCmd(
 			// clOpts := connect.WithClientOptions(connect.WithInterceptors(auth.Interceptors(ll, tokenSource)...))
 			// userSvc := userv1connect.NewUserServiceClient(httpClient, apiURL, clOpts)
 
+			loginfo("checking logged in status")
 			user, err := checkUserLoggedIn(ctx, ll, httpClient, apiURL, tokenSource)
 			if err != nil {
 				logwarn("unable to check if you're logged in: %v", err)
 			}
 
 			defer func() {
+				loginfo("checking if should run humanlog as a service")
 				if !runsAsService(cfg) {
+					loginfo("humanlog should not run as a servive")
 					return
 				}
+				loginfo("humanlog should run as a servive, enabling it")
 				if err := ensureServiceEnabled(cctx); err != nil {
 					logerror("unable to configure humanlog service: %v", err)
 				} else {
@@ -116,7 +123,7 @@ func onboardingCmd(
 			}()
 
 			if !isTerminal(os.Stdout) || cctx.Bool(forceNonInteractiveFlag.Name) {
-
+				loginfo("stdout isn't a terminal, disabling interactive prompts")
 				in := `# humanlog updates
 
 Hey there!
@@ -149,8 +156,8 @@ Bye! <3`
 			)
 
 			var fields []huh.Field
-			// fields = append(fields, huh.NewNote().Title("Welcome to humanlog. New features are available and more are coming soon!"))
 			if promptQueryEngine {
+				loginfo("prompting about query engine")
 				wantsSignup = user == nil
 				var titleSignupExtra, titleDescriptionExtra string
 				if wantsSignup {
@@ -167,9 +174,11 @@ Bye! <3`
 						Value(&wantsQueryEngine),
 				)
 				state.LastPromptedToEnableLocalhostAt = ptr(time.Now())
-
+			} else {
+				loginfo("not prompting about query engine")
 			}
 			if promptSignup && !promptQueryEngine {
+				loginfo("prompting about signing up")
 				fields = append(fields,
 					huh.NewConfirm().
 						Title("New features are coming soon. Sign in to learn more.").
@@ -177,6 +186,8 @@ Bye! <3`
 						Affirmative("Yes!").Negative("No").Value(&wantsSignup),
 				)
 				state.LastPromptedToSignupAt = ptr(time.Now())
+			} else {
+				loginfo("not prompting about signing up")
 			}
 			if len(fields) > 0 {
 				err := huh.NewForm(huh.NewGroup(fields...)).WithTheme(huhTheme).Run()
@@ -200,9 +211,6 @@ Bye! <3`
 
 			if wantsQueryEngine {
 				dbpath := "~/.humanlog/data/db.humanlog"
-				if err := os.MkdirAll(filepath.Dir(dbpath), 0755); err != nil {
-					return fmt.Errorf("creating directory for DB: %v", err)
-				}
 				if cfg.ExperimentalFeatures == nil {
 					cfg.ExperimentalFeatures = &config.Features{}
 				}
