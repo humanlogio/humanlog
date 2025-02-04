@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/humanlogio/humanlog/internal/pkg/state"
 )
 
 var DefaultConfig = Config{
@@ -27,6 +29,25 @@ var DefaultConfig = Config{
 	Interrupt:           ptr(false),
 	SkipCheckForUpdates: ptr(false),
 	Palette:             nil,
+}
+
+func GetDefaultLocalhostConfig() (*ServeLocalhost, error) {
+	stateDir, err := state.GetDefaultStateDirpath()
+	if err != nil {
+		return nil, err
+	}
+	dbpath := filepath.Join(stateDir, "data", "db.humanlog")
+	logDir := filepath.Join(stateDir, "logs")
+
+	return &ServeLocalhost{
+		Port:   32764,
+		Engine: "advanced",
+		Cfg: map[string]interface{}{
+			"path": dbpath,
+		},
+		ShowInSystray: ptr(true),
+		LogDir:        ptr(logDir),
+	}, nil
 }
 
 func GetDefaultConfigFilepath() (string, error) {
@@ -143,13 +164,14 @@ type Features struct {
 	ReleaseChannel  *string         `json:"release_channel"`
 	SendLogsToCloud *bool           `json:"send_logs_to_cloud"`
 	ServeLocalhost  *ServeLocalhost `json:"serve_localhost"`
-	ShowInSystray   *bool           `json:"show_in_systray"`
 }
 
 type ServeLocalhost struct {
-	Port   int                    `json:"port"`
-	Engine string                 `json:"engine"`
-	Cfg    map[string]interface{} `json:"engine_config"`
+	Port          int                    `json:"port"`
+	Engine        string                 `json:"engine"`
+	Cfg           map[string]interface{} `json:"engine_config"`
+	ShowInSystray *bool                  `json:"show_in_systray"`
+	LogDir        *string                `json:"log_dir"`
 }
 
 func (cfg *Config) WriteBack() error {

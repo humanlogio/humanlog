@@ -60,10 +60,7 @@ func serviceCmd(
 	getBaseSiteURL func(cctx *cli.Context) string,
 	getHTTPClient func(cctx *cli.Context, apiURL string) *http.Client,
 ) cli.Command {
-	var (
-		svcHandler *serviceHandler
-		svc        ksvc.Service
-	)
+	var svcHandler *serviceHandler
 	return cli.Command{
 		Hidden:    hideUnreleasedFeatures == "true",
 		Name:      serviceCmdName,
@@ -71,7 +68,7 @@ func serviceCmd(
 		Usage:     "Run humanlog as a background service, with a systray and all.",
 		Before: func(cctx *cli.Context) error {
 			var err error
-			svcHandler, svc, err = prepareServiceCmd(cctx,
+			svcHandler, err = prepareServiceCmd(cctx,
 				getCtx,
 				getLogger,
 				getCfg,
@@ -87,40 +84,43 @@ func serviceCmd(
 			{
 				Name: "install",
 				Action: func(cctx *cli.Context) error {
-					return svc.Install()
+					return svcHandler.Install()
 				},
 			},
 			{
 				Name: "uninstall",
 				Action: func(cctx *cli.Context) error {
-					return svc.Uninstall()
+					return svcHandler.Uninstall()
 				},
 			},
 			{
 				Name: "reinstall",
 				Action: func(cctx *cli.Context) error {
-					if err := svc.Uninstall(); err != nil {
+					if err := svcHandler.Uninstall(); err != nil {
 						logerror("will install, but couldn't uninstall first: %v", err)
 					}
-					return svc.Install()
+					return svcHandler.Install()
 				},
 			},
 			{
 				Name: "start",
 				Action: func(cctx *cli.Context) error {
-					return svc.Start()
+					return svcHandler.Start(svcHandler.ctx)
 				},
 			},
 			{
 				Name: "stop",
 				Action: func(cctx *cli.Context) error {
-					return svc.Stop()
+					return svcHandler.Stop(svcHandler.ctx)
 				},
 			},
 			{
 				Name: "restart",
 				Action: func(cctx *cli.Context) error {
-					return svc.Restart()
+					if err := svcHandler.Stop(svcHandler.ctx); err != nil {
+						logwarn("failed to stop: %v", err)
+					}
+					return svcHandler.Start(svcHandler.ctx)
 				},
 			},
 			{
@@ -147,8 +147,8 @@ func serviceCmd(
 						ll.InfoContext(ctx, "service stopped running without problems")
 						return err
 					})
-
-					if cfg.ExperimentalFeatures != nil && cfg.ExperimentalFeatures.ShowInSystray != nil && *cfg.ExperimentalFeatures.ShowInSystray {
+					expfeature := cfg.ExperimentalFeatures
+					if expfeature != nil && expfeature.ServeLocalhost != nil && expfeature.ServeLocalhost.ShowInSystray != nil && *expfeature.ServeLocalhost.ShowInSystray {
 						trayll := ll.WithGroup("systray")
 						if err := runSystray(ctx, trayll, svcHandler, version, baseSiteURL); err != nil {
 							trayll.ErrorContext(ctx, "systray stopped in error", slog.Any("err", err))
@@ -184,12 +184,11 @@ func prepareServiceCmd(
 	getHTTPClient func(cctx *cli.Context, apiURL string) *http.Client,
 ) (
 	svcHandler *serviceHandler,
-	svc ksvc.Service,
 	err error,
 ) {
 	u, err := user.Current()
 	if err != nil {
-		return nil, nil, fmt.Errorf("looking up current user: %v", err)
+		return nil, fmt.Errorf("looking up current user: %v", err)
 	}
 	ctx := getCtx(cctx)
 	ll := getLogger(cctx)
@@ -234,6 +233,7 @@ func prepareServiceCmd(
 		ll,
 		config,
 		state,
+		svcCfg,
 		baseSiteURL,
 		tokenSource,
 		authCheckFrequency,
@@ -244,16 +244,10 @@ func prepareServiceCmd(
 		featurev1connect.NewFeatureServiceClient(httpClient, apiURL, authedClOpts),
 	)
 	if err != nil {
-		return nil, nil, fmt.Errorf("preparing service: %v", err)
+		return nil, fmt.Errorf("preparing service: %v", err)
 	}
-	svc, err = ksvc.New(svcHandler, svcCfg)
-	if err != nil {
-		return nil, nil, fmt.Errorf("preparing service: %v", err)
-	}
-	return svcHandler, svc, nil
+	return svcHandler, nil
 }
-
-var _ ksvc.Interface = (*serviceHandler)(nil)
 
 type systrayClient interface {
 	NotifyError(ctx context.Context, err error) error
@@ -276,7 +270,9 @@ type serviceHandler struct {
 	ctx                  context.Context
 	ll                   *slog.Logger
 	config               *config.Config
+	localhostCfg         *config.ServeLocalhost
 	state                *state.State
+	svcCfg               *ksvc.Config
 	baseSiteURL          string
 	tokenSource          *auth.UserRefreshableTokenSource
 	authCheckFrequency   time.Duration
@@ -300,6 +296,7 @@ func newServiceHandler(
 	ll *slog.Logger,
 	cfg *config.Config,
 	state *state.State,
+	svcCfg *ksvc.Config,
 	baseSiteURL string,
 	tokenSource *auth.UserRefreshableTokenSource,
 	authCheckFrequency time.Duration,
@@ -315,12 +312,17 @@ func newServiceHandler(
 	if updateCheckFrequency < time.Minute {
 		updateCheckFrequency = time.Minute
 	}
+	if cfg.ExperimentalFeatures == nil || cfg.ExperimentalFeatures.ServeLocalhost == nil {
+		return nil, fmt.Errorf("experimental localhost features is not enabled")
+	}
 
 	hdl := &serviceHandler{
 		ctx:                  ctx,
 		ll:                   ll,
 		config:               cfg,
+		localhostCfg:         cfg.ExperimentalFeatures.ServeLocalhost,
 		state:                state,
+		svcCfg:               svcCfg,
 		baseSiteURL:          baseSiteURL,
 		tokenSource:          tokenSource,
 		authCheckFrequency:   time.Minute,
@@ -332,19 +334,6 @@ func newServiceHandler(
 	}
 
 	return hdl, nil
-}
-
-// Start provides a place to initiate the service. The service doesn't
-// signal a completed start until after this function returns, so the
-// Start function must not take more then a few seconds at most.
-func (hdl *serviceHandler) Start(s ksvc.Service) error {
-	ll := hdl.ll
-	ctx, cancel := context.WithCancel(hdl.ctx)
-	ll.InfoContext(ctx, "starting service")
-
-	go hdl.run(ctx, cancel)
-
-	return nil
 }
 
 func (hdl *serviceHandler) run(ctx context.Context, cancel context.CancelFunc) error {
@@ -396,13 +385,6 @@ func (hdl *serviceHandler) run(ctx context.Context, cancel context.CancelFunc) e
 	hdl.ll.InfoContext(ctx, "shutting down")
 
 	return nil
-}
-
-// Stop provides a place to clean up program execution before it is terminated.
-// It should not take more then a few seconds to execute.
-// Stop should not call os.Exit directly in the function.
-func (hdl *serviceHandler) Stop(s ksvc.Service) error {
-	return hdl.shutdown(hdl.ctx)
 }
 
 func (hdl *serviceHandler) shutdown(ctx context.Context) error {
