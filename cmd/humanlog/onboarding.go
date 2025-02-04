@@ -41,14 +41,12 @@ func onboardingCmd(
 		if cfg.ExperimentalFeatures.ServeLocalhost != nil {
 			return true
 		}
-		if cfg.ExperimentalFeatures.ShowInSystray != nil {
-			return *cfg.ExperimentalFeatures.ShowInSystray
-		}
 		return false
 	}
 
 	ensureServiceEnabled := func(cctx *cli.Context) error {
-		_, svc, err := prepareServiceCmd(cctx,
+		ctx := getCtx(cctx)
+		svc, err := prepareServiceCmd(cctx,
 			getCtx,
 			getLogger,
 			getCfg,
@@ -74,8 +72,15 @@ func onboardingCmd(
 		loginfo("service installed")
 		if os.Getenv("INSIDE_HUMANLOG_SELF_UPDATE") == "" {
 			// we're not self-updating, so we need to restart the service
-			_ = svc.Stop()
-			svc.Start()
+
+			loginfo("stopping service if it was running")
+			if err = svc.Stop(ctx); err != nil {
+				logwarn("failed to stop: %v", err)
+			}
+			loginfo("starting service")
+			if err := svc.Start(ctx); err != nil {
+				return fmt.Errorf("failed to start service: %v", err)
+			}
 		}
 		return nil
 	}
@@ -208,20 +213,17 @@ Bye! <3`
 			}
 
 			if wantsQueryEngine {
-				dbpath := "~/.humanlog/data/db.humanlog"
 				if cfg.ExperimentalFeatures == nil {
 					cfg.ExperimentalFeatures = &config.Features{}
 				}
-				cfg.ExperimentalFeatures.ServeLocalhost = &config.ServeLocalhost{
-					Port:   32764,
-					Engine: "advanced",
-					Cfg: map[string]interface{}{
-						"path": dbpath,
-					},
-				}
-				cfg.ExperimentalFeatures.ShowInSystray = ptr(true)
-				if err := cfg.WriteBack(); err != nil {
-					logerror("failed to update config file: %v", err)
+				serveLocalhost, err := config.GetDefaultLocalhostConfig()
+				if err != nil {
+					logerror("getting default value for localhost log engine config: %v", err)
+				} else {
+					cfg.ExperimentalFeatures.ServeLocalhost = serveLocalhost
+					if err := cfg.WriteBack(); err != nil {
+						logerror("failed to update config file: %v", err)
+					}
 				}
 			}
 
