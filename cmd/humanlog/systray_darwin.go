@@ -59,6 +59,7 @@ type systrayController struct {
 
 	mSettings *systray.MenuItem
 	mUpdate   *systray.MenuItem
+	mRestart  *systray.MenuItem
 }
 
 type systrayModel struct {
@@ -110,6 +111,10 @@ func newSystrayController(ctx context.Context, ll *slog.Logger, client serviceCl
 		fmt.Sprintf("%s (latest, click to check)", currentSV.String()),
 		fmt.Sprintf("Currently running humanlog version %s", currentSV.String()),
 	)
+	mRestart := systray.AddMenuItem(
+		"Restart",
+		"Cause humanlog's service to restart, for whatever reason",
+	)
 
 	mQuit := systray.AddMenuItem("Quit", "Quit the whole app")
 	_ = onClick(ctx, mQuit, func(ctx context.Context) {
@@ -130,12 +135,14 @@ func newSystrayController(ctx context.Context, ll *slog.Logger, client serviceCl
 		mQuery:                     mQuery,
 		mSettings:                  mSettings,
 		mUpdate:                    mUpdate,
+		mRestart:                   mRestart,
 	}
 	ctrl.registerClickUserSettings(ctx, mUserMenuItem_Sub_Settings)
 	ctrl.registerClickUserLogin(ctx, mUserMenuItem_Sub_Login)
 	ctrl.registerClickUserLogout(ctx, mUserMenuItem_Sub_Logout)
 	ctrl.registerClickQuery(ctx, mQuery)
 	ctrl.registerClickUpdate(ctx, mUpdate)
+	ctrl.registryClickRestart(ctx, mRestart)
 	ctrl.registerClickLocalhostSettings(ctx, mSettings)
 
 	return ctrl, nil
@@ -341,6 +348,19 @@ func (ctrl *systrayController) registerClickUpdate(ctx context.Context, mi *syst
 			if err := ctrl.client.CheckUpdate(ctx); err != nil {
 				ctrl.NotifyError(ctx, err)
 			}
+		}
+	})
+}
+
+func (ctrl *systrayController) registryClickRestart(ctx context.Context, mi *systray.MenuItem) context.CancelFunc {
+	return onClick(ctx, mi, func(ctx context.Context) {
+		if mi.Disabled() {
+			ctrl.ll.DebugContext(ctx, "clicked restart, but button disabled")
+			return
+		}
+		ctrl.ll.DebugContext(ctx, "clicked restart")
+		if err := ctrl.client.DoRestart(ctx); err != nil {
+			ctrl.NotifyError(ctx, err)
 		}
 	})
 }
