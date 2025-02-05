@@ -136,9 +136,11 @@ func serviceCmd(
 					ll.InfoContext(ctx, "service preparing to start")
 					ctx, cancel := context.WithCancel(ctx)
 					defer cancel()
+
 					eg, ctx := errgroup.WithContext(ctx)
 
 					eg.Go(func() error {
+
 						err := svcHandler.run(ctx, cancel)
 						if err != nil {
 							ll.ErrorContext(ctx, "service stopped running with an error", slog.Any("err", err))
@@ -147,6 +149,23 @@ func serviceCmd(
 						ll.InfoContext(ctx, "service stopped running without problems")
 						return err
 					})
+
+					go func() {
+						defer cancel()
+						ll.InfoContext(ctx, "service started, all command groups are on")
+						if err := eg.Wait(); err != nil {
+							ll.ErrorContext(ctx, "service command group had an error", slog.Any("err", err))
+
+						} else {
+							ll.InfoContext(ctx, "service command group is done")
+						}
+						// schedule a hard kill in 1s if something is blocking
+						go time.AfterFunc(time.Second, func() {
+							ll.ErrorContext(ctx, "service shutdown stuck, resorting to hard exit. sorry fam")
+							os.Exit(1)
+						})
+					}()
+
 					expfeature := cfg.ExperimentalFeatures
 					if expfeature != nil && expfeature.ServeLocalhost != nil && expfeature.ServeLocalhost.ShowInSystray != nil && *expfeature.ServeLocalhost.ShowInSystray {
 						trayll := ll.WithGroup("systray")
@@ -158,13 +177,6 @@ func serviceCmd(
 						// wait for cancellation
 						<-ctx.Done()
 					}
-
-					ll.InfoContext(ctx, "service started, all command groups are on")
-					if err := eg.Wait(); err != nil {
-						ll.ErrorContext(ctx, "service command group had an error", slog.Any("err", err))
-						return err
-					}
-					ll.InfoContext(ctx, "service command group is done")
 
 					return nil
 				},
