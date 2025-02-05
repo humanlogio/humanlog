@@ -79,8 +79,9 @@ func (svc *Service) IsLoggedIn(ctx context.Context, req *connect.Request[lhv1.Is
 		}
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("checking logged in status: %v", err))
 	}
-	out := &lhv1.IsLoggedInResponse{
-		User: res.User,
+	out := &lhv1.IsLoggedInResponse{}
+	if res != nil {
+		out.User = res.User
 	}
 	return connect.NewResponse(out), nil
 }
