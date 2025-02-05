@@ -14,6 +14,7 @@ import (
 	lhsvcpb "github.com/humanlogio/api/go/svc/localhost/v1/localhostv1connect"
 	qrv1 "github.com/humanlogio/api/go/svc/query/v1"
 	qrsvcpb "github.com/humanlogio/api/go/svc/query/v1/queryv1connect"
+	userv1 "github.com/humanlogio/api/go/svc/user/v1"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
 	"github.com/humanlogio/humanlog/internal/pkg/state"
 	"github.com/humanlogio/humanlog/pkg/localstorage"
@@ -27,10 +28,19 @@ type Service struct {
 	state      *state.State
 	ownVersion *typesv1.Version
 	storage    localstorage.Storage
+	doLogin    func(ctx context.Context) error
+	whoami     func(ctx context.Context) (*userv1.WhoamiResponse, error)
 }
 
-func New(ll *slog.Logger, state *state.State, ownVersion *typesv1.Version, storage localstorage.Storage) *Service {
-	return &Service{ll: ll, state: state, ownVersion: ownVersion, storage: storage}
+func New(
+	ll *slog.Logger,
+	state *state.State,
+	ownVersion *typesv1.Version,
+	storage localstorage.Storage,
+	doLogin func(ctx context.Context) error,
+	whoami func(ctx context.Context) (*userv1.WhoamiResponse, error),
+) *Service {
+	return &Service{ll: ll, state: state, ownVersion: ownVersion, storage: storage, doLogin: doLogin}
 }
 
 var (
@@ -50,6 +60,29 @@ func (svc *Service) Ping(ctx context.Context, req *connect.Request[lhv1.PingRequ
 		}
 	}
 	return connect.NewResponse(res), nil
+}
+
+func (svc *Service) DoLogin(ctx context.Context, req *connect.Request[lhv1.DoLoginRequest]) (*connect.Response[lhv1.DoLoginResponse], error) {
+	err := svc.doLogin(ctx)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to login: %v", err))
+	}
+	out := &lhv1.DoLoginResponse{}
+	return connect.NewResponse(out), nil
+}
+
+func (svc *Service) IsLoggedIn(ctx context.Context, req *connect.Request[lhv1.IsLoggedInRequest]) (*connect.Response[lhv1.IsLoggedInResponse], error) {
+	res, err := svc.whoami(ctx)
+	if err != nil {
+		if cerr, ok := err.(*connect.Error); ok {
+			return nil, cerr
+		}
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("checking logged in status: %v", err))
+	}
+	out := &lhv1.IsLoggedInResponse{
+		User: res.User,
+	}
+	return connect.NewResponse(out), nil
 }
 
 func (svc *Service) GetHeartbeat(ctx context.Context, req *connect.Request[igv1.GetHeartbeatRequest]) (*connect.Response[igv1.GetHeartbeatResponse], error) {
