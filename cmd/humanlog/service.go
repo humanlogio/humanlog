@@ -477,7 +477,14 @@ func (hdl *serviceHandler) runLocalhost(
 
 	mux := http.NewServeMux()
 
-	localhostsvc := localsvc.New(ll, hdl.state, ownVersion, storage)
+	doLogin := func(ctx context.Context) error {
+		return hdl.DoLogin(ctx)
+	}
+	isLoggedIn := func(ctx context.Context) (*userv1.WhoamiResponse, error) {
+		return hdl.whoami(ctx)
+	}
+
+	localhostsvc := localsvc.New(ll, hdl.state, ownVersion, storage, doLogin, isLoggedIn)
 	mux.Handle(localhostv1connect.NewLocalhostServiceHandler(localhostsvc))
 	mux.Handle(ingestv1connect.NewIngestServiceHandler(localhostsvc))
 	mux.Handle(queryv1connect.NewQueryServiceHandler(localhostsvc))
@@ -568,14 +575,25 @@ func (hdl *serviceHandler) maintainState(ctx context.Context) error {
 }
 
 func (hdl *serviceHandler) checkAuth(ctx context.Context) error {
+	whoami, err := hdl.whoami(ctx)
+	if err != nil {
+		return fmt.Errorf("looking up user authentication status: %v", err)
+	}
+	if whoami == nil {
+		return hdl.notifyUnauthenticated(ctx)
+	}
+	return hdl.notifyAuthenticated(ctx, whoami.User, whoami.DefaultOrganization, whoami.CurrentOrganization)
+}
+
+func (hdl *serviceHandler) whoami(ctx context.Context) (*userv1.WhoamiResponse, error) {
 	cerr := new(connect.Error)
 	res, err := hdl.userSvc.Whoami(ctx, connect.NewRequest(&userv1.WhoamiRequest{}))
 	if errors.As(err, &cerr) && cerr.Code() == connect.CodeUnauthenticated {
-		return hdl.notifyUnauthenticated(ctx)
+		return nil, nil
 	} else if err != nil {
-		return fmt.Errorf("looking up user authentication status: %v", err)
+		return nil, fmt.Errorf("looking up user authentication status: %v", err)
 	}
-	return hdl.notifyAuthenticated(ctx, res.Msg.User, res.Msg.DefaultOrganization, res.Msg.CurrentOrganization)
+	return res.Msg, nil
 }
 
 func (hdl *serviceHandler) checkUpdate(ctx context.Context, channel *string) error {
