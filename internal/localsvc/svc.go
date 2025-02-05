@@ -40,7 +40,7 @@ func New(
 	doLogin func(ctx context.Context) error,
 	whoami func(ctx context.Context) (*userv1.WhoamiResponse, error),
 ) *Service {
-	return &Service{ll: ll, state: state, ownVersion: ownVersion, storage: storage, doLogin: doLogin}
+	return &Service{ll: ll, state: state, ownVersion: ownVersion, storage: storage, doLogin: doLogin, whoami: whoami}
 }
 
 var (
