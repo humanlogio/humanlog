@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -63,7 +64,7 @@ func queryCmd(
 						getAPIUrl,
 						getHTTPClient,
 					),
-					queryApiWatchCmd(
+					queryApiRunCmd(
 						getCtx,
 						getLogger,
 						getCfg,
@@ -261,7 +262,7 @@ func queryApiSummarizeCmd(
 	}
 }
 
-func queryApiWatchCmd(
+func queryApiRunCmd(
 	getCtx func(cctx *cli.Context) context.Context,
 	getLogger func(cctx *cli.Context) *slog.Logger,
 	getCfg func(cctx *cli.Context) *config.Config,
@@ -273,9 +274,11 @@ func queryApiWatchCmd(
 	fromFlag := cli.DurationFlag{Name: "since", Value: 365 * 24 * time.Hour}
 	toFlag := cli.DurationFlag{Name: "to", Value: 0}
 	localhost := cli.BoolFlag{Name: "localhost"}
+	format := cli.StringFlag{Name: "format", Value: "humanlog"}
+	limit := cli.IntFlag{Name: "limit", Value: 10}
 	return cli.Command{
-		Name:  "watch",
-		Flags: []cli.Flag{localhost, fromFlag, toFlag},
+		Name:  "run",
+		Flags: []cli.Flag{localhost, fromFlag, toFlag, format, limit},
 		Action: func(cctx *cli.Context) error {
 			ctx := getCtx(cctx)
 			cfg := getCfg(cctx)
@@ -330,10 +333,13 @@ func queryApiWatchCmd(
 			if state.CurrentEnvironmentID != nil {
 				environmentID = *state.CurrentEnvironmentID
 			}
+
+			start := time.Now()
 			parseRes, err := queryClient.Parse(ctx, connect.NewRequest(&queryv1.ParseRequest{Query: query}))
 			if err != nil {
 				return fmt.Errorf("parsing query: %v", err)
 			}
+			parsedIn := time.Since(start)
 			lq := parseRes.Msg.Query
 
 			if lq.Timerange == nil {
@@ -346,9 +352,51 @@ func queryApiWatchCmd(
 				lq.Timerange.To = typesv1.ExprLiteral(typesv1.ValTimestamp(to))
 			}
 
-			sink := stdiosink.NewStdio(os.Stdout, sinkOpts)
+			var printer func(*typesv1.Data) error
+			switch cctx.String(format.Name) {
+			case "json":
+				enc := json.NewEncoder(os.Stdout)
+				printer = func(data *typesv1.Data) error {
+					return enc.Encode(data)
+				}
+			case "humanlog":
+				sink := stdiosink.NewStdio(os.Stdout, sinkOpts)
+				printer = func(data *typesv1.Data) error {
+					var events []*typesv1.IngestedLogEvent
+					switch shape := data.Shape.(type) {
+					case *typesv1.Data_Tabular:
+						switch tshape := shape.Tabular.Shape.(type) {
+						case *typesv1.Tabular_LogEvents:
+							events = tshape.LogEvents.Events
+						default:
+							return fmt.Errorf("todo: handle data shape %T", tshape)
+						}
+					default:
+						return fmt.Errorf("todo: handle data shape %T", shape)
+					}
+
+					for _, ev := range events {
+						prefix := getPrefix(ev.MachineId, ev.SessionId)
+						postProcess := func(pattern string) string {
+							return prefix + pattern
+						}
+						ev := &typesv1.LogEvent{
+							ParsedAt:   ev.ParsedAt,
+							Raw:        ev.Raw,
+							Structured: ev.Structured,
+						}
+						if err := sink.ReceiveWithPostProcess(ctx, ev, postProcess); err != nil {
+							return fmt.Errorf("printing log: %v", err)
+						}
+					}
+					return nil
+				}
+			default:
+				return fmt.Errorf("unsupported format: %q", cctx.String(format.Name))
+			}
+
 			var (
-				limit = int32(10)
+				limit = int32(cctx.Int(limit.Name))
 				req   = &queryv1.QueryRequest{
 					EnvironmentId: environmentID,
 					Query:         lq,
@@ -356,45 +404,42 @@ func queryApiWatchCmd(
 					Limit:         limit,
 				}
 			)
+			var (
+				totalQueryTime time.Duration
+				queriedInAll   []time.Duration
+			)
 			for {
 
+				start := time.Now()
 				res, err := queryClient.Query(ctx, connect.NewRequest(req))
 				if err != nil {
 					return fmt.Errorf("calling Query: %v", err)
 				}
+				queriedIn := time.Since(start)
+				totalQueryTime += queriedIn
+				queriedInAll = append(queriedInAll, queriedIn)
 				data := res.Msg.Data
-				var events []*typesv1.IngestedLogEvent
-				switch shape := data.Shape.(type) {
-				case *typesv1.Data_Tabular:
-					switch tshape := shape.Tabular.Shape.(type) {
-					case *typesv1.Tabular_LogEvents:
-						events = tshape.LogEvents.Events
-					default:
-						return fmt.Errorf("todo: handle data shape %T", tshape)
-					}
-				default:
-					return fmt.Errorf("todo: handle data shape %T", shape)
-				}
-
-				for _, ev := range events {
-					prefix := getPrefix(ev.MachineId, ev.SessionId)
-					postProcess := func(pattern string) string {
-						return prefix + pattern
-					}
-					ev := &typesv1.LogEvent{
-						ParsedAt:   ev.ParsedAt,
-						Raw:        ev.Raw,
-						Structured: ev.Structured,
-					}
-					if err := sink.ReceiveWithPostProcess(ctx, ev, postProcess); err != nil {
-						return fmt.Errorf("printing log: %v", err)
-					}
+				if err := printer(data); err != nil {
+					return fmt.Errorf("printing data: %v", err)
 				}
 				if res.Msg.Next == nil {
 					break
 				}
 				req.Cursor = res.Msg.Next
 			}
+
+			var queriedAllDur []string
+			for _, queriedIn := range queriedInAll {
+				queriedAllDur = append(queriedAllDur, queriedIn.String())
+			}
+
+			_ = json.NewEncoder(os.Stderr).Encode(map[string]any{
+				"parsed_in":        parsedIn.String(),
+				"pages":            len(queriedInAll),
+				"total_query_time": totalQueryTime.String(),
+				"all_query_times":  queriedAllDur,
+			})
+
 			return nil
 		},
 	}
