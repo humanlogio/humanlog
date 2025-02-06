@@ -43,7 +43,7 @@ func authCmd(
 					apiURL := getAPIUrl(cctx)
 					httpClient := getHTTPClient(cctx, apiURL)
 					authClient := authv1connect.NewAuthServiceClient(httpClient, apiURL)
-					_, err := performLoginFlow(ctx, state, authClient, tokenSource)
+					_, err := performLoginFlow(ctx, state, authClient, tokenSource, "")
 					return err
 				},
 			},
@@ -97,7 +97,7 @@ func authCmd(
 					)
 					userClient := userv1connect.NewUserServiceClient(httpClient, apiURL, clOpts)
 
-					return performLogoutFlow(ctx, userClient, tokenSource)
+					return performLogoutFlow(ctx, userClient, tokenSource, "")
 				},
 			},
 		},
