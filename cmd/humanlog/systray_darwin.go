@@ -304,26 +304,29 @@ func (ctrl *systrayController) registerClickUserSettings(ctx context.Context, mi
 }
 
 func (ctrl *systrayController) registerClickUserLogin(ctx context.Context, mi *systray.MenuItem) context.CancelFunc {
+	queryPath := ctrl.baseSiteURL.JoinPath("/localhost")
 	return onClick(ctx, mi, func(ctx context.Context) {
 		if mi.Disabled() {
 			ctrl.ll.DebugContext(ctx, "clicked user login, but button disabled")
 			return
 		}
 		ctrl.ll.DebugContext(ctx, "clicked user login")
-		if err := ctrl.client.DoLogin(ctx); err != nil {
+
+		if err := ctrl.client.DoLogin(ctx, queryPath.String()); err != nil {
 			ctrl.NotifyError(ctx, err)
 		}
 	})
 }
 
 func (ctrl *systrayController) registerClickUserLogout(ctx context.Context, mi *systray.MenuItem) context.CancelFunc {
+	homepage := ctrl.baseSiteURL
 	return onClick(ctx, mi, func(ctx context.Context) {
 		if mi.Disabled() {
 			ctrl.ll.DebugContext(ctx, "clicked user logout, but button disabled")
 			return
 		}
 		ctrl.ll.DebugContext(ctx, "clicked user logout")
-		if err := ctrl.client.DoLogout(ctx); err != nil {
+		if err := ctrl.client.DoLogout(ctx, homepage.String()); err != nil {
 			ctrl.NotifyError(ctx, err)
 		}
 	})

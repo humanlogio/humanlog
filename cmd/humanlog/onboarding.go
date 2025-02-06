@@ -206,7 +206,7 @@ Bye! <3`
 				loginfo("awesome, thanks for your interest!")
 
 				authClient := authv1connect.NewAuthServiceClient(httpClient, apiURL)
-				_, err := performLoginFlow(ctx, state, authClient, tokenSource)
+				_, err := performLoginFlow(ctx, state, authClient, tokenSource, "")
 				if err != nil {
 					logerror("failed to sign up or sign in: %v", err)
 				}

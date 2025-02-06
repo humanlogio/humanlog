@@ -270,8 +270,8 @@ type systrayClient interface {
 }
 
 type serviceClient interface {
-	DoLogout(ctx context.Context) error
-	DoLogin(ctx context.Context) error
+	DoLogout(ctx context.Context, returnToURL string) error
+	DoLogin(ctx context.Context, returnToURL string) error
 	DoUpdate(ctx context.Context) error
 	DoRestart(ctx context.Context) error
 	CheckUpdate(ctx context.Context) error
@@ -628,15 +628,15 @@ func (hdl *serviceHandler) checkUpdate(ctx context.Context, channel *string) err
 	return hdl.notifyUpdateAvailable(ctx, version, msg.NextVersion)
 }
 
-func (hdl *serviceHandler) DoLogout(ctx context.Context) error {
-	if err := performLogoutFlow(ctx, hdl.userSvc, hdl.tokenSource); err != nil {
+func (hdl *serviceHandler) DoLogout(ctx context.Context, returnToURL string) error {
+	if err := performLogoutFlow(ctx, hdl.userSvc, hdl.tokenSource, returnToURL); err != nil {
 		return err
 	}
 	return hdl.checkAuth(ctx)
 }
 
-func (hdl *serviceHandler) DoLogin(ctx context.Context) error {
-	if _, err := performLoginFlow(ctx, hdl.state, hdl.authSvc, hdl.tokenSource); err != nil {
+func (hdl *serviceHandler) DoLogin(ctx context.Context, returnToURL string) error {
+	if _, err := performLoginFlow(ctx, hdl.state, hdl.authSvc, hdl.tokenSource, returnToURL); err != nil {
 		return err
 	}
 	return hdl.checkAuth(ctx)

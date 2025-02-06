@@ -59,7 +59,7 @@ func ensureLoggedIn(
 			return nil, fmt.Errorf("aborting")
 		}
 		// no user auth, perform login flow
-		t, err := performLoginFlow(ctx, state, authClient, tokenSource)
+		t, err := performLoginFlow(ctx, state, authClient, tokenSource, "")
 		if err != nil {
 			return nil, fmt.Errorf("performing login: %v", err)
 		}
@@ -87,7 +87,7 @@ func ensureLoggedIn(
 			if !confirms {
 				return nil, fmt.Errorf("aborting")
 			}
-			t, err := performLoginFlow(ctx, state, authClient, tokenSource)
+			t, err := performLoginFlow(ctx, state, authClient, tokenSource, "")
 			if err != nil {
 				return nil, fmt.Errorf("performing login: %v", err)
 			}
@@ -118,8 +118,11 @@ func performLoginFlow(
 	state *state.State,
 	authClient authv1connect.AuthServiceClient,
 	tokenSource *auth.UserRefreshableTokenSource,
+	returnToURL string,
 ) (*typesv1.UserToken, error) {
-	res, err := authClient.BeginDeviceAuth(ctx, connect.NewRequest(&authv1.BeginDeviceAuthRequest{}))
+	res, err := authClient.BeginDeviceAuth(ctx, connect.NewRequest(&authv1.BeginDeviceAuthRequest{
+		ReturnToUrl: returnToURL,
+	}))
 	if err != nil {
 		return nil, fmt.Errorf("requesting auth URL: %v", err)
 	}
@@ -184,8 +187,8 @@ poll_for_tokens:
 	return userToken, nil
 }
 
-func performLogoutFlow(ctx context.Context, userSvc userv1connect.UserServiceClient, tokenSource *auth.UserRefreshableTokenSource) error {
-	res, err := userSvc.GetLogoutURL(ctx, connect.NewRequest(&userpb.GetLogoutURLRequest{}))
+func performLogoutFlow(ctx context.Context, userSvc userv1connect.UserServiceClient, tokenSource *auth.UserRefreshableTokenSource, returnToURL string) error {
+	res, err := userSvc.GetLogoutURL(ctx, connect.NewRequest(&userpb.GetLogoutURLRequest{ReturnTo: returnToURL}))
 	if err != nil {
 		return fmt.Errorf("retrieving logout URL")
 	}

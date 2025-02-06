@@ -28,8 +28,8 @@ type Service struct {
 	state      *state.State
 	ownVersion *typesv1.Version
 	storage    localstorage.Storage
-	doLogin    func(ctx context.Context) error
-	doLogout   func(ctx context.Context) error
+	doLogin    func(ctx context.Context, returnToURL string) error
+	doLogout   func(ctx context.Context, returnToURL string) error
 	doUpdate   func(ctx context.Context) error
 	doRestart  func(ctx context.Context) error
 	whoami     func(ctx context.Context) (*userv1.WhoamiResponse, error)
@@ -40,8 +40,8 @@ func New(
 	state *state.State,
 	ownVersion *typesv1.Version,
 	storage localstorage.Storage,
-	doLogin func(ctx context.Context) error,
-	doLogout func(ctx context.Context) error,
+	doLogin func(ctx context.Context, returnToURL string) error,
+	doLogout func(ctx context.Context, returnToURL string) error,
 	doUpdate func(ctx context.Context) error,
 	doRestart func(ctx context.Context) error,
 	whoami func(ctx context.Context) (*userv1.WhoamiResponse, error),
@@ -94,7 +94,7 @@ func (svc *Service) Ping(ctx context.Context, req *connect.Request[lhv1.PingRequ
 }
 
 func (svc *Service) DoLogin(ctx context.Context, req *connect.Request[lhv1.DoLoginRequest]) (*connect.Response[lhv1.DoLoginResponse], error) {
-	err := svc.doLogin(ctx)
+	err := svc.doLogin(ctx, req.Msg.ReturnToURL)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to login: %v", err))
 	}
@@ -103,7 +103,7 @@ func (svc *Service) DoLogin(ctx context.Context, req *connect.Request[lhv1.DoLog
 }
 
 func (svc *Service) DoLogout(ctx context.Context, req *connect.Request[lhv1.DoLogoutRequest]) (*connect.Response[lhv1.DoLogoutResponse], error) {
-	err := svc.doLogout(ctx)
+	err := svc.doLogout(ctx, req.Msg.ReturnToURL)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to logout: %v", err))
 	}
