@@ -489,14 +489,7 @@ func (hdl *serviceHandler) runLocalhost(
 
 	mux := http.NewServeMux()
 
-	doLogin := func(ctx context.Context) error {
-		return hdl.DoLogin(ctx)
-	}
-	isLoggedIn := func(ctx context.Context) (*userv1.WhoamiResponse, error) {
-		return hdl.whoami(ctx)
-	}
-
-	localhostsvc := localsvc.New(ll, hdl.state, ownVersion, storage, doLogin, isLoggedIn)
+	localhostsvc := localsvc.New(ll, hdl.state, ownVersion, storage, hdl.DoLogin, hdl.DoLogout, hdl.DoUpdate, hdl.DoRestart, hdl.whoami)
 	mux.Handle(localhostv1connect.NewLocalhostServiceHandler(localhostsvc))
 	mux.Handle(ingestv1connect.NewIngestServiceHandler(localhostsvc))
 	mux.Handle(queryv1connect.NewQueryServiceHandler(localhostsvc))
