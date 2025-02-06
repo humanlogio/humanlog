@@ -23,7 +23,7 @@ require (
 	github.com/go-logfmt/logfmt v0.5.1
 	github.com/google/go-cmp v0.6.0
 	github.com/google/uuid v1.6.0
-	github.com/humanlogio/api/go v0.0.0-20250205061020-56a37fd44433
+	github.com/humanlogio/api/go v0.0.0-20250206055959-5576a3e1844e
 	github.com/humanlogio/humanlog-pro v0.0.0-20250204074124-0fdc6f66b1c3
 	github.com/kardianos/service v1.2.2
 	github.com/kr/logfmt v0.0.0-20210122060352-19f9bcb100e6

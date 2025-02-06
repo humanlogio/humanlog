@@ -29,6 +29,9 @@ type Service struct {
 	ownVersion *typesv1.Version
 	storage    localstorage.Storage
 	doLogin    func(ctx context.Context) error
+	doLogout   func(ctx context.Context) error
+	doUpdate   func(ctx context.Context) error
+	doRestart  func(ctx context.Context) error
 	whoami     func(ctx context.Context) (*userv1.WhoamiResponse, error)
 }
 
@@ -38,9 +41,22 @@ func New(
 	ownVersion *typesv1.Version,
 	storage localstorage.Storage,
 	doLogin func(ctx context.Context) error,
+	doLogout func(ctx context.Context) error,
+	doUpdate func(ctx context.Context) error,
+	doRestart func(ctx context.Context) error,
 	whoami func(ctx context.Context) (*userv1.WhoamiResponse, error),
 ) *Service {
-	return &Service{ll: ll, state: state, ownVersion: ownVersion, storage: storage, doLogin: doLogin, whoami: whoami}
+	return &Service{
+		ll:         ll,
+		state:      state,
+		ownVersion: ownVersion,
+		storage:    storage,
+		doLogin:    doLogin,
+		doLogout:   doLogout,
+		doUpdate:   doUpdate,
+		doRestart:  doRestart,
+		whoami:     whoami,
+	}
 }
 
 var (
@@ -59,6 +75,21 @@ func (svc *Service) Ping(ctx context.Context, req *connect.Request[lhv1.PingRequ
 			MachineId: *svc.state.MachineID,
 		}
 	}
+	whoami, err := svc.whoami(ctx)
+	if err != nil {
+		if cerr, ok := err.(*connect.Error); ok {
+			return nil, cerr
+		}
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("checking logged in status: %v", err))
+	}
+	if whoami != nil {
+		res.LoggedInUser = &lhv1.PingResponse_UserDetails{
+			User:                whoami.User,
+			CurrentOrganization: whoami.CurrentOrganization,
+			DefaultOrganization: whoami.DefaultOrganization,
+		}
+	}
+
 	return connect.NewResponse(res), nil
 }
 
@@ -71,18 +102,30 @@ func (svc *Service) DoLogin(ctx context.Context, req *connect.Request[lhv1.DoLog
 	return connect.NewResponse(out), nil
 }
 
-func (svc *Service) IsLoggedIn(ctx context.Context, req *connect.Request[lhv1.IsLoggedInRequest]) (*connect.Response[lhv1.IsLoggedInResponse], error) {
-	res, err := svc.whoami(ctx)
+func (svc *Service) DoLogout(ctx context.Context, req *connect.Request[lhv1.DoLogoutRequest]) (*connect.Response[lhv1.DoLogoutResponse], error) {
+	err := svc.doLogout(ctx)
 	if err != nil {
-		if cerr, ok := err.(*connect.Error); ok {
-			return nil, cerr
-		}
-		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("checking logged in status: %v", err))
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to logout: %v", err))
 	}
-	out := &lhv1.IsLoggedInResponse{}
-	if res != nil {
-		out.User = res.User
+	out := &lhv1.DoLogoutResponse{}
+	return connect.NewResponse(out), nil
+}
+
+func (svc *Service) DoUpdate(ctx context.Context, req *connect.Request[lhv1.DoUpdateRequest]) (*connect.Response[lhv1.DoUpdateResponse], error) {
+	err := svc.doUpdate(ctx)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to update: %v", err))
 	}
+	out := &lhv1.DoUpdateResponse{}
+	return connect.NewResponse(out), nil
+}
+
+func (svc *Service) DoRestart(ctx context.Context, req *connect.Request[lhv1.DoRestartRequest]) (*connect.Response[lhv1.DoRestartResponse], error) {
+	err := svc.doRestart(ctx)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to restart: %v", err))
+	}
+	out := &lhv1.DoRestartResponse{}
 	return connect.NewResponse(out), nil
 }
 
