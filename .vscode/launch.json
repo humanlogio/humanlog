@@ -20,7 +20,7 @@
             "mode": "auto",
             "program": "${workspaceFolder}/cmd/humanlog",
             "cwd": "${workspaceFolder}",
-            "buildFlags": ["-tags=pro"],
+            "buildFlags": ["-tags=pro", "-ldflags=-X main.defaultApiAddr=https://api.humanlog.dev -X main.defaultBaseSiteAddr=https://humanlog.dev"],
             "args": ["service", "run"],
             "console": "integratedTerminal"
         }
