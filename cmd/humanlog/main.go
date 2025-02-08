@@ -264,7 +264,7 @@ func newApp() *cli.App {
 		}
 		getCfg     = func(*cli.Context) *config.Config { return cfg }
 		getState   = func(*cli.Context) *state.State { return statefile }
-		getKeyring = func(cctx *cli.Context) (keyring.Keyring, error) {
+		getKeyring = func(*cli.Context) (keyring.Keyring, error) {
 			stateDir, err := state.GetDefaultStateDirpath()
 			if err != nil {
 				return nil, err
