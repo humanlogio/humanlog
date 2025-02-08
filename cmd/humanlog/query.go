@@ -30,6 +30,7 @@ import (
 	"github.com/humanlogio/humanlog/pkg/sink/stdiosink"
 	"github.com/humanlogio/humanlog/pkg/tui"
 	"github.com/urfave/cli"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -355,9 +356,15 @@ func queryApiRunCmd(
 			var printer func(*typesv1.Data) error
 			switch cctx.String(format.Name) {
 			case "json":
-				enc := json.NewEncoder(os.Stdout)
+
 				printer = func(data *typesv1.Data) error {
-					return enc.Encode(data)
+					b, err := protojson.Marshal(data)
+					if err != nil {
+						return fmt.Errorf("marshaling: %v", err)
+					}
+					_, err = os.Stdout.Write(b)
+					_, _ = os.Stdout.WriteString("\n")
+					return err
 				}
 			case "humanlog":
 				sink := stdiosink.NewStdio(os.Stdout, sinkOpts)
