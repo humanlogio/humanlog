@@ -15,7 +15,7 @@ import (
 	"github.com/cli/safeexec"
 )
 
-func UpgradeInPlace(ctx context.Context, baseSiteURL string, channelName *string, stdout, stderr io.Writer, stdin io.Reader) error {
+func UpgradeInPlace(ctx context.Context, baseSiteURL string, channelName *string, stdout, stderr io.Writer, stdin io.Reader, detach bool) error {
 	if runtime.GOOS == "windows" {
 		if err := renameCurrentBinaries(); err != nil {
 			return err
@@ -40,10 +40,18 @@ func UpgradeInPlace(ctx context.Context, baseSiteURL string, channelName *string
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
 	cmd.Stdin = stdin
+	cmd.Env = append(cmd.Env, "INSIDE_HUMANLOG_SELF_UPDATE=true")
 	if channelName != nil {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("HUMANLOG_CHANNEL=%s", *channelName))
 	}
-	return cmd.Run()
+	if detach {
+		if err := cmd.Start(); err != nil {
+			return err
+		}
+		return cmd.Process.Release()
+	} else {
+		return cmd.Run()
+	}
 }
 
 func isUnderHomebrew() bool {

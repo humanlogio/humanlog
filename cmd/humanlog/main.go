@@ -233,14 +233,19 @@ func newApp() *cli.App {
 		cancel     context.CancelFunc
 		cfg        *config.Config
 		statefile  *state.State
+		dialer     = &net.Dialer{Timeout: time.Second}
 		httpClient = &http.Client{
-			Transport: &http2.Transport{},
+			Transport: &http2.Transport{
+				DialTLS: func(network, addr string, cfg *tls.Config) (net.Conn, error) {
+					return tls.DialWithDialer(dialer, network, addr, cfg)
+				},
+			},
 		}
 		localhostHttpClient = &http.Client{
 			Transport: &http2.Transport{
 				AllowHTTP: true,
 				DialTLS: func(network, addr string, _ *tls.Config) (net.Conn, error) {
-					return net.Dial(network, addr)
+					return dialer.Dial(network, addr)
 				},
 			},
 		}
@@ -259,20 +264,19 @@ func newApp() *cli.App {
 		}
 		getCfg     = func(*cli.Context) *config.Config { return cfg }
 		getState   = func(*cli.Context) *state.State { return statefile }
-		getKeyring = func(cctx *cli.Context) (keyring.Keyring, error) {
+		getKeyring = func(*cli.Context) (keyring.Keyring, error) {
 			stateDir, err := state.GetDefaultStateDirpath()
 			if err != nil {
 				return nil, err
 			}
 			return keyring.Open(keyring.Config{
-				ServiceName:            keyringName,
-				KeychainSynchronizable: true,
-				FileDir:                stateDir,
+				AllowedBackends: []keyring.BackendType{keyring.FileBackend},
+				ServiceName:     keyringName,
+				FileDir:         stateDir,
 				FilePasswordFunc: func(s string) (pwd string, err error) {
 					return "", nil
 				},
 			})
-
 		}
 		getTokenSource = func(cctx *cli.Context) *auth.UserRefreshableTokenSource {
 			return auth.NewRefreshableTokenSource(func() (keyring.Keyring, error) {
@@ -389,6 +393,7 @@ func newApp() *cli.App {
 		onboardingCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getBaseSiteURL, getHTTPClient),
 		versionCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getBaseSiteURL, getHTTPClient),
 		authCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getHTTPClient),
+		serviceCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getBaseSiteURL, getHTTPClient),
 		organizationCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getHTTPClient),
 		environmentCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getHTTPClient),
 		machineCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getHTTPClient),
@@ -405,7 +410,7 @@ func newApp() *cli.App {
 			cfg.SkipUnchanged = ptr(cctx.BoolT(skipUnchanged.Name))
 		}
 		if cctx.IsSet(truncates.Name) {
-			cfg.Truncates = ptr(cctx.BoolT(truncates.Name))
+			cfg.Truncates = ptr(cctx.Bool(truncates.Name))
 		}
 		if cctx.IsSet(truncateLength.Name) {
 			cfg.TruncateLength = ptr(cctx.Int(truncateLength.Name))
@@ -464,7 +469,6 @@ func newApp() *cli.App {
 
 		if cfg.ExperimentalFeatures != nil {
 			if cfg.ExperimentalFeatures.SendLogsToCloud != nil && *cfg.ExperimentalFeatures.SendLogsToCloud {
-				// TODO(antoine): remove this codepath, it's redundant with the localhost port path
 				ll := getLogger(cctx)
 				apiURL := getAPIUrl(cctx)
 				notifyUnableToIngest := func(err error) {
@@ -533,10 +537,17 @@ func newApp() *cli.App {
 						return fmt.Errorf("this feature requires a valid machine ID, which requires an environment. failed to login: %v", err)
 					}
 				}
+
 				machineID = uint64(*state.MachineID)
-				localhostSink, done, err := startLocalhostServer(ctx, ll, cfg, state, machineID, localhostCfg.Port, getLocalhostHTTPClient(cctx), version)
+				localhostSink, done, err := dialLocalhostServer(
+					ctx, ll, machineID, localhostCfg.Port,
+					getLocalhostHTTPClient(cctx),
+					func(err error) {
+						logerror("unable to ingest logs with localhost: %v", err)
+					},
+				)
 				if err != nil {
-					loginfo("starting experimental localhost service: %v", err)
+					logerror("failed to start localhost service: %v", err)
 				} else {
 					sink = teesink.NewTeeSink(sink, localhostSink)
 					defer func() {

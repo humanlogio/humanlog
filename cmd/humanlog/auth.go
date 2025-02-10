@@ -14,7 +14,6 @@ import (
 	"github.com/humanlogio/humanlog/internal/pkg/config"
 	"github.com/humanlogio/humanlog/internal/pkg/state"
 	"github.com/humanlogio/humanlog/pkg/auth"
-	"github.com/pkg/browser"
 	"github.com/urfave/cli"
 )
 
@@ -44,7 +43,7 @@ func authCmd(
 					apiURL := getAPIUrl(cctx)
 					httpClient := getHTTPClient(cctx, apiURL)
 					authClient := authv1connect.NewAuthServiceClient(httpClient, apiURL)
-					_, err := performLoginFlow(ctx, state, authClient, tokenSource)
+					_, err := performLoginFlow(ctx, state, authClient, tokenSource, "")
 					return err
 				},
 			},
@@ -97,14 +96,8 @@ func authCmd(
 						auth.Interceptors(ll, tokenSource)...,
 					)
 					userClient := userv1connect.NewUserServiceClient(httpClient, apiURL, clOpts)
-					res, err := userClient.GetLogoutURL(ctx, connect.NewRequest(&userpb.GetLogoutURLRequest{}))
-					if err != nil {
-						return fmt.Errorf("retrieving logout URL")
-					}
-					if err := browser.OpenURL(res.Msg.GetLogoutUrl()); err != nil {
-						return fmt.Errorf("opening logout URL")
-					}
-					return tokenSource.ClearToken(ctx)
+
+					return performLogoutFlow(ctx, userClient, tokenSource, "")
 				},
 			},
 		},

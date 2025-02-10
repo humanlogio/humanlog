@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/humanlogio/humanlog/internal/pkg/state"
 )
 
 var DefaultConfig = Config{
@@ -19,7 +21,7 @@ var DefaultConfig = Config{
 	LevelFields:         ptr([]string{"level", "lvl", "loglevel", "severity", "SeverityText"}),
 	SortLongest:         ptr(true),
 	SkipUnchanged:       ptr(true),
-	Truncates:           ptr(true),
+	Truncates:           ptr(false),
 	LightBg:             ptr(false),
 	ColorMode:           ptr("auto"),
 	TruncateLength:      ptr(15),
@@ -27,6 +29,25 @@ var DefaultConfig = Config{
 	Interrupt:           ptr(false),
 	SkipCheckForUpdates: ptr(false),
 	Palette:             nil,
+}
+
+func GetDefaultLocalhostConfig() (*ServeLocalhost, error) {
+	stateDir, err := state.GetDefaultStateDirpath()
+	if err != nil {
+		return nil, err
+	}
+	dbpath := filepath.Join(stateDir, "data", "db.humanlog")
+	logDir := filepath.Join(stateDir, "logs")
+
+	return &ServeLocalhost{
+		Port:   32764,
+		Engine: "advanced",
+		Cfg: map[string]interface{}{
+			"path": dbpath,
+		},
+		ShowInSystray: ptr(true),
+		LogDir:        ptr(logDir),
+	}, nil
 }
 
 func GetDefaultConfigFilepath() (string, error) {
@@ -60,6 +81,9 @@ func GetDefaultConfigFilepath() (string, error) {
 }
 
 func ReadConfigFile(path string, dflt *Config) (*Config, error) {
+	if dflt.path == "" {
+		dflt.path = path
+	}
 	configFile, err := os.Open(path)
 	if err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
@@ -72,7 +96,43 @@ func ReadConfigFile(path string, dflt *Config) (*Config, error) {
 	if err := json.NewDecoder(configFile).Decode(&cfg); err != nil {
 		return nil, fmt.Errorf("decoding config file: %v", err)
 	}
+	cfg.path = path
 	return cfg.populateEmpty(dflt), nil
+}
+
+func WriteConfigFile(path string, config *Config) error {
+	content, err := json.MarshalIndent(config, "", "\t")
+	if err != nil {
+		return fmt.Errorf("marshaling config file: %v", err)
+	}
+
+	newf, err := os.CreateTemp(filepath.Dir(path), "humanlog_configfile")
+	if err != nil {
+		return fmt.Errorf("creating temporary file for configfile: %w", err)
+	}
+	success := false
+	defer func() {
+		if !success {
+			_ = os.Remove(newf.Name())
+		}
+	}()
+	if _, err := newf.Write(content); err != nil {
+		return fmt.Errorf("writing to temporary configfile: %w", err)
+	}
+	if err := newf.Close(); err != nil {
+		return fmt.Errorf("closing temporary configfile: %w", err)
+	}
+	if err := os.Chmod(newf.Name(), 0600); err != nil {
+		return fmt.Errorf("setting permissions on temporary configfile: %w", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return fmt.Errorf("ensuring target parent dir exists: %v", err)
+	}
+	if err := os.Rename(newf.Name(), path); err != nil {
+		return fmt.Errorf("replacing configfile at %q with %q: %w", path, newf.Name(), err)
+	}
+	success = true
+	return nil
 }
 
 type Config struct {
@@ -95,6 +155,9 @@ type Config struct {
 	SkipCheckForUpdates *bool        `json:"skip_check_updates"`
 
 	ExperimentalFeatures *Features `json:"experimental_features"`
+
+	// unexported, the filepath where the `Config` get's serialized and saved to
+	path string
 }
 
 type Features struct {
@@ -104,9 +167,15 @@ type Features struct {
 }
 
 type ServeLocalhost struct {
-	Port   int                    `json:"port"`
-	Engine string                 `json:"engine"`
-	Cfg    map[string]interface{} `json:"engine_config"`
+	Port          int                    `json:"port"`
+	Engine        string                 `json:"engine"`
+	Cfg           map[string]interface{} `json:"engine_config"`
+	ShowInSystray *bool                  `json:"show_in_systray"`
+	LogDir        *string                `json:"log_dir"`
+}
+
+func (cfg *Config) WriteBack() error {
+	return WriteConfigFile(cfg.path, cfg)
 }
 
 func (cfg Config) populateEmpty(other *Config) *Config {
@@ -171,6 +240,9 @@ func (cfg Config) populateEmpty(other *Config) *Config {
 	}
 	if out.ExperimentalFeatures == nil && other.ExperimentalFeatures != nil {
 		out.ExperimentalFeatures = other.ExperimentalFeatures
+	}
+	if other.path != "" {
+		out.path = other.path
 	}
 	return out
 }

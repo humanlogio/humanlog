@@ -1,9 +1,10 @@
 package humanlog
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
-	"math"
+	"strconv"
 	"strings"
 	"time"
 
@@ -18,7 +19,7 @@ type JSONHandler struct {
 	Level   string
 	Time    time.Time
 	Message string
-	Fields  map[string]string
+	Fields  map[string]*typesv1.Val
 }
 
 // searchJSON searches a document for a key using the found func to determine if the value is accepted.
@@ -54,7 +55,7 @@ func (h *JSONHandler) clear() {
 	h.Level = ""
 	h.Time = time.Time{}
 	h.Message = ""
-	h.Fields = make(map[string]string)
+	h.Fields = make(map[string]*typesv1.Val)
 }
 
 // TryHandle tells if this line was handled by this handler.
@@ -94,34 +95,82 @@ func deleteJSONKey(key string, jsonData map[string]interface{}) {
 	}
 }
 
-func getFlattenedFields(v map[string]interface{}) map[string]string {
-	extValues := make(map[string]string)
-	for key, nestedVal := range v { 
+func getFlattenedFields(v map[string]interface{}) map[string]*typesv1.Val {
+	extValues := make(map[string]*typesv1.Val)
+	for key, nestedVal := range v {
 		switch valTyped := nestedVal.(type) {
-		case float64:
-			if valTyped-math.Floor(valTyped) < 0.000001 && valTyped < 1e9 {
-				extValues[key] = fmt.Sprintf("%d", int(valTyped))
-			} else {
-				extValues[key] = fmt.Sprintf("%g", valTyped)
+		case json.Number:
+			if z, err := valTyped.Int64(); err == nil {
+				extValues[key] = typesv1.ValI64(z)
+				continue
 			}
+			if f, err := valTyped.Float64(); err == nil {
+				extValues[key] = typesv1.ValF64(f)
+				continue
+			}
+			extValues[key] = typesv1.ValStr(valTyped.String())
 		case string:
-			extValues[key] = fmt.Sprintf("%q", valTyped)
+			extValues[key] = typesv1.ValStr(valTyped)
+		case bool:
+			extValues[key] = typesv1.ValBool(valTyped)
+		case []interface{}:
+			flattenedArrayFields := getFlattenedArrayFields(valTyped)
+			for k, v := range flattenedArrayFields {
+				extValues[key+"."+k] = v
+			}
 		case map[string]interface{}:
 			flattenedFields := getFlattenedFields(valTyped)
-			for keyNested, valStr := range flattenedFields { 
-				extValues[key + "." + keyNested] = valStr
+			for keyNested, valStr := range flattenedFields {
+				extValues[key+"."+keyNested] = valStr
 			}
 		default:
-			extValues[key] = fmt.Sprintf("%v", valTyped)
+			extValues[key] = typesv1.ValStr(fmt.Sprintf("%v", valTyped))
 		}
-	} 
+	}
 	return extValues
+}
+
+func getFlattenedArrayFields(data []interface{}) map[string]*typesv1.Val {
+	flattened := make(map[string]*typesv1.Val)
+	for i, v := range data {
+		switch vt := v.(type) {
+		case json.Number:
+			if z, err := vt.Int64(); err == nil {
+				flattened[strconv.Itoa(i)] = typesv1.ValI64(z)
+			} else if f, err := vt.Float64(); err == nil {
+				flattened[strconv.Itoa(i)] = typesv1.ValF64(f)
+			} else {
+				flattened[strconv.Itoa(i)] = typesv1.ValStr(vt.String())
+			}
+		case string:
+			flattened[strconv.Itoa(i)] = typesv1.ValStr(vt)
+		case bool:
+			flattened[strconv.Itoa(i)] = typesv1.ValBool(vt)
+		case []interface{}:
+			flattenedArrayFields := getFlattenedArrayFields(vt)
+			for k, v := range flattenedArrayFields {
+				flattened[fmt.Sprintf("%d.%s", i, k)] = v
+			}
+		case map[string]interface{}:
+			flattenedFields := getFlattenedFields(vt)
+			for k, v := range flattenedFields {
+				flattened[fmt.Sprintf("%d.%s", i, k)] = v
+			}
+		default:
+			flattened[strconv.Itoa(i)] = typesv1.ValStr(fmt.Sprintf("%v", vt))
+		}
+	}
+	return flattened
 }
 
 // UnmarshalJSON sets the fields of the handler.
 func (h *JSONHandler) UnmarshalJSON(data []byte) bool {
+
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.UseNumber()
+
 	raw := make(map[string]interface{})
-	err := json.Unmarshal(data, &raw)
+	err := dec.Decode(&raw)
 	if err != nil {
 		return false
 	}
@@ -158,27 +207,38 @@ func (h *JSONHandler) UnmarshalJSON(data []byte) bool {
 	})
 
 	if h.Fields == nil {
-		h.Fields = make(map[string]string)
+		h.Fields = make(map[string]*typesv1.Val)
 	}
 
 	for key, val := range raw {
 		switch v := val.(type) {
-		case float64:
-			if v-math.Floor(v) < 0.000001 && v < 1e9 {
-				// looks like an integer that's not too large
-				h.Fields[key] = fmt.Sprintf("%d", int(v))
-			} else {
-				h.Fields[key] = fmt.Sprintf("%g", v)
+		case json.Number:
+			if z, err := v.Int64(); err == nil {
+				h.Fields[key] = typesv1.ValI64(z)
+				continue
 			}
+			if f, err := v.Float64(); err == nil {
+				h.Fields[key] = typesv1.ValF64(f)
+				continue
+			}
+			h.Fields[key] = typesv1.ValStr(v.String())
 		case string:
-			h.Fields[key] = fmt.Sprintf("%q", v)
+
+			h.Fields[key] = typesv1.ValStr(v)
+		case bool:
+			h.Fields[key] = typesv1.ValBool(v)
+		case []interface{}:
+			flattenedArrayFields := getFlattenedArrayFields(v)
+			for k, v := range flattenedArrayFields {
+				h.Fields[key+"."+k] = v
+			}
 		case map[string]interface{}:
 			flattenedFields := getFlattenedFields(v)
-			for keyNested, val := range flattenedFields { 
-				h.Fields[key + "." + keyNested] = fmt.Sprintf("%v", val)
+			for keyNested, val := range flattenedFields {
+				h.Fields[key+"."+keyNested] = val
 			}
 		default:
-			h.Fields[key] = fmt.Sprintf("%v", v)
+			h.Fields[key] = typesv1.ValStr(fmt.Sprintf("%v", v))
 		}
 	}
 

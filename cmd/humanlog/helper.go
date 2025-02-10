@@ -20,6 +20,7 @@ import (
 	"github.com/humanlogio/api/go/svc/organization/v1/organizationv1connect"
 	tokenv1 "github.com/humanlogio/api/go/svc/token/v1"
 	"github.com/humanlogio/api/go/svc/token/v1/tokenv1connect"
+	userpb "github.com/humanlogio/api/go/svc/user/v1"
 	userv1 "github.com/humanlogio/api/go/svc/user/v1"
 	"github.com/humanlogio/api/go/svc/user/v1/userv1connect"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
@@ -58,7 +59,7 @@ func ensureLoggedIn(
 			return nil, fmt.Errorf("aborting")
 		}
 		// no user auth, perform login flow
-		t, err := performLoginFlow(ctx, state, authClient, tokenSource)
+		t, err := performLoginFlow(ctx, state, authClient, tokenSource, "")
 		if err != nil {
 			return nil, fmt.Errorf("performing login: %v", err)
 		}
@@ -66,13 +67,11 @@ func ensureLoggedIn(
 	} else {
 		// check that the token is valid
 		ll := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{}))
-		clOpts := connect.WithInterceptors(
-			auth.Interceptors(ll, tokenSource)...,
-		)
-		userClient := userv1connect.NewUserServiceClient(httpClient, apiURL, clOpts)
-		cerr := new(connect.Error)
-		_, err := userClient.Whoami(ctx, connect.NewRequest(&userv1.WhoamiRequest{}))
-		if errors.As(err, &cerr) && cerr.Code() == connect.CodeUnauthenticated {
+		user, err := checkUserLoggedIn(ctx, ll, httpClient, apiURL, tokenSource)
+		if err != nil {
+			return nil, fmt.Errorf("requesting whoami: %v", err)
+		}
+		if user == nil {
 			// token isn't valid anymore, login again
 			confirms := true
 			err := huh.NewConfirm().
@@ -88,16 +87,30 @@ func ensureLoggedIn(
 			if !confirms {
 				return nil, fmt.Errorf("aborting")
 			}
-			t, err := performLoginFlow(ctx, state, authClient, tokenSource)
+			t, err := performLoginFlow(ctx, state, authClient, tokenSource, "")
 			if err != nil {
 				return nil, fmt.Errorf("performing login: %v", err)
 			}
 			userToken = t
-		} else if err != nil {
-			return nil, fmt.Errorf("requesting whoami: %v", err)
 		}
 	}
 	return userToken, nil
+}
+
+func checkUserLoggedIn(ctx context.Context, ll *slog.Logger, httpClient *http.Client, apiURL string, tokenSource *auth.UserRefreshableTokenSource) (*typesv1.User, error) {
+	clOpts := connect.WithInterceptors(
+		auth.Interceptors(ll, tokenSource)...,
+	)
+	cerr := new(connect.Error)
+	userClient := userv1connect.NewUserServiceClient(httpClient, apiURL, clOpts)
+	res, err := userClient.Whoami(ctx, connect.NewRequest(&userv1.WhoamiRequest{}))
+	if errors.As(err, &cerr) && cerr.Code() == connect.CodeUnauthenticated {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return res.Msg.User, nil
 }
 
 func performLoginFlow(
@@ -105,8 +118,11 @@ func performLoginFlow(
 	state *state.State,
 	authClient authv1connect.AuthServiceClient,
 	tokenSource *auth.UserRefreshableTokenSource,
+	returnToURL string,
 ) (*typesv1.UserToken, error) {
-	res, err := authClient.BeginDeviceAuth(ctx, connect.NewRequest(&authv1.BeginDeviceAuthRequest{}))
+	res, err := authClient.BeginDeviceAuth(ctx, connect.NewRequest(&authv1.BeginDeviceAuthRequest{
+		ReturnToUrl: returnToURL,
+	}))
 	if err != nil {
 		return nil, fmt.Errorf("requesting auth URL: %v", err)
 	}
@@ -169,6 +185,17 @@ poll_for_tokens:
 		return nil, fmt.Errorf("saving state")
 	}
 	return userToken, nil
+}
+
+func performLogoutFlow(ctx context.Context, userSvc userv1connect.UserServiceClient, tokenSource *auth.UserRefreshableTokenSource, returnToURL string) error {
+	res, err := userSvc.GetLogoutURL(ctx, connect.NewRequest(&userpb.GetLogoutURLRequest{ReturnTo: returnToURL}))
+	if err != nil {
+		return fmt.Errorf("retrieving logout URL")
+	}
+	if err := browser.OpenURL(res.Msg.GetLogoutUrl()); err != nil {
+		return fmt.Errorf("opening logout URL")
+	}
+	return tokenSource.ClearToken(ctx)
 }
 
 func ensureOrgSelected(
@@ -244,7 +271,7 @@ func ensureEnvironmentSelected(
 
 	var options []huh.Option[*typesv1.Environment]
 	client := organizationv1connect.NewOrganizationServiceClient(httpClient, apiURL, clOpts)
-	iter := ListEnvironments(ctx, orgID, client)
+	iter := ListEnvironments(ctx, client)
 	for iter.Next() {
 		item := iter.Current().Environment
 		options = append(options, huh.NewOption(item.Name, item))
@@ -296,12 +323,11 @@ func ListOrganizations(ctx context.Context, client userv1connect.UserServiceClie
 	})
 }
 
-func ListOrgUser(ctx context.Context, orgID int64, client organizationv1connect.OrganizationServiceClient) *iterapi.Iter[*organizationv1.ListUserResponse_ListItem] {
+func ListOrgUser(ctx context.Context, client organizationv1connect.OrganizationServiceClient) *iterapi.Iter[*organizationv1.ListUserResponse_ListItem] {
 	return iterapi.New(ctx, 100, func(ctx context.Context, cursor *typesv1.Cursor, limit int32) ([]*organizationv1.ListUserResponse_ListItem, *typesv1.Cursor, error) {
 		list, err := client.ListUser(ctx, connect.NewRequest(&organizationv1.ListUserRequest{
-			Cursor:         cursor,
-			Limit:          limit,
-			OrganizationId: orgID,
+			Cursor: cursor,
+			Limit:  limit,
 		}))
 		if err != nil {
 			return nil, nil, err
@@ -310,12 +336,11 @@ func ListOrgUser(ctx context.Context, orgID int64, client organizationv1connect.
 	})
 }
 
-func ListEnvironments(ctx context.Context, orgID int64, client organizationv1connect.OrganizationServiceClient) *iterapi.Iter[*organizationv1.ListEnvironmentResponse_ListItem] {
+func ListEnvironments(ctx context.Context, client organizationv1connect.OrganizationServiceClient) *iterapi.Iter[*organizationv1.ListEnvironmentResponse_ListItem] {
 	return iterapi.New(ctx, 100, func(ctx context.Context, cursor *typesv1.Cursor, limit int32) ([]*organizationv1.ListEnvironmentResponse_ListItem, *typesv1.Cursor, error) {
 		list, err := client.ListEnvironment(ctx, connect.NewRequest(&organizationv1.ListEnvironmentRequest{
-			Cursor:         cursor,
-			Limit:          limit,
-			OrganizationId: orgID,
+			Cursor: cursor,
+			Limit:  limit,
 		}))
 		if err != nil {
 			return nil, nil, err

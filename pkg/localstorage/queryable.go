@@ -6,11 +6,22 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/humanlogio/api/go/svc/feature/v1/featurev1connect"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
 	"github.com/humanlogio/humanlog/pkg/sink"
 )
 
-type StorageBuilder func(ctx context.Context, ll *slog.Logger, cfg map[string]interface{}) (Storage, error)
+type AppCtx struct {
+	EnsureLoggedIn func(ctx context.Context) error
+	Features       featurev1connect.FeatureServiceClient
+}
+
+type StorageBuilder func(
+	ctx context.Context,
+	ll *slog.Logger,
+	cfg map[string]interface{},
+	app *AppCtx,
+) (Storage, error)
 
 var registry = make(map[string]StorageBuilder)
 
@@ -22,12 +33,12 @@ func RegisterStorage(name string, builder StorageBuilder) {
 	registry[name] = builder
 }
 
-func Open(ctx context.Context, name string, ll *slog.Logger, cfg map[string]interface{}) (Storage, error) {
+func Open(ctx context.Context, name string, ll *slog.Logger, cfg map[string]interface{}, app *AppCtx) (Storage, error) {
 	builder, ok := registry[name]
 	if !ok {
 		return nil, fmt.Errorf("no storage engine with name %q", name)
 	}
-	return builder(ctx, ll, cfg)
+	return builder(ctx, ll, cfg, app)
 }
 
 type Storage interface {
@@ -38,7 +49,15 @@ type Storage interface {
 }
 
 type Queryable interface {
-	Query(context.Context, *typesv1.LogQuery) (<-chan Cursor, error)
+	WatchLogQuery(context.Context, *typesv1.LogQuery) (<-chan Cursor, error)
+
+	Query(ctx context.Context, q *typesv1.LogQuery, c *typesv1.Cursor, limit int) (*typesv1.Data, *typesv1.Cursor, error)
+	ListSymbols(ctx context.Context, c *typesv1.Cursor, limit int) ([]*typesv1.Symbol, *typesv1.Cursor, error)
+}
+
+type Symbol struct {
+	Name string
+	Type *typesv1.VarType
 }
 
 type Cursor interface {

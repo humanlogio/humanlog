@@ -274,21 +274,15 @@ func organizationCmd(
 				Action: func(cctx *cli.Context) error {
 					ctx := getCtx(cctx)
 					ll := getLogger(cctx)
-					state := getState(cctx)
 					tokenSource := getTokenSource(cctx)
 					apiURL := getAPIUrl(cctx)
 					httpClient := getHTTPClient(cctx, apiURL)
-
-					orgID, err := ensureOrgSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient)
-					if err != nil {
-						return err
-					}
 
 					clOpts := connect.WithInterceptors(
 						auth.Interceptors(ll, tokenSource)...,
 					)
 					organizationClient := organizationv1connect.NewOrganizationServiceClient(httpClient, apiURL, clOpts)
-					iter := ListOrgUser(ctx, orgID, organizationClient)
+					iter := ListOrgUser(ctx, organizationClient)
 					for iter.Next() {
 						u := iter.Current().User
 						printFact("id", u.Id)

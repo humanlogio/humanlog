@@ -165,9 +165,8 @@ func listEnvironmentsCmd(
 	return func() tea.Msg {
 		log.Printf("environment: listEnvironments")
 		res, err := organizationClient.ListEnvironment(ctx, connect.NewRequest(&organizationv1.ListEnvironmentRequest{
-			Cursor:         nil,
-			Limit:          10,
-			OrganizationId: *state.CurrentOrgID,
+			Cursor: nil,
+			Limit:  10,
 		}))
 		if err != nil {
 			cerr := new(connect.Error)

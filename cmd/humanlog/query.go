@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -29,6 +30,7 @@ import (
 	"github.com/humanlogio/humanlog/pkg/sink/stdiosink"
 	"github.com/humanlogio/humanlog/pkg/tui"
 	"github.com/urfave/cli"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -63,7 +65,7 @@ func queryCmd(
 						getAPIUrl,
 						getHTTPClient,
 					),
-					queryApiWatchCmd(
+					queryApiRunCmd(
 						getCtx,
 						getLogger,
 						getCfg,
@@ -172,10 +174,10 @@ func queryApiSummarizeCmd(
 			}
 
 			res, err := queryClient.SummarizeEvents(ctx, connect.NewRequest(&queryv1.SummarizeEventsRequest{
-				EnvironmentId: *state.CurrentEnvironmentID,
-				BucketCount:   uint32(cctx.Int(bucket.Name)),
-				From:          from,
-				To:            to,
+				// EnvironmentId: *state.CurrentEnvironmentID,
+				BucketCount: uint32(cctx.Int(bucket.Name)),
+				From:        from,
+				To:          to,
 			}))
 			if err != nil {
 				return fmt.Errorf("querying summary data: %v", err)
@@ -261,7 +263,7 @@ func queryApiSummarizeCmd(
 	}
 }
 
-func queryApiWatchCmd(
+func queryApiRunCmd(
 	getCtx func(cctx *cli.Context) context.Context,
 	getLogger func(cctx *cli.Context) *slog.Logger,
 	getCfg func(cctx *cli.Context) *config.Config,
@@ -273,9 +275,11 @@ func queryApiWatchCmd(
 	fromFlag := cli.DurationFlag{Name: "since", Value: 365 * 24 * time.Hour}
 	toFlag := cli.DurationFlag{Name: "to", Value: 0}
 	localhost := cli.BoolFlag{Name: "localhost"}
+	format := cli.StringFlag{Name: "format", Value: "humanlog"}
+	limit := cli.IntFlag{Name: "limit", Value: 10}
 	return cli.Command{
-		Name:  "watch",
-		Flags: []cli.Flag{localhost, fromFlag, toFlag},
+		Name:  "run",
+		Flags: []cli.Flag{localhost, fromFlag, toFlag, format, limit},
 		Action: func(cctx *cli.Context) error {
 			ctx := getCtx(cctx)
 			cfg := getCfg(cctx)
@@ -330,39 +334,119 @@ func queryApiWatchCmd(
 			if state.CurrentEnvironmentID != nil {
 				environmentID = *state.CurrentEnvironmentID
 			}
-			req := &queryv1.WatchQueryRequest{
-				EnvironmentId: environmentID,
-				Query: &typesv1.LogQuery{
-					From:  from,
-					To:    to,
-					Query: query,
-				},
-			}
-			res, err := queryClient.WatchQuery(ctx, connect.NewRequest(req))
+
+			start := time.Now()
+			parseRes, err := queryClient.Parse(ctx, connect.NewRequest(&queryv1.ParseRequest{Query: query}))
 			if err != nil {
-				return fmt.Errorf("calling WatchQuery: %v", err)
+				return fmt.Errorf("parsing query: %v", err)
 			}
-			defer res.Close()
+			parsedIn := time.Since(start)
+			lq := parseRes.Msg.Query
 
-			sink := stdiosink.NewStdio(os.Stdout, sinkOpts)
+			if lq.Timerange == nil {
+				lq.Timerange = new(typesv1.Timerange)
+			}
+			if lq.Timerange.From == nil && from != nil {
+				lq.Timerange.From = typesv1.ExprLiteral(typesv1.ValTimestamp(from))
+			}
+			if lq.Timerange.To == nil && to != nil {
+				lq.Timerange.To = typesv1.ExprLiteral(typesv1.ValTimestamp(to))
+			}
 
-			for res.Receive() {
-				events := res.Msg().Events
-				for _, leg := range events {
-					prefix := getPrefix(leg.MachineId, leg.SessionId)
-					postProcess := func(pattern string) string {
-						return prefix + pattern
+			var printer func(*typesv1.Data) error
+			switch cctx.String(format.Name) {
+			case "json":
+
+				printer = func(data *typesv1.Data) error {
+					b, err := protojson.Marshal(data)
+					if err != nil {
+						return fmt.Errorf("marshaling: %v", err)
 					}
-					for _, ev := range leg.Logs {
+					_, err = os.Stdout.Write(b)
+					_, _ = os.Stdout.WriteString("\n")
+					return err
+				}
+			case "humanlog":
+				sink := stdiosink.NewStdio(os.Stdout, sinkOpts)
+				printer = func(data *typesv1.Data) error {
+					var events []*typesv1.IngestedLogEvent
+					switch shape := data.Shape.(type) {
+					case *typesv1.Data_Tabular:
+						switch tshape := shape.Tabular.Shape.(type) {
+						case *typesv1.Tabular_LogEvents:
+							events = tshape.LogEvents.Events
+						default:
+							return fmt.Errorf("todo: handle data shape %T", tshape)
+						}
+					default:
+						return fmt.Errorf("todo: handle data shape %T", shape)
+					}
+
+					for _, ev := range events {
+						prefix := getPrefix(ev.MachineId, ev.SessionId)
+						postProcess := func(pattern string) string {
+							return prefix + pattern
+						}
+						ev := &typesv1.LogEvent{
+							ParsedAt:   ev.ParsedAt,
+							Raw:        ev.Raw,
+							Structured: ev.Structured,
+						}
 						if err := sink.ReceiveWithPostProcess(ctx, ev, postProcess); err != nil {
 							return fmt.Errorf("printing log: %v", err)
 						}
 					}
+					return nil
 				}
+			default:
+				return fmt.Errorf("unsupported format: %q", cctx.String(format.Name))
 			}
-			if err := res.Err(); err != nil {
-				return fmt.Errorf("querying: %v", err)
+
+			var (
+				limit = int32(cctx.Int(limit.Name))
+				req   = &queryv1.QueryRequest{
+					EnvironmentId: environmentID,
+					Query:         lq,
+					Cursor:        nil,
+					Limit:         limit,
+				}
+			)
+			var (
+				totalQueryTime time.Duration
+				queriedInAll   []time.Duration
+			)
+			for {
+
+				start := time.Now()
+				res, err := queryClient.Query(ctx, connect.NewRequest(req))
+				if err != nil {
+					return fmt.Errorf("calling Query: %v", err)
+				}
+				queriedIn := time.Since(start)
+				totalQueryTime += queriedIn
+				queriedInAll = append(queriedInAll, queriedIn)
+				data := res.Msg.Data
+				if err := printer(data); err != nil {
+					return fmt.Errorf("printing data: %v", err)
+				}
+				if res.Msg.Next == nil {
+					break
+				}
+				req.Cursor = res.Msg.Next
 			}
+
+			var queriedAllDur []string
+			for _, queriedIn := range queriedInAll {
+				queriedAllDur = append(queriedAllDur, queriedIn.String())
+			}
+
+			_ = json.NewEncoder(os.Stderr).Encode(map[string]any{
+				"parsed_in":        parsedIn.String(),
+				"pages":            len(queriedInAll),
+				"total_query_time": totalQueryTime.String(),
+				"all_query_times":  queriedAllDur,
+			})
+
 			return nil
 		},
 	}
