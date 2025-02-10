@@ -322,13 +322,21 @@ func (svc *Service) SummarizeEvents(ctx context.Context, req *connect.Request[qr
 				{
 					Stmt: &typesv1.Statement_Summarize{
 						Summarize: &typesv1.SummarizeOperator{
-							AggregateFunction: &typesv1.FuncCall{Name: "count"},
-							By: &typesv1.SummarizeOperator_ByOperator{Scalars: []*typesv1.Expr{
-								typesv1.ExprFuncCall("bin",
-									typesv1.ExprIdentifier("ts"),
-									typesv1.ExprLiteral(typesv1.ValDuration(bucketWidth)),
-								),
-							}},
+							Parameters: &typesv1.SummarizeOperator_Parameters{
+								Parameters: []*typesv1.SummarizeOperator_Parameter{
+									{AggregateFunction: &typesv1.FuncCall{Name: "count"}},
+								},
+							},
+							ByGroupExpressions: &typesv1.SummarizeOperator_ByGroupExpressions{
+								Groups: []*typesv1.SummarizeOperator_ByGroupExpression{
+									{
+										Scalar: typesv1.ExprFuncCall("bin",
+											typesv1.ExprIdentifier("ts"),
+											typesv1.ExprLiteral(typesv1.ValDuration(bucketWidth)),
+										),
+									},
+								},
+							},
 						},
 					},
 				},
