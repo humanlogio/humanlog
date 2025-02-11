@@ -395,9 +395,16 @@ func (svc *Service) Parse(ctx context.Context, req *connect.Request[qrv1.ParseRe
 		if cerr, ok := err.(*connect.Error); ok {
 			return nil, cerr
 		}
-		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("parsing `query`: %v", err))
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("parsing query: %v", err))
 	}
-	out := &qrv1.ParseResponse{Query: q}
+	dst, err := svc.storage.ResolveQueryType(ctx, q)
+	if err != nil {
+		if cerr, ok := err.(*connect.Error); ok {
+			return nil, cerr
+		}
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("resolving query's data type: %v", err))
+	}
+	out := &qrv1.ParseResponse{Query: q, DataType: dst}
 	return connect.NewResponse(out), nil
 }
 
