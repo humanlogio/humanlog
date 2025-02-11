@@ -52,6 +52,7 @@ type Queryable interface {
 	WatchLogQuery(context.Context, *typesv1.LogQuery) (<-chan Cursor, error)
 
 	Query(ctx context.Context, q *typesv1.LogQuery, c *typesv1.Cursor, limit int) (*typesv1.Data, *typesv1.Cursor, error)
+	ResolveQueryType(ctx context.Context, query *typesv1.LogQuery) (*typesv1.DataStreamType, error)
 	ListSymbols(ctx context.Context, c *typesv1.Cursor, limit int) ([]*typesv1.Symbol, *typesv1.Cursor, error)
 }
 
