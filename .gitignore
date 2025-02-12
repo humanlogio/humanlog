@@ -3,3 +3,5 @@ dist
 debug.log
 logdump.json
 dist-extra
+script/.DS_Store
+.DS_Store
