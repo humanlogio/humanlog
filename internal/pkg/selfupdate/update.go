@@ -15,9 +15,10 @@ import (
 	"github.com/cli/safeexec"
 )
 
-func UpgradeInPlace(ctx context.Context, baseSiteURL string, channelName *string, stdout, stderr io.Writer, stdin io.Reader, detach bool) error {
+func UpgradeInPlace(ctx context.Context, curSemanticVersion string, baseSiteURL string, channelName *string, stdout, stderr io.Writer, stdin io.Reader, detach bool) error {
 
-	cur, renamed, err := renameCurrentBinaryWithPostfix(".old")
+	curSemanticVersion = strings.ReplaceAll(curSemanticVersion, ".", "-")
+	cur, renamed, err := renameCurrentBinaryWithSuffix("-" + curSemanticVersion)
 	if err != nil {
 		return fmt.Errorf("renaming current binary: %v", err)
 	}
@@ -94,12 +95,12 @@ func updateCommand(baseSiteURL string) string {
 	}
 }
 
-func renameCurrentBinaryWithPostfix(postfix string) (string, string, error) {
+func renameCurrentBinaryWithSuffix(suffix string) (string, string, error) {
 	binaryPath, err := os.Executable()
 	if err != nil {
 		return binaryPath, "", err
 	}
-	newBinaryPath := binaryPath + postfix
+	newBinaryPath := binaryPath + suffix
 	if err := os.Rename(binaryPath, newBinaryPath); err != nil {
 		return binaryPath, newBinaryPath, fmt.Errorf("renaming current binary to %s: %v", newBinaryPath, err)
 	}
