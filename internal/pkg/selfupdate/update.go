@@ -95,7 +95,7 @@ func updateCommand(baseSiteURL string) string {
 }
 
 func renameCurrentBinaryWithPostfix(postfix string) (string, string, error) {
-	binaryPath, err := currentBinaryPath()
+	binaryPath, err := os.Executable()
 	if err != nil {
 		return binaryPath, "", err
 	}
@@ -104,12 +104,4 @@ func renameCurrentBinaryWithPostfix(postfix string) (string, string, error) {
 		return binaryPath, newBinaryPath, fmt.Errorf("renaming current binary to %s: %v", newBinaryPath, err)
 	}
 	return binaryPath, newBinaryPath, nil
-}
-
-func currentBinaryPath() (string, error) {
-	binaryPath, err := os.Executable()
-	if err != nil {
-		return "", err
-	}
-	return binaryPath, nil
 }
