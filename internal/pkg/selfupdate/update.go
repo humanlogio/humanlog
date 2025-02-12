@@ -22,6 +22,14 @@ func UpgradeInPlace(ctx context.Context, baseSiteURL string, channelName *string
 		}
 	}
 
+	currentBinaryPath, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("getting current binary path: %v", err)
+	}
+	if err := os.Rename(currentBinaryPath, currentBinaryPath+".old"); err != nil {
+		return fmt.Errorf("renaming binary with .old postfix: %v", err)
+	}
+
 	shellToUse, ok := os.LookupEnv("SHELL")
 	switchToUse := "-c"
 
@@ -46,9 +54,12 @@ func UpgradeInPlace(ctx context.Context, baseSiteURL string, channelName *string
 	}
 	if detach {
 		if err := cmd.Start(); err != nil {
-			return err
+			return fmt.Errorf("starting update command: %v", err)
 		}
-		return cmd.Process.Release()
+		if err := cmd.Process.Release(); err != nil {
+			return fmt.Errorf("releasing update process: %v", err)
+		}
+		return nil
 	} else {
 		return cmd.Run()
 	}

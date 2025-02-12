@@ -657,7 +657,7 @@ func (hdl *serviceHandler) DoUpdate(ctx context.Context) error {
 		channelName = hdl.config.ExperimentalFeatures.ReleaseChannel
 	}
 	ll.InfoContext(ctx, "starting upgrade in place")
-	if err := selfupdate.UpgradeInPlace(ctx, baseSiteURL, channelName, nil, nil, nil, true); err != nil {
+	if err := selfupdate.UpgradeInPlace(ctx, baseSiteURL, channelName, nil, nil, nil, false); err != nil {
 		return fmt.Errorf("applying self-update: %v", err)
 	}
 	ll.InfoContext(ctx, "triggering self-shutdown, hoping the service manager will restart us")
