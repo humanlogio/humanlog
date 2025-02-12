@@ -16,18 +16,10 @@ import (
 )
 
 func UpgradeInPlace(ctx context.Context, baseSiteURL string, channelName *string, stdout, stderr io.Writer, stdin io.Reader, detach bool) error {
-	if runtime.GOOS == "windows" {
-		if err := renameCurrentBinaries(); err != nil {
-			return err
-		}
-	}
 
-	currentBinaryPath, err := os.Executable()
+	cur, renamed, err := renameCurrentBinaryWithPostfix(".old")
 	if err != nil {
-		return fmt.Errorf("getting current binary path: %v", err)
-	}
-	if err := os.Rename(currentBinaryPath, currentBinaryPath+".old"); err != nil {
-		return fmt.Errorf("renaming binary with .old postfix: %v", err)
+		return fmt.Errorf("renaming current binary: %v", err)
 	}
 
 	shellToUse, ok := os.LookupEnv("SHELL")
@@ -61,7 +53,12 @@ func UpgradeInPlace(ctx context.Context, baseSiteURL string, channelName *string
 		}
 		return nil
 	} else {
-		return cmd.Run()
+		if err := cmd.Run(); err != nil {
+			// failed to install new binary, rollback renamed binary's name to previous name
+			os.Rename(renamed, cur)
+			return fmt.Errorf("running update script: %v", err)
+		}
+		return nil
 	}
 }
 
@@ -97,27 +94,22 @@ func updateCommand(baseSiteURL string) string {
 	}
 }
 
-// can't replace binary on windows, need to move
-func renameCurrentBinaries() error {
-	binaries, err := currentWindowsBinaries()
+func renameCurrentBinaryWithPostfix(postfix string) (string, string, error) {
+	binaryPath, err := currentBinaryPath()
 	if err != nil {
-		return err
+		return binaryPath, "", err
 	}
-
-	for _, p := range binaries {
-		if err := os.Rename(p, p+".old"); err != nil {
-			return err
-		}
+	newBinaryPath := binaryPath + postfix
+	if err := os.Rename(binaryPath, newBinaryPath); err != nil {
+		return binaryPath, newBinaryPath, fmt.Errorf("renaming current binary to %s: %v", newBinaryPath, err)
 	}
-
-	return nil
+	return binaryPath, newBinaryPath, nil
 }
 
-func currentWindowsBinaries() ([]string, error) {
+func currentBinaryPath() (string, error) {
 	binaryPath, err := os.Executable()
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-
-	return []string{binaryPath}, nil
+	return binaryPath, nil
 }
