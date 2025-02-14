@@ -580,6 +580,8 @@ func (hdl *serviceHandler) maintainState(ctx context.Context) error {
 }
 
 func (hdl *serviceHandler) checkAuth(ctx context.Context) error {
+	ll := hdl.ll
+	ll.InfoContext(ctx, "checking auth")
 	whoami, err := hdl.whoami(ctx)
 	if err != nil {
 		return fmt.Errorf("looking up user authentication status: %v", err)
@@ -591,6 +593,8 @@ func (hdl *serviceHandler) checkAuth(ctx context.Context) error {
 }
 
 func (hdl *serviceHandler) whoami(ctx context.Context) (*userv1.WhoamiResponse, error) {
+	ll := hdl.ll
+	ll.InfoContext(ctx, "checking whoami")
 	cerr := new(connect.Error)
 	res, err := hdl.userSvc.Whoami(ctx, connect.NewRequest(&userv1.WhoamiRequest{}))
 	if errors.As(err, &cerr) && cerr.Code() == connect.CodeUnauthenticated {
@@ -629,6 +633,7 @@ func (hdl *serviceHandler) checkUpdate(ctx context.Context, channel *string) err
 }
 
 func (hdl *serviceHandler) DoLogout(ctx context.Context, returnToURL string) error {
+	hdl.ll.InfoContext(ctx, "DoLogout", slog.String("return_to_url", returnToURL))
 	if err := performLogoutFlow(ctx, hdl.userSvc, hdl.tokenSource, returnToURL); err != nil {
 		return err
 	}
@@ -636,6 +641,7 @@ func (hdl *serviceHandler) DoLogout(ctx context.Context, returnToURL string) err
 }
 
 func (hdl *serviceHandler) DoLogin(ctx context.Context, returnToURL string) error {
+	hdl.ll.InfoContext(ctx, "DoLogin", slog.String("return_to_url", returnToURL))
 	if _, err := performLoginFlow(ctx, hdl.state, hdl.authSvc, hdl.tokenSource, returnToURL); err != nil {
 		return err
 	}
@@ -666,10 +672,12 @@ func (hdl *serviceHandler) DoRestart(ctx context.Context) error {
 }
 
 func (hdl *serviceHandler) CheckUpdate(ctx context.Context) error {
+	ll := hdl.ll
 	var channelName *string
 	if hdl.config.ExperimentalFeatures != nil {
 		channelName = hdl.config.ExperimentalFeatures.ReleaseChannel
 	}
+	ll.InfoContext(ctx, "checking for update", slog.String("release_channel", *channelName))
 	return hdl.checkUpdate(ctx, channelName)
 }
 
@@ -686,6 +694,7 @@ func (hdl *serviceHandler) registerClient(client systrayClient) {
 }
 
 func (hdl *serviceHandler) notifyError(ctx context.Context, err error) error {
+	hdl.ll.InfoContext(ctx, "calling notifyError", slog.Any("err", err))
 	hdl.clientMu.Lock()
 	defer hdl.clientMu.Unlock()
 	if hdl.client == nil {
@@ -695,6 +704,7 @@ func (hdl *serviceHandler) notifyError(ctx context.Context, err error) error {
 }
 
 func (hdl *serviceHandler) notifyUnauthenticated(ctx context.Context) error {
+	hdl.ll.InfoContext(ctx, "calling notifyUnauthenticated")
 	hdl.clientMu.Lock()
 	defer hdl.clientMu.Unlock()
 	if hdl.client == nil {
@@ -704,6 +714,7 @@ func (hdl *serviceHandler) notifyUnauthenticated(ctx context.Context) error {
 }
 
 func (hdl *serviceHandler) notifyAuthenticated(ctx context.Context, user *typesv1.User, defaultOrg, currentOrg *typesv1.Organization) error {
+	hdl.ll.InfoContext(ctx, "calling notifyAuthenticated", slog.Any("user", user), slog.Any("defaultOrg", defaultOrg), slog.Any("currentOrg", currentOrg))
 	hdl.clientMu.Lock()
 	defer hdl.clientMu.Unlock()
 	if hdl.client == nil {
@@ -713,6 +724,7 @@ func (hdl *serviceHandler) notifyAuthenticated(ctx context.Context, user *typesv
 }
 
 func (hdl *serviceHandler) notifyUpdateAvailable(ctx context.Context, oldV, newV *typesv1.Version) error {
+	hdl.ll.InfoContext(ctx, "calling notifyUpdateAvailable", slog.Any("oldV", oldV), slog.Any("newV", newV))
 	hdl.clientMu.Lock()
 	defer hdl.clientMu.Unlock()
 	if hdl.client == nil {
