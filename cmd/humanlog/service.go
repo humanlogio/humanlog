@@ -369,9 +369,8 @@ func (hdl *serviceHandler) run(ctx context.Context, cancel context.CancelFunc) e
 			hdl.onCloseMu.Lock()
 			defer hdl.onCloseMu.Unlock()
 			hdl.onClose = append(hdl.onClose, func() error {
-				ll.InfoContext(ctx, "cancelling context")
-				cancel()
-				return nil
+				ll.InfoContext(ctx, "requesting to close server")
+				return srv.Close()
 			})
 		}
 		eg.Go(func() error {
@@ -513,16 +512,6 @@ func (hdl *serviceHandler) runLocalhost(
 	registerOnCloseServer(srv)
 
 	ll.InfoContext(ctx, "serving localhost services")
-	go func() {
-		<-ctx.Done()
-		ll.InfoContext(ctx, "http server will close in 1 second")
-		time.Sleep(time.Second)
-		if err := srv.Close(); err != nil {
-			ll.ErrorContext(ctx, "closing http server", "error", err)
-		} else {
-			ll.InfoContext(ctx, "http server closed")
-		}
-	}()
 	if err := srv.Serve(l); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
@@ -676,16 +665,32 @@ func (hdl *serviceHandler) DoUpdate(ctx context.Context) error {
 	if err := selfupdate.UpgradeInPlace(ctx, sv, baseSiteURL, channelName, nil, nil, nil, false); err != nil {
 		return fmt.Errorf("applying self-update: %v", err)
 	}
-	ll.InfoContext(ctx, "triggering self-shutdown, hoping the service manager will restart us")
 	// triggering self-shutdown
-	return hdl.shutdown(ctx)
+	go func() {
+		time.Sleep(100 * time.Millisecond)
+		ll.InfoContext(ctx, "triggering self-shutdown, hoping the service manager will restart us")
+		if err := hdl.shutdown(ctx); err != nil {
+			ll.ErrorContext(ctx, "shutting down serviceHandler", "error", err)
+		} else {
+			ll.InfoContext(ctx, "serviceHandler shut downed")
+		}
+	}()
+	return nil
 }
 
 func (hdl *serviceHandler) DoRestart(ctx context.Context) error {
 	ll := hdl.ll
 	// triggering self-shutdown
-	ll.InfoContext(ctx, "triggering self-shutdown, hoping the service manager will restart us")
-	return hdl.shutdown(ctx)
+	go func() {
+		time.Sleep(100 * time.Millisecond)
+		ll.InfoContext(ctx, "triggering self-shutdown, hoping the service manager will restart us")
+		if err := hdl.shutdown(ctx); err != nil {
+			ll.ErrorContext(ctx, "shutting down serviceHandler", "error", err)
+		} else {
+			ll.InfoContext(ctx, "serviceHandler shut downed")
+		}
+	}()
+	return nil
 }
 
 func (hdl *serviceHandler) CheckUpdate(ctx context.Context) error {
