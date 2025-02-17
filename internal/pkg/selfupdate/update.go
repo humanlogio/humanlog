@@ -12,13 +12,13 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/blang/semver"
 	"github.com/cli/safeexec"
 )
 
-func UpgradeInPlace(ctx context.Context, curSemanticVersion string, baseSiteURL string, channelName *string, stdout, stderr io.Writer, stdin io.Reader, detach bool) error {
-
-	curSemanticVersion = strings.ReplaceAll(curSemanticVersion, ".", "-")
-	cur, renamed, err := renameCurrentBinaryWithSuffix("-" + curSemanticVersion)
+func UpgradeInPlace(ctx context.Context, curSV semver.Version, baseSiteURL string, channelName *string, stdout, stderr io.Writer, stdin io.Reader, detach bool) error {
+	suffix := fmt.Sprintf("-v%d-%d-%d", curSV.Major, curSV.Minor, curSV.Patch)
+	cur, renamed, err := renameCurrentBinaryWithSuffix(suffix)
 	if err != nil {
 		return fmt.Errorf("renaming current binary: %v", err)
 	}
