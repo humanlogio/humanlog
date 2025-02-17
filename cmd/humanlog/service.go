@@ -369,8 +369,9 @@ func (hdl *serviceHandler) run(ctx context.Context, cancel context.CancelFunc) e
 			hdl.onCloseMu.Lock()
 			defer hdl.onCloseMu.Unlock()
 			hdl.onClose = append(hdl.onClose, func() error {
-				ll.InfoContext(ctx, "requesting to close server")
-				return srv.Close()
+				ll.InfoContext(ctx, "cancelling context")
+				cancel()
+				return nil
 			})
 		}
 		eg.Go(func() error {
@@ -512,6 +513,16 @@ func (hdl *serviceHandler) runLocalhost(
 	registerOnCloseServer(srv)
 
 	ll.InfoContext(ctx, "serving localhost services")
+	go func() {
+		<-ctx.Done()
+		ll.InfoContext(ctx, "http server will close in 1 second")
+		time.Sleep(time.Second)
+		if err := srv.Close(); err != nil {
+			ll.ErrorContext(ctx, "closing http server", "error", err)
+		} else {
+			ll.InfoContext(ctx, "http server closed")
+		}
+	}()
 	if err := srv.Serve(l); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
