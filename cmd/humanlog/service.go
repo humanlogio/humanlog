@@ -17,6 +17,7 @@ import (
 
 	"connectrpc.com/connect"
 	connectcors "connectrpc.com/cors"
+	"github.com/blang/semver"
 	"github.com/humanlogio/api/go/svc/auth/v1/authv1connect"
 	cliupdatepb "github.com/humanlogio/api/go/svc/cliupdate/v1"
 	"github.com/humanlogio/api/go/svc/cliupdate/v1/cliupdatev1connect"
@@ -651,13 +652,11 @@ func (hdl *serviceHandler) DoUpdate(ctx context.Context) error {
 	}
 	ll.InfoContext(ctx, "starting upgrade in place")
 	sv, err := version.AsSemver()
-	svStr := "unknown"
 	if err != nil {
-		ll.ErrorContext(ctx, "getting semantic version: %v", "error", err)
-	} else {
-		svStr = "v" + sv.String()
+		ll.ErrorContext(ctx, "getting current version", "error", err)
+		sv = semver.Version{}
 	}
-	if err := selfupdate.UpgradeInPlace(ctx, svStr, baseSiteURL, channelName, nil, nil, nil, false); err != nil {
+	if err := selfupdate.UpgradeInPlace(ctx, sv, baseSiteURL, channelName, nil, nil, nil, false); err != nil {
 		return fmt.Errorf("applying self-update: %v", err)
 	}
 	ll.InfoContext(ctx, "triggering self-shutdown, hoping the service manager will restart us")
