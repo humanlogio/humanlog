@@ -142,18 +142,13 @@ func newApp() *cli.App {
 	truncateLength := cli.IntFlag{
 		Name:  "truncate-length",
 		Usage: "truncate values that are longer than this length",
-		Value: *config.DefaultConfig.TruncateLength,
+		Value: 15,
 	}
 
 	colorFlag := cli.StringFlag{
 		Name:  "color",
 		Usage: "specify color mode: auto, on/force, off",
-		Value: stdiosink.DefaultStdioOpts.ColorFlag,
-	}
-
-	lightBg := cli.BoolFlag{
-		Name:  "light-bg",
-		Usage: "use black as the base foreground color (for terminals with light backgrounds)",
+		Value: "auto",
 	}
 
 	timeFormat := cli.StringFlag{
@@ -361,8 +356,9 @@ func newApp() *cli.App {
 			ll := getLogger(c)
 			tokenSource := getTokenSource(c)
 			var channelName *string
-			if cfg.ExperimentalFeatures != nil && cfg.ExperimentalFeatures.ReleaseChannel != nil {
-				channelName = cfg.ExperimentalFeatures.ReleaseChannel
+			expcfg := cfg.GetRuntime().GetExperimentalFeatures()
+			if expcfg != nil && expcfg.ReleaseChannel != nil {
+				channelName = expcfg.ReleaseChannel
 			}
 			updateRes = asyncCheckForUpdate(ctx, ll, cfg, statefile, apiURL, httpClient, tokenSource, channelName)
 		}
@@ -400,64 +396,92 @@ func newApp() *cli.App {
 		queryCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getHTTPClient),
 		gennyCmd(getCtx, getLogger, getCfg, getState),
 	)
-	app.Flags = []cli.Flag{configFlag, skipFlag, keepFlag, sortLongest, skipUnchanged, truncates, truncateLength, colorFlag, lightBg, timeFormat, ignoreInterrupts, messageFieldsFlag, timeFieldsFlag, levelFieldsFlag, apiServerAddr}
+	app.Flags = []cli.Flag{configFlag, skipFlag, keepFlag, sortLongest, skipUnchanged, truncates, truncateLength, colorFlag, timeFormat, ignoreInterrupts, messageFieldsFlag, timeFieldsFlag, levelFieldsFlag, apiServerAddr}
 	app.Action = func(cctx *cli.Context) error {
 		// flags overwrite config file
+		if cfg.CurrentConfig == nil {
+			cfg.CurrentConfig = &types.LocalhostConfig{}
+		}
+		if cfg.Formatter == nil {
+			cfg.Formatter = &types.FormatConfig{}
+		}
+		if cfg.Parser == nil {
+			cfg.Parser = &types.ParseConfig{}
+		}
+		if cfg.Runtime == nil {
+			cfg.Runtime = &types.RuntimeConfig{}
+		}
 		if cctx.IsSet(sortLongest.Name) {
-			cfg.SortLongest = ptr(cctx.BoolT(sortLongest.Name))
+			cfg.Formatter.SortLongest = ptr(cctx.BoolT(sortLongest.Name))
 		}
 		if cctx.IsSet(skipUnchanged.Name) {
-			cfg.SkipUnchanged = ptr(cctx.BoolT(skipUnchanged.Name))
+			cfg.Formatter.SkipUnchanged = ptr(cctx.BoolT(skipUnchanged.Name))
 		}
 		if cctx.IsSet(truncates.Name) {
-			cfg.Truncates = ptr(cctx.Bool(truncates.Name))
+			if cctx.Bool(truncates.Name) && cfg.Formatter.Truncation == nil {
+				cfg.Formatter.Truncation = &types.FormatConfig_Truncation{}
+			}
+			if !cctx.Bool(truncates.Name) && cfg.Formatter.Truncation != nil {
+				cfg.Formatter.Truncation = nil
+			}
 		}
 		if cctx.IsSet(truncateLength.Name) {
-			cfg.TruncateLength = ptr(cctx.Int(truncateLength.Name))
-		}
-		if cctx.IsSet(lightBg.Name) {
-			cfg.LightBg = ptr(cctx.Bool(lightBg.Name))
+			if cfg.Formatter.Truncation != nil {
+				cfg.Formatter.Truncation.Length = cctx.Int64(truncateLength.Name)
+			}
 		}
 		if cctx.IsSet(timeFormat.Name) {
-			cfg.TimeFormat = ptr(cctx.String(timeFormat.Name))
+			if cfg.Formatter.Time == nil {
+				cfg.Formatter.Time = &types.FormatConfig_Time{}
+			}
+			cfg.Formatter.Time.Format = ptr(cctx.String(timeFormat.Name))
 		}
 		if cctx.IsSet(colorFlag.Name) {
-			cfg.ColorMode = ptr(cctx.String(colorFlag.Name))
+			cm, err := config.ParseColorMode(cctx.String(colorFlag.Name))
+			if err != nil {
+				return err
+			}
+			cfg.Formatter.TerminalColorMode = &cm
 		}
 		if cctx.IsSet(skipFlag.Name) {
-			cfg.Skip = ptr([]string(skip))
+			cfg.Formatter.SkipFields = []string(skip)
 		}
 		if cctx.IsSet(keepFlag.Name) {
-			cfg.Keep = ptr([]string(keep))
+			cfg.Formatter.KeepFields = []string(keep)
 		}
 		if cctx.IsSet(strings.Split(messageFieldsFlag.Name, ",")[0]) {
-			cfg.MessageFields = ptr([]string(messageFields))
+			if cfg.Parser.Message == nil {
+				cfg.Parser.Message = &types.ParseConfig_Message{}
+			}
+			cfg.Parser.Message.FieldNames = []string(messageFields)
 		}
-
 		if cctx.IsSet(strings.Split(timeFieldsFlag.Name, ",")[0]) {
-			cfg.TimeFields = ptr([]string(timeFields))
+			if cfg.Parser.Timestamp == nil {
+				cfg.Parser.Timestamp = &types.ParseConfig_Time{}
+			}
+			cfg.Parser.Timestamp.FieldNames = []string(timeFields)
 		}
-
 		if cctx.IsSet(strings.Split(levelFieldsFlag.Name, ",")[0]) {
-			cfg.LevelFields = ptr([]string(levelFields))
+			if cfg.Parser.Level == nil {
+				cfg.Parser.Level = &types.ParseConfig_Level{}
+			}
+			cfg.Parser.Level.FieldNames = []string(levelFields)
 		}
 
 		if cctx.IsSet(strings.Split(ignoreInterrupts.Name, ",")[0]) {
-			cfg.Interrupt = ptr(cctx.Bool(strings.Split(ignoreInterrupts.Name, ",")[0]))
+			cfg.Runtime.Interrupt = ptr(cctx.Bool(strings.Split(ignoreInterrupts.Name, ",")[0]))
 		}
 
 		// apply the config
-		if *cfg.Interrupt {
+		if cfg.Runtime.Interrupt != nil && *cfg.Runtime.Interrupt {
 			signal.Ignore(os.Interrupt)
 		}
 
-		if cfg.Skip != nil && cfg.Keep != nil {
-			if len(*cfg.Skip) > 0 && len(*cfg.Keep) > 0 {
-				fatalf(cctx, "can only use one of %q and %q", skipFlag.Name, keepFlag.Name)
-			}
+		if len(cfg.Formatter.SkipFields) > 0 && len(cfg.Formatter.KeepFields) > 0 {
+			fatalf(cctx, "can only use one of %q and %q", skipFlag.Name, keepFlag.Name)
 		}
 
-		sinkOpts, errs := stdiosink.StdioOptsFrom(*cfg)
+		sinkOpts, errs := stdiosink.StdioOptsFrom(cfg.Formatter)
 		if len(errs) > 0 {
 			for _, err := range errs {
 				logerror("config error: %v", err)
@@ -465,10 +489,12 @@ func newApp() *cli.App {
 		}
 		var sink sink.Sink
 		sink = stdiosink.NewStdio(colorable.NewColorableStdout(), sinkOpts)
-		handlerOpts := humanlog.HandlerOptionsFrom(*cfg)
+		handlerOpts := humanlog.HandlerOptionsFrom(cfg.Parser)
 
-		if cfg.ExperimentalFeatures != nil {
-			if cfg.ExperimentalFeatures.SendLogsToCloud != nil && *cfg.ExperimentalFeatures.SendLogsToCloud {
+		rtcfg := cfg.Runtime
+		if rtcfg != nil && rtcfg.ExperimentalFeatures != nil {
+			expcfg := rtcfg.ExperimentalFeatures
+			if expcfg.SendLogsToCloud != nil && *expcfg.SendLogsToCloud {
 				ll := getLogger(cctx)
 				apiURL := getAPIUrl(cctx)
 				notifyUnableToIngest := func(err error) {
@@ -521,8 +547,8 @@ func newApp() *cli.App {
 				sink = teesink.NewTeeSink(sink, remotesink)
 			}
 
-			if cfg.ExperimentalFeatures.ServeLocalhost != nil {
-				localhostCfg := *cfg.ExperimentalFeatures.ServeLocalhost
+			if expcfg != nil && expcfg.ServeLocalhost != nil {
+				localhostCfg := *expcfg.ServeLocalhost
 				state := getState(cctx)
 				// TODO(antoine): all logs to a single location, right now there's code logging
 				// randomly everywhere
@@ -540,7 +566,7 @@ func newApp() *cli.App {
 
 				machineID = uint64(*state.MachineID)
 				localhostSink, done, err := dialLocalhostServer(
-					ctx, ll, machineID, localhostCfg.Port,
+					ctx, ll, machineID, int(localhostCfg.Port),
 					getLocalhostHTTPClient(cctx),
 					func(err error) {
 						logerror("unable to ingest logs with localhost: %v", err)

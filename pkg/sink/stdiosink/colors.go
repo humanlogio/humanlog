@@ -3,155 +3,116 @@ package stdiosink
 import (
 	"fmt"
 
-	"github.com/fatih/color"
-	"github.com/humanlogio/humanlog/internal/pkg/config"
+	"github.com/charmbracelet/lipgloss"
+	typesv1 "github.com/humanlogio/api/go/types/v1"
 )
 
-var DefaultPalette = Palette{
-	KeyColor:              color.New(color.FgGreen),
-	ValColor:              color.New(color.FgHiWhite),
-	TimeLightBgColor:      color.New(color.FgBlack),
-	TimeDarkBgColor:       color.New(color.FgWhite),
-	MsgLightBgColor:       color.New(color.FgBlack),
-	MsgAbsentLightBgColor: color.New(color.FgHiBlack),
-	MsgDarkBgColor:        color.New(color.FgHiWhite),
-	MsgAbsentDarkBgColor:  color.New(color.FgWhite),
-	DebugLevelColor:       color.New(color.FgMagenta),
-	InfoLevelColor:        color.New(color.FgCyan),
-	WarnLevelColor:        color.New(color.FgYellow),
-	ErrorLevelColor:       color.New(color.FgRed),
-	PanicLevelColor:       color.New(color.BgRed),
-	FatalLevelColor:       color.New(color.BgHiRed, color.FgHiWhite),
-	UnknownLevelColor:     color.New(color.FgMagenta),
+var DefaultLightTheme = func(r *lipgloss.Renderer) Theme {
+	return Theme{
+		Key:          r.NewStyle().Foreground(lipgloss.ANSIColor(32)),
+		Val:          r.NewStyle().Foreground(lipgloss.ANSIColor(97)),
+		Time:         r.NewStyle().Foreground(lipgloss.ANSIColor(30)),
+		TimeAbsent:   r.NewStyle().Foreground(lipgloss.ANSIColor(90)),
+		Msg:          r.NewStyle().Foreground(lipgloss.ANSIColor(30)),
+		MsgAbsent:    r.NewStyle().Foreground(lipgloss.ANSIColor(90)),
+		DebugLevel:   r.NewStyle().Foreground(lipgloss.ANSIColor(35)),
+		InfoLevel:    r.NewStyle().Foreground(lipgloss.ANSIColor(36)),
+		WarnLevel:    r.NewStyle().Foreground(lipgloss.ANSIColor(33)),
+		ErrorLevel:   r.NewStyle().Foreground(lipgloss.ANSIColor(31)),
+		PanicLevel:   r.NewStyle().Background(lipgloss.ANSIColor(41)),
+		FatalLevel:   r.NewStyle().Foreground(lipgloss.ANSIColor(97)).Background(lipgloss.ANSIColor(101)),
+		UnknownLevel: r.NewStyle().Foreground(lipgloss.ANSIColor(35)),
+	}
 }
 
-type Palette struct {
-	KeyColor              *color.Color
-	ValColor              *color.Color
-	TimeLightBgColor      *color.Color
-	TimeDarkBgColor       *color.Color
-	MsgLightBgColor       *color.Color
-	MsgAbsentLightBgColor *color.Color
-	MsgDarkBgColor        *color.Color
-	MsgAbsentDarkBgColor  *color.Color
-	DebugLevelColor       *color.Color
-	InfoLevelColor        *color.Color
-	WarnLevelColor        *color.Color
-	ErrorLevelColor       *color.Color
-	PanicLevelColor       *color.Color
-	FatalLevelColor       *color.Color
-	UnknownLevelColor     *color.Color
+var DefaultDarkTheme = func(r *lipgloss.Renderer) Theme {
+	return Theme{
+		Key:          r.NewStyle().Foreground(lipgloss.ANSIColor(32)),
+		Val:          r.NewStyle().Foreground(lipgloss.ANSIColor(97)),
+		Time:         r.NewStyle().Foreground(lipgloss.ANSIColor(37)),
+		TimeAbsent:   r.NewStyle().Foreground(lipgloss.ANSIColor(37)),
+		Msg:          r.NewStyle().Foreground(lipgloss.ANSIColor(97)),
+		MsgAbsent:    r.NewStyle().Foreground(lipgloss.ANSIColor(37)),
+		DebugLevel:   r.NewStyle().Foreground(lipgloss.ANSIColor(35)),
+		InfoLevel:    r.NewStyle().Foreground(lipgloss.ANSIColor(36)),
+		WarnLevel:    r.NewStyle().Foreground(lipgloss.ANSIColor(33)),
+		ErrorLevel:   r.NewStyle().Foreground(lipgloss.ANSIColor(31)),
+		PanicLevel:   r.NewStyle().Background(lipgloss.ANSIColor(41)),
+		FatalLevel:   r.NewStyle().Foreground(lipgloss.ANSIColor(97)).Background(lipgloss.ANSIColor(101)),
+		UnknownLevel: r.NewStyle().Foreground(lipgloss.ANSIColor(35)),
+	}
 }
 
-func PaletteFrom(pl config.TextPalette) (*Palette, error) {
-	var err error
-	out := &Palette{}
-	out.KeyColor, err = attributesToColor(pl.KeyColor)
-	if err != nil {
-		return nil, fmt.Errorf("in palette key %q, %v", "key", err)
-	}
-	out.ValColor, err = attributesToColor(pl.ValColor)
-	if err != nil {
-		return nil, fmt.Errorf("in palette key %q, %v", "val", err)
-	}
-	out.TimeLightBgColor, err = attributesToColor(pl.TimeLightBgColor)
-	if err != nil {
-		return nil, fmt.Errorf("in palette key %q, %v", "time_light_bg", err)
-	}
-	out.TimeDarkBgColor, err = attributesToColor(pl.TimeDarkBgColor)
-	if err != nil {
-		return nil, fmt.Errorf("in palette key %q, %v", "time_dark_bg", err)
-	}
-	out.MsgLightBgColor, err = attributesToColor(pl.MsgLightBgColor)
-	if err != nil {
-		return nil, fmt.Errorf("in palette key %q, %v", "msg_light_bg", err)
-	}
-	out.MsgAbsentLightBgColor, err = attributesToColor(pl.MsgAbsentLightBgColor)
-	if err != nil {
-		return nil, fmt.Errorf("in palette key %q, %v", "msg_absent_light_bg", err)
-	}
-	out.MsgDarkBgColor, err = attributesToColor(pl.MsgDarkBgColor)
-	if err != nil {
-		return nil, fmt.Errorf("in palette key %q, %v", "msg_dark_bg", err)
-	}
-	out.MsgAbsentDarkBgColor, err = attributesToColor(pl.MsgAbsentDarkBgColor)
-	if err != nil {
-		return nil, fmt.Errorf("in palette key %q, %v", "msg_absent_dark_bg", err)
-	}
-	out.DebugLevelColor, err = attributesToColor(pl.DebugLevelColor)
-	if err != nil {
-		return nil, fmt.Errorf("in palette key %q, %v", "debug_level", err)
-	}
-	out.InfoLevelColor, err = attributesToColor(pl.InfoLevelColor)
-	if err != nil {
-		return nil, fmt.Errorf("in palette key %q, %v", "info_level", err)
-	}
-	out.WarnLevelColor, err = attributesToColor(pl.WarnLevelColor)
-	if err != nil {
-		return nil, fmt.Errorf("in palette key %q, %v", "warn_level", err)
-	}
-	out.ErrorLevelColor, err = attributesToColor(pl.ErrorLevelColor)
-	if err != nil {
-		return nil, fmt.Errorf("in palette key %q, %v", "error_level", err)
-	}
-	out.PanicLevelColor, err = attributesToColor(pl.PanicLevelColor)
-	if err != nil {
-		return nil, fmt.Errorf("in palette key %q, %v", "panic_level", err)
-	}
-	out.FatalLevelColor, err = attributesToColor(pl.FatalLevelColor)
-	if err != nil {
-		return nil, fmt.Errorf("in palette key %q, %v", "fatal_level", err)
-	}
-	out.UnknownLevelColor, err = attributesToColor(pl.UnknownLevelColor)
-	if err != nil {
-		return nil, fmt.Errorf("in palette key %q, %v", "unknown_level", err)
-	}
-	return out, err
+type Theme struct {
+	Key          lipgloss.Style
+	Val          lipgloss.Style
+	Time         lipgloss.Style
+	TimeAbsent   lipgloss.Style
+	Msg          lipgloss.Style
+	MsgAbsent    lipgloss.Style
+	DebugLevel   lipgloss.Style
+	InfoLevel    lipgloss.Style
+	WarnLevel    lipgloss.Style
+	ErrorLevel   lipgloss.Style
+	PanicLevel   lipgloss.Style
+	FatalLevel   lipgloss.Style
+	UnknownLevel lipgloss.Style
 }
 
-func attributesToColor(names []string) (*color.Color, error) {
-	attrs := make([]color.Attribute, 0, len(names))
-	for _, name := range names {
-		attr, ok := colorAttributeIndex[name]
-		if !ok {
-			return nil, fmt.Errorf("color %q isn't supported", name)
-		}
-		attrs = append(attrs, attr)
-	}
-	return color.New(attrs...), nil
+func pbcolorToLipgloss(color *typesv1.FormatConfig_Color) lipgloss.TerminalColor {
+	v := color.Rgba
+	r := v >> 24
+	g := v >> 16
+	b := v >> 8
+	a := v
+	_ = a // alpha is ignored
+	hex := fmt.Sprintf("#%x%x%x", r, g, b)
+	return lipgloss.Color(hex)
 }
 
-var colorAttributeIndex = map[string]color.Attribute{
-	"fg_black":      color.FgBlack,
-	"fg_red":        color.FgRed,
-	"fg_green":      color.FgGreen,
-	"fg_yellow":     color.FgYellow,
-	"fg_blue":       color.FgBlue,
-	"fg_magenta":    color.FgMagenta,
-	"fg_cyan":       color.FgCyan,
-	"fg_white":      color.FgWhite,
-	"fg_hi_black":   color.FgHiBlack,
-	"fg_hi_red":     color.FgHiRed,
-	"fg_hi_green":   color.FgHiGreen,
-	"fg_hi_yellow":  color.FgHiYellow,
-	"fg_hi_blue":    color.FgHiBlue,
-	"fg_hi_magenta": color.FgHiMagenta,
-	"fg_hi_cyan":    color.FgHiCyan,
-	"fg_hi_white":   color.FgHiWhite,
-	"bg_black":      color.BgBlack,
-	"bg_red":        color.BgRed,
-	"bg_green":      color.BgGreen,
-	"bg_yellow":     color.BgYellow,
-	"bg_blue":       color.BgBlue,
-	"bg_magenta":    color.BgMagenta,
-	"bg_cyan":       color.BgCyan,
-	"bg_white":      color.BgWhite,
-	"bg_hi_black":   color.BgHiBlack,
-	"bg_hi_red":     color.BgHiRed,
-	"bg_hi_green":   color.BgHiGreen,
-	"bg_hi_yellow":  color.BgHiYellow,
-	"bg_hi_blue":    color.BgHiBlue,
-	"bg_hi_magenta": color.BgHiMagenta,
-	"bg_hi_cyan":    color.BgHiCyan,
-	"bg_hi_white":   color.BgHiWhite,
+func pbstyleToLipgloss(r *lipgloss.Renderer, style *typesv1.FormatConfig_Style) lipgloss.Style {
+	st := r.NewStyle()
+	if style.Background != nil {
+		st = st.Background(pbcolorToLipgloss(style.Background))
+	}
+	if style.Foreground != nil {
+		st = st.Foreground(pbcolorToLipgloss(style.Foreground))
+	}
+	if style.Bold != nil {
+		st = st.Bold(*style.Bold)
+	}
+	if style.Italic != nil {
+		st = st.Italic(*style.Italic)
+	}
+	if style.Faint != nil {
+		st = st.Faint(*style.Faint)
+	}
+	if style.Blink != nil {
+		st = st.Blink(*style.Blink)
+	}
+	if style.Strikethrough != nil {
+		st = st.Strikethrough(*style.Strikethrough)
+	}
+	if style.Underline != nil {
+		st = st.Underline(*style.Underline)
+	}
+	return st
+}
+
+func ThemeFrom(r *lipgloss.Renderer, theme *typesv1.FormatConfig_Theme) Theme {
+	return Theme{
+		Key:          pbstyleToLipgloss(r, theme.GetKey()),
+		Val:          pbstyleToLipgloss(r, theme.GetValue()),
+		Time:         pbstyleToLipgloss(r, theme.GetTime()),
+		TimeAbsent:   pbstyleToLipgloss(r, theme.GetAbsentTime()),
+		Msg:          pbstyleToLipgloss(r, theme.GetMsg()),
+		MsgAbsent:    pbstyleToLipgloss(r, theme.GetAbsentMsg()),
+		DebugLevel:   pbstyleToLipgloss(r, theme.GetLevels().GetDebug()),
+		InfoLevel:    pbstyleToLipgloss(r, theme.GetLevels().GetInfo()),
+		WarnLevel:    pbstyleToLipgloss(r, theme.GetLevels().GetWarn()),
+		ErrorLevel:   pbstyleToLipgloss(r, theme.GetLevels().GetError()),
+		PanicLevel:   pbstyleToLipgloss(r, theme.GetLevels().GetPanic()),
+		FatalLevel:   pbstyleToLipgloss(r, theme.GetLevels().GetFatal()),
+		UnknownLevel: pbstyleToLipgloss(r, theme.GetLevels().GetUnknown()),
+	}
 }

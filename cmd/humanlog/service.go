@@ -167,8 +167,8 @@ func serviceCmd(
 						})
 					}()
 
-					expfeature := cfg.ExperimentalFeatures
-					if expfeature != nil && expfeature.ServeLocalhost != nil && expfeature.ServeLocalhost.ShowInSystray != nil && *expfeature.ServeLocalhost.ShowInSystray {
+					expcfg := cfg.GetRuntime().GetExperimentalFeatures()
+					if expcfg != nil && expcfg.ServeLocalhost != nil && expcfg.ServeLocalhost.ShowInSystray != nil && *expcfg.ServeLocalhost.ShowInSystray {
 						trayll := ll.WithGroup("systray")
 						if err := runSystray(ctx, trayll, svcHandler, version, baseSiteURL); err != nil {
 							trayll.ErrorContext(ctx, "systray stopped in error", slog.Any("err", err))
@@ -215,11 +215,13 @@ func prepareServiceCmd(
 
 	authCheckFrequency := time.Minute
 	updateCheckFrequency := time.Hour
-	if config.ExperimentalFeatures != nil {
+
+	expcfg := config.GetRuntime().GetExperimentalFeatures()
+	if expcfg != nil {
 		// check for updates more often if you use
 		// experimental features
 		updateCheckFrequency = 10 * time.Minute
-		if config.ExperimentalFeatures.ReleaseChannel != nil {
+		if expcfg.ReleaseChannel != nil {
 			// and even more frequently if using a non-default channel
 			updateCheckFrequency = time.Minute
 		}
@@ -284,7 +286,7 @@ type serviceHandler struct {
 	ctx                  context.Context
 	ll                   *slog.Logger
 	config               *config.Config
-	localhostCfg         *config.ServeLocalhost
+	localhostCfg         *typesv1.ServeLocalhostConfig
 	state                *state.State
 	svcCfg               *ksvc.Config
 	baseSiteURL          string
@@ -326,7 +328,8 @@ func newServiceHandler(
 	if updateCheckFrequency < time.Minute {
 		updateCheckFrequency = time.Minute
 	}
-	if cfg.ExperimentalFeatures == nil || cfg.ExperimentalFeatures.ServeLocalhost == nil {
+	expcfg := cfg.GetRuntime().GetExperimentalFeatures()
+	if expcfg == nil || expcfg.ServeLocalhost == nil {
 		return nil, fmt.Errorf("experimental localhost features is not enabled")
 	}
 
@@ -334,7 +337,7 @@ func newServiceHandler(
 		ctx:                  ctx,
 		ll:                   ll,
 		config:               cfg,
-		localhostCfg:         cfg.ExperimentalFeatures.ServeLocalhost,
+		localhostCfg:         expcfg.ServeLocalhost,
 		state:                state,
 		svcCfg:               svcCfg,
 		baseSiteURL:          baseSiteURL,
@@ -351,13 +354,13 @@ func newServiceHandler(
 }
 
 func (hdl *serviceHandler) run(ctx context.Context, cancel context.CancelFunc) error {
-	cfg := hdl.config
+	cfg := hdl.config.GetRuntime()
 	hdl.cancel = cancel
 
 	eg, ctx := errgroup.WithContext(ctx)
 
 	if cfg != nil && cfg.ExperimentalFeatures != nil && cfg.ExperimentalFeatures.ServeLocalhost != nil {
-		localhostCfg := *cfg.ExperimentalFeatures.ServeLocalhost
+		localhostCfg := cfg.ExperimentalFeatures.ServeLocalhost
 		ll := hdl.ll.WithGroup("localhost")
 		app := &localstorage.AppCtx{
 			EnsureLoggedIn: func(ctx context.Context) error {
@@ -429,12 +432,12 @@ func (hdl *serviceHandler) shutdown(ctx context.Context) error {
 func (hdl *serviceHandler) runLocalhost(
 	ctx context.Context,
 	ll *slog.Logger,
-	localhostCfg config.ServeLocalhost,
+	localhostCfg *typesv1.ServeLocalhostConfig,
 	ownVersion *typesv1.Version,
 	app *localstorage.AppCtx,
 	registerOnCloseServer func(srv *http.Server),
 ) error {
-	port := localhostCfg.Port
+	port := int(localhostCfg.Port)
 
 	// obtaining the listener is our way of also getting an exclusive lock on the storage engine
 	// although if someone was independently using the DB before we started, we'll be holding the listener
@@ -471,7 +474,7 @@ func (hdl *serviceHandler) runLocalhost(
 		ctx,
 		localhostCfg.Engine,
 		ll.WithGroup("storage"),
-		localhostCfg.Cfg,
+		localhostCfg.EngineConfig.AsMap(),
 		app,
 	)
 	if err != nil {
@@ -490,7 +493,15 @@ func (hdl *serviceHandler) runLocalhost(
 
 	mux := http.NewServeMux()
 
-	localhostsvc := localsvc.New(ll, hdl.state, ownVersion, storage, hdl.DoLogin, hdl.DoLogout, hdl.DoUpdate, hdl.DoRestart, hdl.whoami)
+	localhostsvc := localsvc.New(ll, hdl.state, ownVersion, storage,
+		hdl.DoLogin,
+		hdl.DoLogout,
+		hdl.DoUpdate,
+		hdl.DoRestart,
+		hdl.GetConfig,
+		hdl.SetConfig,
+		hdl.whoami,
+	)
 	mux.Handle(localhostv1connect.NewLocalhostServiceHandler(localhostsvc))
 	mux.Handle(ingestv1connect.NewIngestServiceHandler(localhostsvc))
 	mux.Handle(queryv1connect.NewQueryServiceHandler(localhostsvc))
@@ -522,9 +533,10 @@ func (hdl *serviceHandler) runLocalhost(
 
 func (hdl *serviceHandler) primeState(ctx context.Context) {
 	ll := hdl.ll
+	expcfg := hdl.config.GetRuntime().GetExperimentalFeatures()
 	var channelName *string
-	if hdl.config != nil && hdl.config.ExperimentalFeatures != nil && hdl.config.ExperimentalFeatures.ReleaseChannel != nil {
-		channelName = hdl.config.ExperimentalFeatures.ReleaseChannel
+	if hdl.config != nil && expcfg != nil && expcfg.ReleaseChannel != nil {
+		channelName = expcfg.ReleaseChannel
 		ll = ll.With(slog.String("channel", *channelName))
 	}
 	ll.InfoContext(ctx, "doing auth check")
@@ -544,9 +556,10 @@ func (hdl *serviceHandler) primeState(ctx context.Context) {
 
 func (hdl *serviceHandler) maintainState(ctx context.Context) error {
 	ll := hdl.ll
+	expcfg := hdl.config.GetRuntime().GetExperimentalFeatures()
 	var channelName *string
-	if hdl.config != nil && hdl.config.ExperimentalFeatures != nil && hdl.config.ExperimentalFeatures.ReleaseChannel != nil {
-		channelName = hdl.config.ExperimentalFeatures.ReleaseChannel
+	if hdl.config != nil && expcfg != nil && expcfg.ReleaseChannel != nil {
+		channelName = expcfg.ReleaseChannel
 		ll = ll.With(slog.String("channel", *channelName))
 	}
 
@@ -651,10 +664,11 @@ func (hdl *serviceHandler) DoLogin(ctx context.Context, returnToURL string) erro
 
 func (hdl *serviceHandler) DoUpdate(ctx context.Context) error {
 	ll := hdl.ll
+	expcfg := hdl.config.GetRuntime().GetExperimentalFeatures()
 	baseSiteURL := hdl.baseSiteURL
 	var channelName *string
-	if hdl.config.ExperimentalFeatures != nil {
-		channelName = hdl.config.ExperimentalFeatures.ReleaseChannel
+	if expcfg != nil {
+		channelName = expcfg.ReleaseChannel
 	}
 	ll.InfoContext(ctx, "starting upgrade in place")
 	sv, err := version.AsSemver()
@@ -693,11 +707,27 @@ func (hdl *serviceHandler) DoRestart(ctx context.Context) error {
 	return nil
 }
 
+func (hdl *serviceHandler) GetConfig(ctx context.Context) (*typesv1.LocalhostConfig, error) {
+	ll := hdl.ll
+	// triggering self-shutdown
+	ll.InfoContext(ctx, "serving localhost config")
+	return hdl.config.CurrentConfig, nil
+}
+
+func (hdl *serviceHandler) SetConfig(ctx context.Context, cfg *typesv1.LocalhostConfig) error {
+	ll := hdl.ll
+	// triggering self-shutdown
+	ll.InfoContext(ctx, "serving localhost config")
+	hdl.config.CurrentConfig = cfg
+	return hdl.config.WriteBack()
+}
+
 func (hdl *serviceHandler) CheckUpdate(ctx context.Context) error {
 	ll := hdl.ll
 	var channelName *string
-	if hdl.config.ExperimentalFeatures != nil {
-		channelName = hdl.config.ExperimentalFeatures.ReleaseChannel
+	expcfg := hdl.config.GetRuntime().GetExperimentalFeatures()
+	if expcfg != nil {
+		channelName = expcfg.ReleaseChannel
 	}
 	ll.InfoContext(ctx, "checking for update", slog.String("release_channel", *channelName))
 	return hdl.checkUpdate(ctx, channelName)

@@ -33,7 +33,8 @@ func shouldCheckForUpdate(cctx *cli.Context, cfg *config.Config, state *state.St
 	if cctx.Args().First() == versionCmdName {
 		return false // check is done already
 	}
-	if cfg.SkipCheckForUpdates != nil && *cfg.SkipCheckForUpdates {
+	rtcfg := cfg.GetRuntime()
+	if rtcfg.SkipCheckForUpdates != nil && *rtcfg.SkipCheckForUpdates {
 		return false
 	}
 	return true
@@ -112,8 +113,9 @@ func versionCmd(
 					apiURL := getAPIUrl(cctx)
 					httpClient := getHTTPClient(cctx, apiURL)
 					var channelName *string
-					if cfg.ExperimentalFeatures != nil && cfg.ExperimentalFeatures.ReleaseChannel != nil {
-						channelName = cfg.ExperimentalFeatures.ReleaseChannel
+					expcfg := cfg.GetRuntime().GetExperimentalFeatures()
+					if expcfg != nil && expcfg.ReleaseChannel != nil {
+						channelName = expcfg.ReleaseChannel
 					}
 					nextVersion, nextArtifact, hasUpdate, err := checkForUpdate(ctx, ll, cfg, state, apiURL, httpClient, tokenSource, channelName)
 					if err != nil {
@@ -147,8 +149,9 @@ func versionCmd(
 					baseSiteURL := getBaseSiteURL(cctx)
 					httpClient := getHTTPClient(cctx, apiURL)
 					var channelName *string
-					if cfg.ExperimentalFeatures != nil && cfg.ExperimentalFeatures.ReleaseChannel != nil {
-						channelName = cfg.ExperimentalFeatures.ReleaseChannel
+					expcfg := cfg.GetRuntime().GetExperimentalFeatures()
+					if expcfg != nil && expcfg.ReleaseChannel != nil {
+						channelName = expcfg.ReleaseChannel
 					}
 					_, _, hasUpdate, err := checkForUpdate(ctx, ll, cfg, state, apiURL, httpClient, tokenSource, channelName)
 					if err != nil {

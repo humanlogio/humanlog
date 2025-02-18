@@ -5,6 +5,7 @@ import (
 	"os"
 	"testing"
 
+	typesv1 "github.com/humanlogio/api/go/types/v1"
 	"github.com/humanlogio/humanlog/internal/pkg/config"
 	"github.com/stretchr/testify/require"
 )
@@ -12,7 +13,11 @@ import (
 func TestApplyConfigFromConfigFile_when_one_of_skip_or_keep_is_given(t *testing.T) {
 
 	cfg := config.Config{
-		Skip: ptr([]string{"foo", "bar"}),
+		CurrentConfig: &typesv1.LocalhostConfig{
+			Formatter: &typesv1.FormatConfig{
+				SkipFields: []string{"foo", "bar"},
+			},
+		},
 	}
 
 	dir := t.TempDir()

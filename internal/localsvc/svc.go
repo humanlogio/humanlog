@@ -32,6 +32,8 @@ type Service struct {
 	doLogout   func(ctx context.Context, returnToURL string) error
 	doUpdate   func(ctx context.Context) error
 	doRestart  func(ctx context.Context) error
+	getConfig  func(ctx context.Context) (*typesv1.LocalhostConfig, error)
+	setConfig  func(ctx context.Context, cfg *typesv1.LocalhostConfig) error
 	whoami     func(ctx context.Context) (*userv1.WhoamiResponse, error)
 }
 
@@ -44,6 +46,8 @@ func New(
 	doLogout func(ctx context.Context, returnToURL string) error,
 	doUpdate func(ctx context.Context) error,
 	doRestart func(ctx context.Context) error,
+	getConfig func(ctx context.Context) (*typesv1.LocalhostConfig, error),
+	setConfig func(ctx context.Context, cfg *typesv1.LocalhostConfig) error,
 	whoami func(ctx context.Context) (*userv1.WhoamiResponse, error),
 ) *Service {
 	return &Service{
@@ -55,6 +59,8 @@ func New(
 		doLogout:   doLogout,
 		doUpdate:   doUpdate,
 		doRestart:  doRestart,
+		getConfig:  getConfig,
+		setConfig:  setConfig,
 		whoami:     whoami,
 	}
 }
@@ -126,6 +132,23 @@ func (svc *Service) DoRestart(ctx context.Context, req *connect.Request[lhv1.DoR
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to restart: %v", err))
 	}
 	out := &lhv1.DoRestartResponse{}
+	return connect.NewResponse(out), nil
+}
+
+func (svc *Service) GetConfig(ctx context.Context, req *connect.Request[lhv1.GetConfigRequest]) (*connect.Response[lhv1.GetConfigResponse], error) {
+	cfg, err := svc.getConfig(ctx)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to get config: %v", err))
+	}
+	out := &lhv1.GetConfigResponse{Config: cfg}
+	return connect.NewResponse(out), nil
+}
+
+func (svc *Service) SetConfig(ctx context.Context, req *connect.Request[lhv1.SetConfigRequest]) (*connect.Response[lhv1.SetConfigResponse], error) {
+	if err := svc.setConfig(ctx, req.Msg.Config); err != nil {
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to set config: %v", err))
+	}
+	out := &lhv1.SetConfigResponse{}
 	return connect.NewResponse(out), nil
 }
 
