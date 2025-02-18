@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/huh"
 	"github.com/humanlogio/api/go/svc/auth/v1/authv1connect"
+	typesv1 "github.com/humanlogio/api/go/types/v1"
 	"github.com/humanlogio/humanlog/internal/pkg/config"
 	"github.com/humanlogio/humanlog/internal/pkg/state"
 	"github.com/humanlogio/humanlog/pkg/auth"
@@ -35,10 +36,11 @@ func onboardingCmd(
 		if cfg == nil {
 			return false
 		}
-		if cfg.ExperimentalFeatures == nil {
+		expcfg := cfg.GetRuntime().GetExperimentalFeatures()
+		if expcfg == nil {
 			return false
 		}
-		if cfg.ExperimentalFeatures.ServeLocalhost != nil {
+		if expcfg.ServeLocalhost != nil {
 			return true
 		}
 		return false
@@ -150,8 +152,10 @@ Bye! <3`
 				return nil
 			}
 
+			expcfg := cfg.GetRuntime().GetExperimentalFeatures()
+
 			promptSignup := state.LastPromptedToSignupAt == nil && (user == nil)
-			promptQueryEngine := state.LastPromptedToEnableLocalhostAt == nil && (cfg.ExperimentalFeatures == nil || cfg.ExperimentalFeatures.ServeLocalhost == nil)
+			promptQueryEngine := state.LastPromptedToEnableLocalhostAt == nil && (expcfg == nil || expcfg.ServeLocalhost == nil)
 
 			var (
 				wantsSignup      = promptSignup && true
@@ -213,14 +217,14 @@ Bye! <3`
 			}
 
 			if wantsQueryEngine {
-				if cfg.ExperimentalFeatures == nil {
-					cfg.ExperimentalFeatures = &config.Features{}
+				if expcfg == nil {
+					expcfg = &typesv1.RuntimeConfig_ExperimentalFeatures{}
 				}
 				serveLocalhost, err := config.GetDefaultLocalhostConfig()
 				if err != nil {
 					logerror("getting default value for localhost log engine config: %v", err)
 				} else {
-					cfg.ExperimentalFeatures.ServeLocalhost = serveLocalhost
+					expcfg.ServeLocalhost = serveLocalhost
 					if err := cfg.WriteBack(); err != nil {
 						logerror("failed to update config file: %v", err)
 					}

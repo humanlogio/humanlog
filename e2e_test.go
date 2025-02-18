@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/humanlogio/humanlog/internal/pkg/config"
 	"github.com/humanlogio/humanlog/pkg/sink/stdiosink"
 )
@@ -28,6 +29,10 @@ func TestHarness(t *testing.T) {
 		}
 		testCase := de.Name()
 		t.Run(testCase, func(t *testing.T) {
+			// testCase := testCase
+			// if testCase != "00001-json" {
+			// 	t.Skip()
+			// }
 			input, err := os.ReadFile(filepath.Join(root, de.Name(), "input"))
 			if err != nil {
 				t.Fatalf("reading input: %v", err)
@@ -52,48 +57,52 @@ func TestHarness(t *testing.T) {
 				t.Fatalf("unmarshaling config: %v", err)
 			}
 			gotw := bytes.NewBuffer(nil)
-			sinkOpts, errs := stdiosink.StdioOptsFrom(cfg)
+			sinkOpts, errs := stdiosink.StdioOptsFrom(cfg.Formatter)
 			if len(errs) > 0 {
 				t.Fatalf("errs=%v", errs)
 			}
 			s := stdiosink.NewStdio(gotw, sinkOpts)
-			err = Scan(ctx, bytes.NewReader(input), s, HandlerOptionsFrom(cfg))
+			err = Scan(ctx, bytes.NewReader(input), s, HandlerOptionsFrom(cfg.Parser))
 			if err != nil {
 				t.Fatalf("scanning input: %v", err)
 			}
-			minl := len(want)
+			// minl := len(want)
 			got := gotw.Bytes()
 			if len(want) < len(got) {
 				t.Errorf("want len %d got %d", len(want), len(got))
 			}
 			if len(want) > len(got) {
 				t.Errorf("want len %d got %d", len(want), len(got))
-				minl = len(got)
+				// minl = len(got)
 			}
 
-			ranges := newByteRanges()
-			for i, w := range want[:minl] {
-				g := got[i]
-				if w != g {
-					ranges.track(i)
-				}
+			if diff := cmp.Diff(want, got); diff != "" {
+				t.Error(diff)
 			}
-			mismatches := len(ranges.ranges)
-			if mismatches == 0 {
-				return
-			}
-			t.Errorf("total of %d ranges mismatch", mismatches)
-			if len(ranges.ranges) > 10 {
-				mismatches = 10
-				t.Errorf("only showing first %d mismatches", mismatches)
-			}
-			for _, br := range ranges.ranges[:mismatches] {
-				t.Errorf("- mismatch from byte %d to %d", br.start, br.end)
-				wantPart := want[br.start:br.end]
-				gotPart := got[br.start:br.end]
-				t.Errorf("want %q", wantPart)
-				t.Errorf("got  %q", gotPart)
-			}
+
+			// ranges := newByteRanges()
+			// for i, w := range want[:minl] {
+			// 	g := got[i]
+			// 	if w != g {
+			// 		ranges.track(i)
+			// 	}
+			// }
+			// mismatches := len(ranges.ranges)
+			// if mismatches == 0 {
+			// 	return
+			// }
+			// t.Errorf("total of %d ranges mismatch", mismatches)
+			// if len(ranges.ranges) > 10 {
+			// 	mismatches = 10
+			// 	t.Errorf("only showing first %d mismatches", mismatches)
+			// }
+			// for _, br := range ranges.ranges[:mismatches] {
+			// 	t.Errorf("- mismatch from byte %d to %d", br.start, br.end)
+			// 	wantPart := want[br.start:br.end]
+			// 	gotPart := got[br.start:br.end]
+			// 	t.Errorf("want %q", wantPart)
+			// 	t.Errorf("got  %q", gotPart)
+			// }
 
 			dir, err := os.MkdirTemp(os.TempDir(), "humanlog-tests-*")
 			if err != nil {

@@ -4,7 +4,10 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	typesv1 "github.com/humanlogio/api/go/types/v1"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 )
 
 func TestConfig_populateEmpty(t *testing.T) {
@@ -16,32 +19,63 @@ func TestConfig_populateEmpty(t *testing.T) {
 		want  *Config
 	}{
 		{
-			input: Config{},
-			other: &Config{
-				Skip: ptr([]string{"hello"}),
-			},
-			want: &Config{
-				Skip: ptr([]string{"hello"}),
-			},
-		},
-		{
+			name: "ignore empty update",
 			input: Config{
-				Skip: ptr([]string{"hello"}),
+				CurrentConfig: &typesv1.LocalhostConfig{
+					Formatter: &typesv1.FormatConfig{
+						SkipFields: []string{"hello"},
+					},
+				},
 			},
 			other: &Config{},
 			want: &Config{
-				Skip: ptr([]string{"hello"}),
+				CurrentConfig: &typesv1.LocalhostConfig{
+					Formatter: &typesv1.FormatConfig{
+						SkipFields: []string{"hello"},
+					},
+				},
 			},
 		},
 		{
-			input: Config{
-				Skip: ptr([]string{"hello"}),
-			},
+			name:  "replace empty",
+			input: Config{},
 			other: &Config{
-				Skip: ptr([]string{"world"}),
+				CurrentConfig: &typesv1.LocalhostConfig{
+					Formatter: &typesv1.FormatConfig{
+						SkipFields: []string{"hello"},
+					},
+				},
 			},
 			want: &Config{
-				Skip: ptr([]string{"hello"}),
+				CurrentConfig: &typesv1.LocalhostConfig{
+					Formatter: &typesv1.FormatConfig{
+						SkipFields: []string{"hello"},
+					},
+				},
+			},
+		},
+		{
+			name: "respect update",
+			input: Config{
+				CurrentConfig: &typesv1.LocalhostConfig{
+					Formatter: &typesv1.FormatConfig{
+						SkipFields: []string{"hello"},
+					},
+				},
+			},
+			other: &Config{
+				CurrentConfig: &typesv1.LocalhostConfig{
+					Formatter: &typesv1.FormatConfig{
+						SkipFields: []string{"world"},
+					},
+				},
+			},
+			want: &Config{
+				CurrentConfig: &typesv1.LocalhostConfig{
+					Formatter: &typesv1.FormatConfig{
+						SkipFields: []string{"world"},
+					},
+				},
 			},
 		},
 	}
@@ -54,7 +88,7 @@ func TestConfig_populateEmpty(t *testing.T) {
 			require.NoError(t, err)
 
 			got := tt.input.populateEmpty(tt.other)
-			require.Equal(t, tt.want, got)
+			require.Empty(t, cmp.Diff(tt.want.CurrentConfig, got.CurrentConfig, protocmp.Transform()), "config should not differ")
 
 			afterinput, err := json.Marshal(tt.input)
 			require.NoError(t, err)

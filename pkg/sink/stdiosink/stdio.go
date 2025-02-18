@@ -10,10 +10,9 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/fatih/color"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/humanlogio/api/go/pkg/logql"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
-	"github.com/humanlogio/humanlog/internal/pkg/config"
 	"github.com/humanlogio/humanlog/pkg/sink"
 )
 
@@ -22,8 +21,10 @@ var (
 )
 
 type Stdio struct {
-	w    io.Writer
-	opts StdioOpts
+	w     io.Writer
+	opts  StdioOpts
+	rd    *lipgloss.Renderer
+	theme Theme
 
 	lastRaw   bool
 	lastLevel string
@@ -31,42 +32,44 @@ type Stdio struct {
 }
 
 type StdioOpts struct {
-	Keep           map[string]struct{}
-	Skip           map[string]struct{}
-	SkipUnchanged  bool
-	SortLongest    bool
-	TimeFormat     string
-	TimeZone       *time.Location
-	TruncateLength int
-	Truncates      bool
+	Keep              map[string]struct{}
+	Skip              map[string]struct{}
+	SkipUnchanged     bool
+	SortLongest       bool
+	TimeFormat        string
+	TimeZone          *time.Location
+	TruncateLength    int
+	Truncates         bool
+	AbsentMsgContent  string
+	AbsentTimeContent string
 
-	ColorFlag string
-	LightBg   bool
-	Palette   Palette
+	LightTheme func(r *lipgloss.Renderer) Theme
+	DarkTheme  func(r *lipgloss.Renderer) Theme
 }
 
 var DefaultStdioOpts = StdioOpts{
 
-	SkipUnchanged:  true,
-	SortLongest:    true,
-	TimeFormat:     time.Stamp,
-	TimeZone:       time.Local,
-	TruncateLength: 15,
-	Truncates:      true,
+	SkipUnchanged:     true,
+	SortLongest:       true,
+	TimeFormat:        time.Stamp,
+	TimeZone:          time.Local,
+	TruncateLength:    15,
+	Truncates:         false,
+	AbsentMsgContent:  "<no msg>",
+	AbsentTimeContent: "<no time>",
 
-	ColorFlag: "auto",
-	LightBg:   false,
-	Palette:   DefaultPalette,
+	LightTheme: DefaultLightTheme,
+	DarkTheme:  DefaultDarkTheme,
 }
 
-func StdioOptsFrom(cfg config.Config) (StdioOpts, []error) {
+func StdioOptsFrom(cfg *typesv1.FormatConfig) (StdioOpts, []error) {
 	var errs []error
 	opts := DefaultStdioOpts
-	if cfg.Skip != nil {
-		opts.Skip = sliceToSet(cfg.Skip)
+	if cfg.SkipFields != nil && len(cfg.SkipFields) > 0 {
+		opts.Skip = sliceToSet(cfg.SkipFields)
 	}
-	if cfg.Keep != nil {
-		opts.Keep = sliceToSet(cfg.Keep)
+	if cfg.KeepFields != nil && len(cfg.KeepFields) > 0 {
+		opts.Keep = sliceToSet(cfg.KeepFields)
 	}
 	if cfg.SortLongest != nil {
 		opts.SortLongest = *cfg.SortLongest
@@ -74,46 +77,39 @@ func StdioOptsFrom(cfg config.Config) (StdioOpts, []error) {
 	if cfg.SkipUnchanged != nil {
 		opts.SkipUnchanged = *cfg.SkipUnchanged
 	}
-	if cfg.Truncates != nil {
-		opts.Truncates = *cfg.Truncates
-	}
-	if cfg.LightBg != nil {
-		opts.LightBg = *cfg.LightBg
-	}
-	if cfg.TruncateLength != nil {
-		opts.TruncateLength = *cfg.TruncateLength
-	}
-	if cfg.TimeFormat != nil {
-		opts.TimeFormat = *cfg.TimeFormat
-	}
-	if cfg.TimeZone != nil {
-		var err error
-		opts.TimeZone, err = time.LoadLocation(*cfg.TimeZone)
-		if err != nil {
-			errs = append(errs, fmt.Errorf("invalid --time-zone=%q: %v", *cfg.TimeZone, err))
+	if cfg.Truncation != nil {
+		opts.Truncates = true
+		if cfg.Truncation.Length != 0 {
+			opts.TruncateLength = int(cfg.Truncation.Length)
 		}
 	}
-	if cfg.ColorMode != nil {
-		colorMode, err := config.GrokColorMode(*cfg.ColorMode)
-		if err != nil {
-			errs = append(errs, fmt.Errorf("invalid --color=%q: %v", *cfg.ColorMode, err))
+	if cfg.Time != nil {
+		if cfg.Time.Format != nil {
+			opts.TimeFormat = *cfg.Time.Format
 		}
-		switch colorMode {
-		case config.ColorModeOff:
-			color.NoColor = true
-		case config.ColorModeOn:
-			color.NoColor = false
-		default:
-			// 'Auto' default is applied as a global variable initializer function, so nothing
-			// to do here.
+		if cfg.Time.Timezone != nil {
+			var err error
+			opts.TimeZone, err = time.LoadLocation(*cfg.Time.Timezone)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("invalid --time-zone=%q: %v", *cfg.Time.Timezone, err))
+			}
+		}
+		if cfg.Time.AbsentDefaultValue != nil {
+			opts.AbsentMsgContent = *cfg.Time.AbsentDefaultValue
 		}
 	}
-	if cfg.Palette != nil {
-		pl, err := PaletteFrom(*cfg.Palette)
-		if err != nil {
-			errs = append(errs, fmt.Errorf("invalid palette, using default one: %v", err))
-		} else {
-			opts.Palette = *pl
+	if cfg.Message != nil {
+		if cfg.Message.AbsentDefaultValue != nil {
+			opts.AbsentMsgContent = *cfg.Message.AbsentDefaultValue
+		}
+	}
+
+	if cfg.GetThemes() != nil {
+		if cfg.GetThemes().GetDark() != nil {
+			opts.DarkTheme = func(r *lipgloss.Renderer) Theme { return ThemeFrom(r, cfg.GetThemes().GetDark()) }
+		}
+		if cfg.GetThemes().GetLight() != nil {
+			opts.LightTheme = func(r *lipgloss.Renderer) Theme { return ThemeFrom(r, cfg.GetThemes().GetLight()) }
 		}
 	}
 	return opts, errs
@@ -122,9 +118,18 @@ func StdioOptsFrom(cfg config.Config) (StdioOpts, []error) {
 var _ sink.Sink = (*Stdio)(nil)
 
 func NewStdio(w io.Writer, opts StdioOpts) *Stdio {
+	rd := lipgloss.NewRenderer(w)
+	var theme Theme
+	if rd.HasDarkBackground() {
+		theme = opts.DarkTheme(rd)
+	} else {
+		theme = opts.LightTheme(rd)
+	}
 	return &Stdio{
-		w:    w,
-		opts: opts,
+		w:     w,
+		opts:  opts,
+		rd:    rd,
+		theme: theme,
 	}
 }
 
@@ -154,56 +159,39 @@ func (std *Stdio) ReceiveWithPostProcess(ctx context.Context, ev *typesv1.LogEve
 	buf := bytes.NewBuffer(nil)
 	out := tabwriter.NewWriter(buf, 0, 1, 0, '\t', 0)
 
-	var (
-		msgColor       *color.Color
-		msgAbsentColor *color.Color
-	)
-	if std.opts.LightBg {
-		msgColor = std.opts.Palette.MsgLightBgColor
-		msgAbsentColor = std.opts.Palette.MsgAbsentLightBgColor
-	} else {
-		msgColor = std.opts.Palette.MsgDarkBgColor
-		msgAbsentColor = std.opts.Palette.MsgAbsentDarkBgColor
-	}
 	var msg string
 	if data.Msg == "" {
-		msg = msgAbsentColor.Sprint("<no msg>")
+		msg = std.theme.MsgAbsent.Render(std.opts.AbsentMsgContent)
 	} else {
-		msg = msgColor.Sprint(data.Msg)
+		msg = std.theme.Msg.Render(data.Msg)
 	}
 
 	lvl := strings.ToUpper(data.Lvl)[:imin(4, len(data.Lvl))]
 	var level string
 	switch strings.ToLower(data.Lvl) {
 	case "debug":
-		level = std.opts.Palette.DebugLevelColor.Sprint(lvl)
+		level = std.theme.DebugLevel.Render(lvl)
 	case "info":
-		level = std.opts.Palette.InfoLevelColor.Sprint(lvl)
+		level = std.theme.InfoLevel.Render(lvl)
 	case "warn", "warning":
-		level = std.opts.Palette.WarnLevelColor.Sprint(lvl)
+		level = std.theme.WarnLevel.Render(lvl)
 	case "error":
-		level = std.opts.Palette.ErrorLevelColor.Sprint(lvl)
+		level = std.theme.ErrorLevel.Render(lvl)
 	case "fatal", "panic":
-		level = std.opts.Palette.FatalLevelColor.Sprint(lvl)
+		level = std.theme.FatalLevel.Render(lvl)
 	default:
-		level = std.opts.Palette.UnknownLevelColor.Sprint(lvl)
+		level = std.theme.UnknownLevel.Render(lvl)
 	}
 
-	var timeColor *color.Color
-	if std.opts.LightBg {
-		timeColor = std.opts.Palette.TimeLightBgColor
-	} else {
-		timeColor = std.opts.Palette.TimeDarkBgColor
-	}
 	var timestr string
 	ts := data.Timestamp.AsTime()
 	if ts.IsZero() {
-		timestr = "<no time>"
+		timestr = std.theme.TimeAbsent.Render(std.opts.AbsentTimeContent)
 	} else {
 		if std.opts.TimeZone != nil {
 			ts = ts.In(std.opts.TimeZone)
 		}
-		timestr = timeColor.Sprint(ts.Format(std.opts.TimeFormat))
+		timestr = std.theme.Time.Render(ts.Format(std.opts.TimeFormat))
 	}
 
 	pattern := "%s |%s| %s\t %s"
@@ -308,7 +296,7 @@ func (std *Stdio) joinKVs(data *typesv1.StructuredLogEvent, sep string) []string
 				continue
 			}
 		}
-		kstr := std.opts.Palette.KeyColor.Sprint(k)
+		kstr := std.theme.Key.Render(k)
 
 		var vstr string
 		if std.opts.Truncates && len(w) > std.opts.TruncateLength {
@@ -316,7 +304,7 @@ func (std *Stdio) joinKVs(data *typesv1.StructuredLogEvent, sep string) []string
 		} else {
 			vstr = w
 		}
-		vstr = std.opts.Palette.ValColor.Sprint(vstr)
+		vstr = std.theme.Val.Render(vstr)
 		kv = append(kv, kstr+sep+vstr)
 	}
 
@@ -365,12 +353,12 @@ func imin(a, b int) int {
 	return b
 }
 
-func sliceToSet(arr *[]string) map[string]struct{} {
+func sliceToSet(arr []string) map[string]struct{} {
 	if arr == nil {
 		return nil
 	}
 	out := make(map[string]struct{})
-	for _, key := range *arr {
+	for _, key := range arr {
 		out[key] = struct{}{}
 	}
 	return out

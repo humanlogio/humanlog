@@ -149,10 +149,11 @@ func queryApiSummarizeCmd(
 				queryClient = queryv1connect.NewQueryServiceClient(httpClient, apiURL, clOpts)
 			} else {
 				cfg := getCfg(cctx)
-				if cfg.ExperimentalFeatures == nil || cfg.ExperimentalFeatures.ServeLocalhost == nil {
+				expcfg := cfg.GetRuntime().GetExperimentalFeatures()
+				if expcfg == nil || expcfg.ServeLocalhost == nil {
 					return fmt.Errorf("localhost feature is not enabled or not configured, can't dial localhost")
 				}
-				apiURL := fmt.Sprintf("http://localhost:%d", cfg.ExperimentalFeatures.ServeLocalhost.Port)
+				apiURL := fmt.Sprintf("http://localhost:%d", expcfg.ServeLocalhost.Port)
 				httpClient := getHTTPClient(cctx, apiURL)
 				queryClient = queryv1connect.NewQueryServiceClient(httpClient, apiURL)
 			}
@@ -300,10 +301,11 @@ func queryApiRunCmd(
 				queryClient = queryv1connect.NewQueryServiceClient(httpClient, apiURL, clOpts)
 			} else {
 				cfg := getCfg(cctx)
-				if cfg.ExperimentalFeatures == nil || cfg.ExperimentalFeatures.ServeLocalhost == nil {
+				expcfg := cfg.GetRuntime().GetExperimentalFeatures()
+				if expcfg == nil || expcfg.ServeLocalhost == nil {
 					return fmt.Errorf("localhost feature is not enabled or not configured, can't dial localhost")
 				}
-				apiURL := fmt.Sprintf("http://localhost:%d", cfg.ExperimentalFeatures.ServeLocalhost.Port)
+				apiURL := fmt.Sprintf("http://localhost:%d", expcfg.ServeLocalhost.Port)
 				httpClient := getHTTPClient(cctx, apiURL)
 				queryClient = queryv1connect.NewQueryServiceClient(httpClient, apiURL)
 			}
@@ -319,7 +321,7 @@ func queryApiRunCmd(
 			if cctx.Duration(toFlag.Name) != 0 {
 				to = timestamppb.New(now.Add(-cctx.Duration(toFlag.Name)))
 			}
-			sinkOpts, errs := stdiosink.StdioOptsFrom(*cfg)
+			sinkOpts, errs := stdiosink.StdioOptsFrom(cfg.GetFormatter())
 			if len(errs) > 0 {
 				for _, err := range errs {
 					logerror("config error: %v", err)

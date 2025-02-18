@@ -9,29 +9,50 @@ import (
 	"strings"
 	"time"
 
+	typesv1 "github.com/humanlogio/api/go/types/v1"
 	"github.com/humanlogio/humanlog/internal/pkg/state"
+	"google.golang.org/protobuf/proto"
+	structpb "google.golang.org/protobuf/types/known/structpb"
 )
 
 var DefaultConfig = Config{
-	Version:             1,
-	Skip:                ptr([]string{}),
-	Keep:                ptr([]string{}),
-	TimeFields:          ptr([]string{"time", "ts", "@timestamp", "timestamp", "Timestamp"}),
-	MessageFields:       ptr([]string{"message", "msg", "Body"}),
-	LevelFields:         ptr([]string{"level", "lvl", "loglevel", "severity", "SeverityText"}),
-	SortLongest:         ptr(true),
-	SkipUnchanged:       ptr(true),
-	Truncates:           ptr(false),
-	LightBg:             ptr(false),
-	ColorMode:           ptr("auto"),
-	TruncateLength:      ptr(15),
-	TimeFormat:          ptr(time.Stamp),
-	Interrupt:           ptr(false),
-	SkipCheckForUpdates: ptr(false),
-	Palette:             nil,
+	Version: currentConfigVersion,
+	CurrentConfig: &typesv1.LocalhostConfig{
+		Version: currentConfigVersion,
+		Formatter: &typesv1.FormatConfig{
+			Themes: &typesv1.FormatConfig_Themes{
+				Light: nil,
+				Dark:  nil,
+			},
+			SkipFields:    nil,
+			KeepFields:    nil,
+			SortLongest:   ptr(true),
+			SkipUnchanged: ptr(true),
+			Truncation:    nil,
+			Time: &typesv1.FormatConfig_Time{
+				Format: ptr(time.Stamp),
+			},
+			TerminalColorMode: typesv1.FormatConfig_COLORMODE_AUTO.Enum(),
+		},
+		Parser: &typesv1.ParseConfig{
+			Timestamp: &typesv1.ParseConfig_Time{
+				FieldNames: []string{"time", "ts", "@timestamp", "timestamp", "Timestamp"},
+			},
+			Message: &typesv1.ParseConfig_Message{
+				FieldNames: []string{"message", "msg", "Body"},
+			},
+			Level: &typesv1.ParseConfig_Level{
+				FieldNames: []string{"level", "lvl", "loglevel", "severity", "SeverityText"},
+			},
+		},
+		Runtime: &typesv1.RuntimeConfig{
+			Interrupt:           ptr(false),
+			SkipCheckForUpdates: ptr(false),
+		},
+	},
 }
 
-func GetDefaultLocalhostConfig() (*ServeLocalhost, error) {
+func GetDefaultLocalhostConfig() (*typesv1.ServeLocalhostConfig, error) {
 	stateDir, err := state.GetDefaultStateDirpath()
 	if err != nil {
 		return nil, err
@@ -39,12 +60,16 @@ func GetDefaultLocalhostConfig() (*ServeLocalhost, error) {
 	dbpath := filepath.Join(stateDir, "data", "db.humanlog")
 	logDir := filepath.Join(stateDir, "logs")
 
-	return &ServeLocalhost{
-		Port:   32764,
-		Engine: "advanced",
-		Cfg: map[string]interface{}{
-			"path": dbpath,
-		},
+	engineConfig, err := structpb.NewStruct(map[string]any{
+		"path": dbpath,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &typesv1.ServeLocalhostConfig{
+		Port:          32764,
+		Engine:        "advanced",
+		EngineConfig:  engineConfig,
 		ShowInSystray: ptr(true),
 		LogDir:        ptr(logDir),
 	}, nil
@@ -136,42 +161,48 @@ func WriteConfigFile(path string, config *Config) error {
 }
 
 type Config struct {
-	Version             int          `json:"version"`
-	Skip                *[]string    `json:"skip"`
-	Keep                *[]string    `json:"keep"`
-	TimeFields          *[]string    `json:"time-fields"`
-	MessageFields       *[]string    `json:"message-fields"`
-	LevelFields         *[]string    `json:"level-fields"`
-	SortLongest         *bool        `json:"sort-longest"`
-	SkipUnchanged       *bool        `json:"skip-unchanged"`
-	Truncates           *bool        `json:"truncates"`
-	LightBg             *bool        `json:"light-bg"`
-	ColorMode           *string      `json:"color-mode"`
-	TruncateLength      *int         `json:"truncate-length"`
-	TimeFormat          *string      `json:"time-format"`
-	TimeZone            *string      `json:"time-zone"`
-	Palette             *TextPalette `json:"palette"`
-	Interrupt           *bool        `json:"interrupt"`
-	SkipCheckForUpdates *bool        `json:"skip_check_updates"`
-
-	ExperimentalFeatures *Features `json:"experimental_features"`
-
+	Version int `json:"version"`
+	*CurrentConfig
 	// unexported, the filepath where the `Config` get's serialized and saved to
 	path string
 }
 
-type Features struct {
-	ReleaseChannel  *string         `json:"release_channel"`
-	SendLogsToCloud *bool           `json:"send_logs_to_cloud"`
-	ServeLocalhost  *ServeLocalhost `json:"serve_localhost"`
-}
+var _ json.Unmarshaler = (*Config)(nil)
 
-type ServeLocalhost struct {
-	Port          int                    `json:"port"`
-	Engine        string                 `json:"engine"`
-	Cfg           map[string]interface{} `json:"engine_config"`
-	ShowInSystray *bool                  `json:"show_in_systray"`
-	LogDir        *string                `json:"log_dir"`
+func (cfg *Config) UnmarshalJSON(p []byte) error {
+	type versionLookup struct {
+		Version int `json:"version"`
+	}
+	var lookup versionLookup
+	if err := json.Unmarshal(p, &lookup); err != nil {
+		return err
+	}
+	version := lookup.Version
+	reg, ok := versioned[version]
+	if !ok {
+		return fmt.Errorf("unsupported config version %d", version)
+	}
+	v := reg.constructor()
+	if err := reg.parse(p, v); err != nil {
+		return err
+	}
+	for version != currentConfigVersion {
+		next, nextV, err := reg.migrate(v)
+		if err != nil {
+			return fmt.Errorf("migrating from config version %d to %d: %v", version, nextV, err)
+		}
+		nextReg, ok := versioned[nextV]
+		if !ok {
+			return fmt.Errorf("deadend, no way to go from version %d to %d", version, nextV)
+		}
+		reg = nextReg
+		v = next
+		version = nextV
+	}
+	// we reached the current config format
+	cfg.Version = version
+	cfg.CurrentConfig = v.(*CurrentConfig)
+	return nil
 }
 
 func (cfg *Config) WriteBack() error {
@@ -179,110 +210,274 @@ func (cfg *Config) WriteBack() error {
 }
 
 func (cfg Config) populateEmpty(other *Config) *Config {
-	cpcfg := cfg
-	out := &cpcfg
-	if out.Skip == nil && out.Keep == nil {
-		// skip and keep are mutually exclusive, so these are
-		// either both set by default, or not at all
-		out.Skip = other.Skip
-		out.Keep = other.Keep
-	}
-	if other.TimeFields != nil {
-		if out.TimeFields == nil {
-			out.TimeFields = ptr(make([]string, 0, len(*other.TimeFields)))
-		}
-		*out.TimeFields = append(*out.TimeFields, *other.TimeFields...)
-	}
-	if out.MessageFields == nil && other.MessageFields != nil {
-		if out.MessageFields == nil {
-			out.MessageFields = ptr(make([]string, 0, len(*other.MessageFields)))
-		}
-		*out.MessageFields = append(*out.MessageFields, *other.MessageFields...)
-	}
-	if out.LevelFields == nil && other.LevelFields != nil {
-		if out.LevelFields == nil {
-			out.LevelFields = ptr(make([]string, 0, len(*other.LevelFields)))
-		}
-		*out.LevelFields = append(*out.LevelFields, *other.LevelFields...)
-	}
-	if out.SortLongest == nil && other.SortLongest != nil {
-		out.SortLongest = other.SortLongest
-	}
-	if out.SkipUnchanged == nil && other.SkipUnchanged != nil {
-		out.SkipUnchanged = other.SkipUnchanged
-	}
-	if out.Truncates == nil && other.Truncates != nil {
-		out.Truncates = other.Truncates
-	}
-	if out.LightBg == nil && other.LightBg != nil {
-		out.LightBg = other.LightBg
-	}
-	if out.ColorMode == nil && other.ColorMode != nil {
-		out.ColorMode = other.ColorMode
-	}
-	if out.TruncateLength == nil && other.TruncateLength != nil {
-		out.TruncateLength = other.TruncateLength
-	}
-	if out.TimeFormat == nil && other.TimeFormat != nil {
-		out.TimeFormat = other.TimeFormat
-	}
-	if out.TimeZone == nil && other.TimeZone != nil {
-		out.TimeZone = other.TimeZone
-	}
-	if out.Palette == nil && other.Palette != nil {
-		out.Palette = other.Palette
-	}
-	if out.Interrupt == nil && other.Interrupt != nil {
-		out.Interrupt = other.Interrupt
-	}
-	if out.SkipCheckForUpdates == nil && other.SkipCheckForUpdates != nil {
-		out.SkipCheckForUpdates = other.SkipCheckForUpdates
-	}
-	if out.ExperimentalFeatures == nil && other.ExperimentalFeatures != nil {
-		out.ExperimentalFeatures = other.ExperimentalFeatures
+	out := &Config{Version: cfg.Version, path: cfg.path}
+	if out.CurrentConfig == nil {
+		out.CurrentConfig = new(typesv1.LocalhostConfig)
 	}
 	if other.path != "" {
 		out.path = other.path
 	}
+	out.CurrentConfig = mergeLocalhostConfig(cfg.CurrentConfig, other.CurrentConfig)
 	return out
 }
 
-type TextPalette struct {
-	KeyColor              []string `json:"key"`
-	ValColor              []string `json:"val"`
-	TimeLightBgColor      []string `json:"time_light_bg"`
-	TimeDarkBgColor       []string `json:"time_dark_bg"`
-	MsgLightBgColor       []string `json:"msg_light_bg"`
-	MsgAbsentLightBgColor []string `json:"msg_absent_light_bg"`
-	MsgDarkBgColor        []string `json:"msg_dark_bg"`
-	MsgAbsentDarkBgColor  []string `json:"msg_absent_dark_bg"`
-	DebugLevelColor       []string `json:"debug_level"`
-	InfoLevelColor        []string `json:"info_level"`
-	WarnLevelColor        []string `json:"warn_level"`
-	ErrorLevelColor       []string `json:"error_level"`
-	PanicLevelColor       []string `json:"panic_level"`
-	FatalLevelColor       []string `json:"fatal_level"`
-	UnknownLevelColor     []string `json:"unknown_level"`
+func mergeLocalhostConfig(prev, next *typesv1.LocalhostConfig) *typesv1.LocalhostConfig {
+	out := proto.Clone(prev).(*typesv1.LocalhostConfig)
+	if out == nil {
+		out = new(typesv1.LocalhostConfig)
+	}
+	if next == nil {
+		return out
+	}
+	if next.Formatter != nil {
+		out.Formatter = mergeFormatter(out.Formatter, next.Formatter)
+	}
+	if next.Parser != nil {
+		out.Parser = mergeParser(out.Parser, next.Parser)
+	}
+	if next.Runtime != nil {
+		out.Runtime = mergeRuntime(out.Runtime, next.Runtime)
+	}
+	return out
 }
 
-type ColorMode int
+func mergeFormatter(prev, next *typesv1.FormatConfig) *typesv1.FormatConfig {
+	out := proto.Clone(prev).(*typesv1.FormatConfig)
+	if out == nil {
+		out = new(typesv1.FormatConfig)
+	}
+	if next.Themes != nil {
+		out.Themes = mergeThemes(prev.GetThemes(), next.Themes)
+	}
+	if next.SkipFields != nil {
+		out.SkipFields = mergeStringSlices(prev.GetSkipFields(), next.SkipFields)
+	}
+	if next.SkipFields != nil {
+		out.SkipFields = mergeStringSlices(prev.GetSkipFields(), next.SkipFields)
+	}
+	if next.SortLongest != nil {
+		out.SortLongest = next.SortLongest
+	}
+	if next.SkipUnchanged != nil {
+		out.SkipUnchanged = next.SkipUnchanged
+	}
+	if next.Truncation != nil {
+		out.Truncation = mergeFormatTruncation(prev.GetTruncation(), next.Truncation)
+	}
+	if next.Time != nil {
+		out.Time = mergeFormatTime(prev.GetTime(), next.Time)
+	}
+	if next.Message != nil {
+		out.Message = mergeFormatMessage(prev.GetMessage(), next.Message)
+	}
+	if next.TerminalColorMode != nil {
+		out.TerminalColorMode = next.TerminalColorMode
+	}
+	return out
+}
 
-const (
-	ColorModeOff ColorMode = iota
-	ColorModeOn
-	ColorModeAuto
-)
+func mergeParser(prev, next *typesv1.ParseConfig) *typesv1.ParseConfig {
+	out := proto.Clone(prev).(*typesv1.ParseConfig)
+	if out == nil {
+		out = new(typesv1.ParseConfig)
+	}
+	if next.Timestamp != nil {
+		out.Timestamp = mergeParseTimestamp(prev.GetTimestamp(), next.Timestamp)
+	}
+	if next.Message != nil {
+		out.Message = mergeParseMessage(prev.GetMessage(), next.Message)
+	}
+	if next.Level != nil {
+		out.Level = mergeParseLevel(prev.GetLevel(), next.Level)
+	}
+	return out
+}
 
-func GrokColorMode(colorMode string) (ColorMode, error) {
+func mergeRuntime(prev, next *typesv1.RuntimeConfig) *typesv1.RuntimeConfig {
+	out := proto.Clone(prev).(*typesv1.RuntimeConfig)
+	if out == nil {
+		out = new(typesv1.RuntimeConfig)
+	}
+	if next.Interrupt != nil {
+		out.Interrupt = next.Interrupt
+	}
+	if next.SkipCheckForUpdates != nil {
+		out.SkipCheckForUpdates = next.SkipCheckForUpdates
+	}
+	if next.Features != nil {
+		out.Features = mergeRuntimeFeatures(prev.GetFeatures(), next.Features)
+	}
+	if next.ExperimentalFeatures != nil {
+		out.ExperimentalFeatures = mergeRuntimeExperimentalFeatures(prev.GetExperimentalFeatures(), next.ExperimentalFeatures)
+	}
+	return out
+}
+func mergeThemes(prev, next *typesv1.FormatConfig_Themes) *typesv1.FormatConfig_Themes {
+	out := proto.Clone(prev).(*typesv1.FormatConfig_Themes)
+	if out == nil {
+		out = new(typesv1.FormatConfig_Themes)
+	}
+	if next.Light != nil {
+		out.Light = mergeTheme(prev.GetLight(), next.Light)
+	}
+	if next.Dark != nil {
+		out.Dark = mergeTheme(prev.GetDark(), next.Dark)
+	}
+	return out
+}
+func mergeTheme(prev, next *typesv1.FormatConfig_Theme) *typesv1.FormatConfig_Theme {
+	out := proto.Clone(prev).(*typesv1.FormatConfig_Theme)
+	if out == nil {
+		out = new(typesv1.FormatConfig_Theme)
+	}
+	if next.Key != nil {
+		out.Key = mergeStyle(prev.GetKey(), next.Key)
+	}
+	if next.Value != nil {
+		out.Value = mergeStyle(prev.GetValue(), next.Value)
+	}
+	if next.Time != nil {
+		out.Time = mergeStyle(prev.GetTime(), next.Time)
+	}
+	if next.Msg != nil {
+		out.Msg = mergeStyle(prev.GetMsg(), next.Msg)
+	}
+	if next.Levels != nil {
+		out.Levels = mergeLevelStyle(prev.GetLevels(), next.Levels)
+	}
+	if next.AbsentMsg != nil {
+		out.AbsentMsg = mergeStyle(prev.GetAbsentMsg(), next.AbsentMsg)
+	}
+	if next.AbsentTime != nil {
+		out.AbsentTime = mergeStyle(prev.GetAbsentTime(), next.AbsentTime)
+	}
+	return out
+}
+func mergeStyle(prev, next *typesv1.FormatConfig_Style) *typesv1.FormatConfig_Style {
+	// we don't merge, we just overwrite. otherwise the behavior will be confusing af
+	return proto.Clone(next).(*typesv1.FormatConfig_Style)
+}
+func mergeLevelStyle(prev, next *typesv1.FormatConfig_LevelStyle) *typesv1.FormatConfig_LevelStyle {
+	// we don't merge, we just overwrite. otherwise the behavior will be confusing af
+	return proto.Clone(next).(*typesv1.FormatConfig_LevelStyle)
+}
+func mergeStringSlices(prev, next []string) []string {
+	if len(next) != 0 {
+		// we don't merge, we just overwrite. otherwise the behavior will be confusing af
+		return next
+	}
+	return prev
+}
+func mergeFormatTruncation(prev, next *typesv1.FormatConfig_Truncation) *typesv1.FormatConfig_Truncation {
+	// we don't merge, we just overwrite. otherwise the behavior will be confusing af
+	return proto.Clone(next).(*typesv1.FormatConfig_Truncation)
+}
+func mergeFormatTime(prev, next *typesv1.FormatConfig_Time) *typesv1.FormatConfig_Time {
+	out := proto.Clone(prev).(*typesv1.FormatConfig_Time)
+	if out == nil {
+		out = new(typesv1.FormatConfig_Time)
+	}
+	if next.Format != nil {
+		out.Format = next.Format
+	}
+	if next.Timezone != nil {
+		out.Timezone = next.Timezone
+	}
+	if next.AbsentDefaultValue != nil {
+		out.AbsentDefaultValue = next.AbsentDefaultValue
+	}
+	return out
+}
+func mergeFormatMessage(prev, next *typesv1.FormatConfig_Message) *typesv1.FormatConfig_Message {
+	out := proto.Clone(prev).(*typesv1.FormatConfig_Message)
+	if out == nil {
+		out = new(typesv1.FormatConfig_Message)
+	}
+	if next.AbsentDefaultValue != nil {
+		out.AbsentDefaultValue = next.AbsentDefaultValue
+	}
+	return out
+}
+func mergeParseTimestamp(prev, next *typesv1.ParseConfig_Time) *typesv1.ParseConfig_Time {
+	out := proto.Clone(prev).(*typesv1.ParseConfig_Time)
+	if out == nil {
+		out = new(typesv1.ParseConfig_Time)
+	}
+	if next.FieldNames != nil {
+		out.FieldNames = mergeStringSlices(prev.GetFieldNames(), next.FieldNames)
+	}
+	return out
+}
+func mergeParseMessage(prev, next *typesv1.ParseConfig_Message) *typesv1.ParseConfig_Message {
+	out := proto.Clone(prev).(*typesv1.ParseConfig_Message)
+	if out == nil {
+		out = new(typesv1.ParseConfig_Message)
+	}
+	if next.FieldNames != nil {
+		out.FieldNames = mergeStringSlices(prev.GetFieldNames(), next.FieldNames)
+	}
+	return out
+}
+func mergeParseLevel(prev, next *typesv1.ParseConfig_Level) *typesv1.ParseConfig_Level {
+	out := proto.Clone(prev).(*typesv1.ParseConfig_Level)
+	if out == nil {
+		out = new(typesv1.ParseConfig_Level)
+	}
+	if next.FieldNames != nil {
+		out.FieldNames = mergeStringSlices(prev.GetFieldNames(), next.FieldNames)
+	}
+	return out
+}
+func mergeRuntimeFeatures(prev, next *typesv1.RuntimeConfig_Features) *typesv1.RuntimeConfig_Features {
+	out := proto.Clone(next).(*typesv1.RuntimeConfig_Features)
+	return out
+}
+func mergeRuntimeExperimentalFeatures(prev, next *typesv1.RuntimeConfig_ExperimentalFeatures) *typesv1.RuntimeConfig_ExperimentalFeatures {
+	out := proto.Clone(prev).(*typesv1.RuntimeConfig_ExperimentalFeatures)
+	if out == nil {
+		out = new(typesv1.RuntimeConfig_ExperimentalFeatures)
+	}
+	if next.ReleaseChannel != nil {
+		out.ReleaseChannel = next.ReleaseChannel
+	}
+	if next.SendLogsToCloud != nil {
+		out.SendLogsToCloud = next.SendLogsToCloud
+	}
+	if next.ServeLocalhost != nil {
+		out.ServeLocalhost = mergeRuntimeServeLocalhostConfig(prev.GetServeLocalhost(), next.ServeLocalhost)
+	}
+	return out
+}
+
+func mergeRuntimeServeLocalhostConfig(prev, next *typesv1.ServeLocalhostConfig) *typesv1.ServeLocalhostConfig {
+	out := proto.Clone(prev).(*typesv1.ServeLocalhostConfig)
+	if out == nil {
+		out = new(typesv1.ServeLocalhostConfig)
+	}
+	// next overrides everything, but not
+	// - ShowInSystray
+	// - LogDir
+	out.Engine = next.Engine
+	out.EngineConfig = next.EngineConfig
+	if next.ShowInSystray != nil {
+		out.ShowInSystray = next.ShowInSystray
+	}
+	if next.LogDir != nil {
+		out.LogDir = next.LogDir
+	}
+	return out
+}
+
+func ParseColorMode(colorMode string) (typesv1.FormatConfig_ColorMode, error) {
 	switch strings.ToLower(colorMode) {
 	case "on", "always", "force", "true", "yes", "1":
-		return ColorModeOn, nil
+		return typesv1.FormatConfig_COLORMODE_ENABLED, nil
 	case "off", "never", "false", "no", "0":
-		return ColorModeOff, nil
+		return typesv1.FormatConfig_COLORMODE_DISABLED, nil
 	case "auto", "tty", "maybe", "":
-		return ColorModeAuto, nil
+		return typesv1.FormatConfig_COLORMODE_AUTO, nil
 	default:
-		return ColorModeAuto, fmt.Errorf("'%s' is not a color mode (try 'on', 'off' or 'auto')", colorMode)
+		return typesv1.FormatConfig_COLORMODE_AUTO, fmt.Errorf("'%s' is not a color mode (try 'on', 'off' or 'auto')", colorMode)
 	}
 }
 

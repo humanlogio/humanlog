@@ -3,6 +3,7 @@ package humanlog
 import (
 	"time"
 
+	typesv1 "github.com/humanlogio/api/go/types/v1"
 	"github.com/humanlogio/humanlog/internal/pkg/config"
 	"github.com/kr/logfmt"
 )
@@ -32,18 +33,18 @@ type HandlerOptions struct {
 	timeNow func() time.Time
 }
 
-var _ = HandlerOptionsFrom(config.DefaultConfig) // ensure it's valid
+var _ = HandlerOptionsFrom(config.DefaultConfig.Parser) // ensure it's valid
 
-func HandlerOptionsFrom(cfg config.Config) *HandlerOptions {
+func HandlerOptionsFrom(cfg *typesv1.ParseConfig) *HandlerOptions {
 	opts := DefaultOptions()
-	if cfg.TimeFields != nil {
-		opts.TimeFields = appendUnique(opts.TimeFields, *cfg.TimeFields)
+	if cfg.Timestamp != nil {
+		opts.TimeFields = appendUnique(opts.TimeFields, cfg.Timestamp.FieldNames)
 	}
-	if cfg.MessageFields != nil {
-		opts.MessageFields = appendUnique(opts.MessageFields, *cfg.MessageFields)
+	if cfg.Message != nil {
+		opts.MessageFields = appendUnique(opts.MessageFields, cfg.Message.FieldNames)
 	}
-	if cfg.LevelFields != nil {
-		opts.LevelFields = appendUnique(opts.LevelFields, *cfg.LevelFields)
+	if cfg.Level != nil {
+		opts.LevelFields = appendUnique(opts.LevelFields, cfg.Level.FieldNames)
 	}
 	return opts
 }
