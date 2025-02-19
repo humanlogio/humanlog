@@ -311,7 +311,7 @@ func newApp() *cli.App {
 		// read config
 		if c.IsSet(configFlag.Name) {
 			configFilepath := c.String(configFlag.Name)
-			cfgFromFlag, err := config.ReadConfigFile(configFilepath, &config.DefaultConfig)
+			cfgFromFlag, err := config.ReadConfigFile(configFilepath, &config.DefaultConfig, false)
 			if err != nil {
 				return fmt.Errorf("reading --config file %q: %v", configFilepath, err)
 			}
@@ -321,7 +321,7 @@ func newApp() *cli.App {
 			if err != nil {
 				return fmt.Errorf("looking up config file path: %v", err)
 			}
-			cfgFromDir, err := config.ReadConfigFile(configFilepath, &config.DefaultConfig)
+			cfgFromDir, err := config.ReadConfigFile(configFilepath, &config.DefaultConfig, true)
 			if err != nil {
 				return fmt.Errorf("reading default config file: %v", err)
 			}
@@ -390,6 +390,7 @@ func newApp() *cli.App {
 		versionCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getBaseSiteURL, getHTTPClient),
 		authCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getHTTPClient),
 		serviceCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getBaseSiteURL, getHTTPClient),
+		configCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getBaseSiteURL, getHTTPClient),
 		organizationCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getHTTPClient),
 		environmentCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getHTTPClient),
 		machineCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getHTTPClient),
