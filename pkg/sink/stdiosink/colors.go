@@ -10,38 +10,38 @@ import (
 
 var DefaultDarkTheme = mustValidTheme(&typesv1.FormatConfig_Theme{
 	Key:   fgstyle("#48df61"), // #48df61
-	Value: fgstyle("#48df61"), // #48df61
-	Time:  fgstyle("#ffffff"), // #ffffff
+	Value: fgstyle("#8c887c"), // #8c887c
+	Time:  fgstyle("#9e9e9e"), // #9e9e9e
 	Msg:   fgstyle("#ffffff"), // #ffffff
 	Levels: &typesv1.FormatConfig_LevelStyle{
-		Debug:   fgstyle("#6666ff"),              // #6666ff
-		Info:    fgstyle("#00dd00"),              // #00dd00
+		Debug:   fgstyle("#d33682"),              // #d33682
+		Info:    fgstyle("#2aa198"),              // #2aa198
 		Warn:    fgstyle("#ff8800"),              // #ff8800
 		Error:   fgstyle("#ff6a6a"),              // #ff6a6a
 		Panic:   fgbdstyle("#ff6a6a", "#ffffff"), // #ff6a6a, #ffffff
 		Fatal:   fgbdstyle("#ff6a6a", "#ffff00"), // #ff6a6a, #ffff00
 		Unknown: fgstyle("#a9a9a9"),              // #a9a9a9
 	},
-	AbsentMsg:  fgstyle("#a9a9a9"),
-	AbsentTime: fgstyle("#a9a9a9"),
+	AbsentMsg:  fgstyle("#a9a9a9"), // #a9a9a9
+	AbsentTime: fgstyle("#a9a9a9"), // #a9a9a9
 })
 
 var DefaultLightTheme = mustValidTheme(&typesv1.FormatConfig_Theme{
 	Key:   fgstyle("#146e23"), // #146e23
-	Value: fgstyle("#2f913f"), // #2f913f
-	Time:  fgstyle("#393838"), // #393838
-	Msg:   fgstyle("#575757"), // #575757
+	Value: fgstyle("#878376"), // #878376
+	Time:  fgstyle("#565454"), // #565454
+	Msg:   fgstyle("#000000"), // #000000
 	Levels: &typesv1.FormatConfig_LevelStyle{
-		Debug:   fgstyle("#6666ff"),              // #6666ff
-		Info:    fgstyle("#00dd00"),              // #00dd00
+		Debug:   fgstyle("#d33682"),              // #d33682
+		Info:    fgstyle("#2aa198"),              // #2aa198
 		Warn:    fgstyle("#ff8800"),              // #ff8800
 		Error:   fgstyle("#d82626"),              // #d82626
 		Panic:   fgbdstyle("#d82626", "#ffffff"), // #d82626, #323232
 		Fatal:   fgbdstyle("#d82626", "#ffff00"), // #d82626, #ffff00
 		Unknown: fgstyle("#a9a9a9"),              // #a9a9a9
 	},
-	AbsentMsg:  fgstyle("#a9a9a9"),
-	AbsentTime: fgstyle("#a9a9a9"),
+	AbsentMsg:  fgstyle("#a9a9a9"), // #a9a9a9
+	AbsentTime: fgstyle("#a9a9a9"), // #a9a9a9
 })
 
 type Theme struct {
