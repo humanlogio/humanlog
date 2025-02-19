@@ -106,7 +106,7 @@ func GetDefaultConfigFilepath() (string, error) {
 	return configFilepath, nil
 }
 
-func ReadConfigFile(path string, dflt *Config) (*Config, error) {
+func ReadConfigFile(path string, dflt *Config, writebackIfMigrated bool) (*Config, error) {
 	if dflt.path == "" {
 		dflt.path = path
 	}
@@ -123,7 +123,7 @@ func ReadConfigFile(path string, dflt *Config) (*Config, error) {
 		return nil, fmt.Errorf("decoding config file: %v", err)
 	}
 	cfg.path = path
-	if cfg.migrated {
+	if cfg.migrated && writebackIfMigrated {
 		if err := cfg.WriteBack(); err != nil {
 			return nil, fmt.Errorf("writing back migrated config file: %v", err)
 		}
