@@ -61,7 +61,10 @@ func TestHarness(t *testing.T) {
 			if len(errs) > 0 {
 				t.Fatalf("errs=%v", errs)
 			}
-			s := stdiosink.NewStdio(gotw, sinkOpts)
+			s, err := stdiosink.NewStdio(gotw, sinkOpts)
+			if err != nil {
+				t.Fatalf("preparing sink: %v", err)
+			}
 			err = Scan(ctx, bytes.NewReader(input), s, HandlerOptionsFrom(cfg.Parser))
 			if err != nil {
 				t.Fatalf("scanning input: %v", err)

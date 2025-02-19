@@ -23,11 +23,12 @@ require (
 	github.com/go-logfmt/logfmt v0.5.1
 	github.com/google/go-cmp v0.6.0
 	github.com/google/uuid v1.6.0
-	github.com/humanlogio/api/go v0.0.0-20250218074620-0447511fdc56
+	github.com/humanlogio/api/go v0.0.0-20250219033758-7aa50f035a12
 	github.com/humanlogio/humanlog-pro v0.0.0-20250217065937-8e5d702ca498
 	github.com/kardianos/service v1.2.2
 	github.com/kr/logfmt v0.0.0-20210122060352-19f9bcb100e6
 	github.com/lrstanley/bubblezone v0.0.0-20240914071701-b48c55a5e78e
+	github.com/lucasb-eyer/go-colorful v1.2.0
 	github.com/matoous/go-nanoid v1.5.0
 	github.com/mattn/go-colorable v0.1.13
 	github.com/mattn/go-isatty v0.0.20
@@ -76,7 +77,6 @@ require (
 	github.com/gsterjov/go-libsecret v0.0.0-20161001094733-a6f4afe4910c // indirect
 	github.com/klauspost/compress v1.17.11 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.8 // indirect
-	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
 	github.com/marcboeker/go-duckdb v1.8.3 // indirect
 	github.com/mattn/go-localereader v0.0.1 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect
