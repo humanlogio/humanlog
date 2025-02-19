@@ -13,7 +13,9 @@ import (
 func TestApplyConfigFromConfigFile_when_one_of_skip_or_keep_is_given(t *testing.T) {
 
 	cfg := config.Config{
+		Version: 2,
 		CurrentConfig: &typesv1.LocalhostConfig{
+			Version: 2,
 			Formatter: &typesv1.FormatConfig{
 				SkipFields: []string{"foo", "bar"},
 			},
