@@ -11,6 +11,7 @@ import (
 
 	typesv1 "github.com/humanlogio/api/go/types/v1"
 	"github.com/humanlogio/humanlog/internal/pkg/state"
+	"github.com/humanlogio/humanlog/pkg/sink/stdiosink"
 	"google.golang.org/protobuf/proto"
 	structpb "google.golang.org/protobuf/types/known/structpb"
 )
@@ -21,8 +22,8 @@ var DefaultConfig = Config{
 		Version: currentConfigVersion,
 		Formatter: &typesv1.FormatConfig{
 			Themes: &typesv1.FormatConfig_Themes{
-				Light: nil,
-				Dark:  nil,
+				Light: stdiosink.DefaultLightTheme,
+				Dark:  stdiosink.DefaultDarkTheme,
 			},
 			SkipFields:    nil,
 			KeepFields:    nil,
@@ -30,7 +31,7 @@ var DefaultConfig = Config{
 			SkipUnchanged: ptr(true),
 			Truncation:    nil,
 			Time: &typesv1.FormatConfig_Time{
-				Format: ptr(time.Stamp),
+				Format: ptr(time.StampMilli),
 			},
 			TerminalColorMode: typesv1.FormatConfig_COLORMODE_AUTO.Enum(),
 		},
@@ -122,6 +123,11 @@ func ReadConfigFile(path string, dflt *Config) (*Config, error) {
 		return nil, fmt.Errorf("decoding config file: %v", err)
 	}
 	cfg.path = path
+	if cfg.migrated {
+		if err := cfg.WriteBack(); err != nil {
+			return nil, fmt.Errorf("writing back migrated config file: %v", err)
+		}
+	}
 	return cfg.populateEmpty(dflt), nil
 }
 
@@ -164,7 +170,8 @@ type Config struct {
 	Version int `json:"version"`
 	*CurrentConfig
 	// unexported, the filepath where the `Config` get's serialized and saved to
-	path string
+	path     string
+	migrated bool
 }
 
 var _ json.Unmarshaler = (*Config)(nil)
@@ -187,6 +194,7 @@ func (cfg *Config) UnmarshalJSON(p []byte) error {
 		return err
 	}
 	for version != currentConfigVersion {
+		cfg.migrated = true
 		next, nextV, err := reg.migrate(v)
 		if err != nil {
 			return fmt.Errorf("migrating from config version %d to %d: %v", version, nextV, err)

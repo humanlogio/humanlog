@@ -487,8 +487,14 @@ func newApp() *cli.App {
 				logerror("config error: %v", err)
 			}
 		}
-		var sink sink.Sink
-		sink = stdiosink.NewStdio(colorable.NewColorableStdout(), sinkOpts)
+		var (
+			sink sink.Sink
+			err  error
+		)
+		sink, err = stdiosink.NewStdio(colorable.NewColorableStdout(), sinkOpts)
+		if err != nil {
+			return fmt.Errorf("preparing stdio printer: %v", err)
+		}
 		handlerOpts := humanlog.HandlerOptionsFrom(cfg.Parser)
 
 		rtcfg := cfg.Runtime

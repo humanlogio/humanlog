@@ -369,7 +369,11 @@ func queryApiRunCmd(
 					return err
 				}
 			case "humanlog":
-				sink := stdiosink.NewStdio(os.Stdout, sinkOpts)
+
+				sink, err := stdiosink.NewStdio(os.Stdout, sinkOpts)
+				if err != nil {
+					return fmt.Errorf("preparing stdio printer: %v", err)
+				}
 				printer = func(data *typesv1.Data) error {
 					var events []*typesv1.IngestedLogEvent
 					switch shape := data.Shape.(type) {

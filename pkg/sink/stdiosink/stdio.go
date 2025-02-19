@@ -43,8 +43,8 @@ type StdioOpts struct {
 	AbsentMsgContent  string
 	AbsentTimeContent string
 
-	LightTheme func(r *lipgloss.Renderer) Theme
-	DarkTheme  func(r *lipgloss.Renderer) Theme
+	LightTheme func(r *lipgloss.Renderer) (*Theme, error)
+	DarkTheme  func(r *lipgloss.Renderer) (*Theme, error)
 }
 
 var DefaultStdioOpts = StdioOpts{
@@ -58,8 +58,8 @@ var DefaultStdioOpts = StdioOpts{
 	AbsentMsgContent:  "<no msg>",
 	AbsentTimeContent: "<no time>",
 
-	LightTheme: DefaultLightTheme,
-	DarkTheme:  DefaultDarkTheme,
+	LightTheme: func(r *lipgloss.Renderer) (*Theme, error) { return ThemeFrom(r, DefaultLightTheme) },
+	DarkTheme:  func(r *lipgloss.Renderer) (*Theme, error) { return ThemeFrom(r, DefaultDarkTheme) },
 }
 
 func StdioOptsFrom(cfg *typesv1.FormatConfig) (StdioOpts, []error) {
@@ -106,10 +106,10 @@ func StdioOptsFrom(cfg *typesv1.FormatConfig) (StdioOpts, []error) {
 
 	if cfg.GetThemes() != nil {
 		if cfg.GetThemes().GetDark() != nil {
-			opts.DarkTheme = func(r *lipgloss.Renderer) Theme { return ThemeFrom(r, cfg.GetThemes().GetDark()) }
+			opts.DarkTheme = func(r *lipgloss.Renderer) (*Theme, error) { return ThemeFrom(r, cfg.GetThemes().GetDark()) }
 		}
 		if cfg.GetThemes().GetLight() != nil {
-			opts.LightTheme = func(r *lipgloss.Renderer) Theme { return ThemeFrom(r, cfg.GetThemes().GetLight()) }
+			opts.LightTheme = func(r *lipgloss.Renderer) (*Theme, error) { return ThemeFrom(r, cfg.GetThemes().GetLight()) }
 		}
 	}
 	return opts, errs
@@ -117,20 +117,26 @@ func StdioOptsFrom(cfg *typesv1.FormatConfig) (StdioOpts, []error) {
 
 var _ sink.Sink = (*Stdio)(nil)
 
-func NewStdio(w io.Writer, opts StdioOpts) *Stdio {
+func NewStdio(w io.Writer, opts StdioOpts) (*Stdio, error) {
 	rd := lipgloss.NewRenderer(w)
-	var theme Theme
+	var (
+		theme *Theme
+		err   error
+	)
 	if rd.HasDarkBackground() {
-		theme = opts.DarkTheme(rd)
+		theme, err = opts.DarkTheme(rd)
 	} else {
-		theme = opts.LightTheme(rd)
+		theme, err = opts.LightTheme(rd)
+	}
+	if err != nil {
+		return nil, err
 	}
 	return &Stdio{
 		w:     w,
 		opts:  opts,
 		rd:    rd,
-		theme: theme,
-	}
+		theme: *theme,
+	}, err
 }
 
 func (std *Stdio) Close(ctx context.Context) error {
