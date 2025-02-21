@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"log/slog"
+	"math/rand"
 	"net"
 	"net/http"
 	"net/url"
@@ -555,19 +556,25 @@ func newApp() *cli.App {
 			}
 
 			if expcfg != nil && expcfg.ServeLocalhost != nil {
-				localhostCfg := *expcfg.ServeLocalhost
+				localhostCfg := expcfg.ServeLocalhost
 				state := getState(cctx)
 				// TODO(antoine): all logs to a single location, right now there's code logging
 				// randomly everywhere
 				ll := getLogger(cctx)
 				var machineID uint64
 				for state.MachineID == nil {
-					// no machine ID assigned, ensure machine gets onboarded via the login flow
-					// TODO(antoine): if an environment token exists, auto-onboard the machine. it's probably
-					// not an interactive session
-					_, err := ensureLoggedIn(ctx, cctx, state, getTokenSource(cctx), apiURL, getHTTPClient(cctx, apiURL))
-					if err != nil {
-						return fmt.Errorf("this feature requires a valid machine ID, which requires an environment. failed to login: %v", err)
+					// TODO(antoine): if an environment token exists, auto-onboard the machine.
+					if isTerminal(os.Stdout) {
+						// no machine ID assigned, ensure machine gets onboarded via the login flow
+						_, err := ensureLoggedIn(ctx, cctx, state, getTokenSource(cctx), apiURL, getHTTPClient(cctx, apiURL))
+						if err != nil {
+							return fmt.Errorf("this feature requires a valid machine ID, which requires an environment. failed to login: %v", err)
+						}
+					} else {
+						// pick a random ID. machines are unique within environments so the odds of
+						// collision are near 0
+						r := rand.New(rand.NewSource(time.Now().UnixNano()))
+						state.MachineID = ptr(r.Int63())
 					}
 				}
 
