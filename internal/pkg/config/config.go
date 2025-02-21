@@ -16,42 +16,52 @@ import (
 	structpb "google.golang.org/protobuf/types/known/structpb"
 )
 
-var DefaultConfig = Config{
-	Version: currentConfigVersion,
-	CurrentConfig: &typesv1.LocalhostConfig{
+var DefaultConfig = func() Config {
+	serveLocalhost, err := GetDefaultLocalhostConfig()
+	if err != nil {
+		panic(err)
+	}
+	return Config{
 		Version: currentConfigVersion,
-		Formatter: &typesv1.FormatConfig{
-			Themes: &typesv1.FormatConfig_Themes{
-				Light: stdiosink.DefaultLightTheme,
-				Dark:  stdiosink.DefaultDarkTheme,
+		CurrentConfig: &typesv1.LocalhostConfig{
+			Version: currentConfigVersion,
+			Formatter: &typesv1.FormatConfig{
+				Themes: &typesv1.FormatConfig_Themes{
+					Light: stdiosink.DefaultLightTheme,
+					Dark:  stdiosink.DefaultDarkTheme,
+				},
+				SkipFields:    nil,
+				KeepFields:    nil,
+				SortLongest:   ptr(true),
+				SkipUnchanged: ptr(true),
+				Truncation:    nil,
+				Time: &typesv1.FormatConfig_Time{
+					Format: ptr(time.StampMilli),
+				},
+				TerminalColorMode: typesv1.FormatConfig_COLORMODE_AUTO.Enum(),
 			},
-			SkipFields:    nil,
-			KeepFields:    nil,
-			SortLongest:   ptr(true),
-			SkipUnchanged: ptr(true),
-			Truncation:    nil,
-			Time: &typesv1.FormatConfig_Time{
-				Format: ptr(time.StampMilli),
+			Parser: &typesv1.ParseConfig{
+				Timestamp: &typesv1.ParseConfig_Time{
+					FieldNames: []string{"time", "ts", "@timestamp", "timestamp", "Timestamp"},
+				},
+				Message: &typesv1.ParseConfig_Message{
+					FieldNames: []string{"message", "msg", "Body"},
+				},
+				Level: &typesv1.ParseConfig_Level{
+					FieldNames: []string{"level", "lvl", "loglevel", "severity", "SeverityText"},
+				},
 			},
-			TerminalColorMode: typesv1.FormatConfig_COLORMODE_AUTO.Enum(),
+			Runtime: &typesv1.RuntimeConfig{
+				Interrupt:           ptr(false),
+				SkipCheckForUpdates: ptr(false),
+				Features:            &typesv1.RuntimeConfig_Features{},
+				ExperimentalFeatures: &typesv1.RuntimeConfig_ExperimentalFeatures{
+					ServeLocalhost: serveLocalhost,
+				},
+			},
 		},
-		Parser: &typesv1.ParseConfig{
-			Timestamp: &typesv1.ParseConfig_Time{
-				FieldNames: []string{"time", "ts", "@timestamp", "timestamp", "Timestamp"},
-			},
-			Message: &typesv1.ParseConfig_Message{
-				FieldNames: []string{"message", "msg", "Body"},
-			},
-			Level: &typesv1.ParseConfig_Level{
-				FieldNames: []string{"level", "lvl", "loglevel", "severity", "SeverityText"},
-			},
-		},
-		Runtime: &typesv1.RuntimeConfig{
-			Interrupt:           ptr(false),
-			SkipCheckForUpdates: ptr(false),
-		},
-	},
-}
+	}
+}()
 
 func GetDefaultLocalhostConfig() (*typesv1.ServeLocalhostConfig, error) {
 	stateDir, err := state.GetDefaultStateDirpath()
