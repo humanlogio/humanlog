@@ -292,7 +292,7 @@ func (ctrl *systrayController) renderUpdateMenuItem(ctx context.Context) error {
 }
 
 func (ctrl *systrayController) registerClickUserSettings(ctx context.Context, mi *systray.MenuItem) context.CancelFunc {
-	userSettingsPath := ctrl.baseSiteURL.JoinPath("/user/edit")
+	userSettingsPath := ctrl.baseSiteURL.JoinPath("/settings/users")
 	return onClick(ctx, mi, func(ctx context.Context) {
 		if mi.Disabled() {
 			ctrl.ll.DebugContext(ctx, "clicked user settings, but button disabled")
@@ -381,7 +381,7 @@ func (ctrl *systrayController) registerClickQuery(ctx context.Context, mi *systr
 }
 
 func (ctrl *systrayController) registerClickLocalhostSettings(ctx context.Context, mi *systray.MenuItem) context.CancelFunc {
-	settingsPath := ctrl.baseSiteURL.JoinPath("/localhost/edit")
+	settingsPath := ctrl.baseSiteURL.JoinPath("/settings/localhost")
 	return onClick(ctx, mi, func(ctx context.Context) {
 		if mi.Disabled() {
 			ctrl.ll.DebugContext(ctx, "clicked settings, but button disabled")
