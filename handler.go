@@ -33,7 +33,13 @@ type HandlerOptions struct {
 	timeNow func() time.Time
 }
 
-var _ = HandlerOptionsFrom(config.DefaultConfig.Parser) // ensure it's valid
+var _ = func() *HandlerOptions {
+	cfg, err := config.GetDefaultConfig("")
+	if err != nil {
+		panic(err)
+	}
+	return HandlerOptionsFrom(cfg.Parser) // ensure it's valid
+}
 
 func HandlerOptionsFrom(cfg *typesv1.ParseConfig) *HandlerOptions {
 	opts := DefaultOptions()

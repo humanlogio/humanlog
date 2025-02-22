@@ -16,12 +16,19 @@ import (
 	structpb "google.golang.org/protobuf/types/known/structpb"
 )
 
-var DefaultConfig = func() Config {
-	serveLocalhost, err := GetDefaultLocalhostConfig()
+func init() {
+	_, err := GetDefaultConfig("")
 	if err != nil {
 		panic(err)
 	}
-	return Config{
+}
+
+func GetDefaultConfig(releaseChannel string) (*Config, error) {
+	serveLocalhost, err := GetDefaultLocalhostConfig()
+	if err != nil {
+		return nil, err
+	}
+	return &Config{
 		Version: currentConfigVersion,
 		CurrentConfig: &typesv1.LocalhostConfig{
 			Version: currentConfigVersion,
@@ -56,12 +63,13 @@ var DefaultConfig = func() Config {
 				SkipCheckForUpdates: ptr(false),
 				Features:            &typesv1.RuntimeConfig_Features{},
 				ExperimentalFeatures: &typesv1.RuntimeConfig_ExperimentalFeatures{
+					ReleaseChannel: &releaseChannel,
 					ServeLocalhost: serveLocalhost,
 				},
 			},
 		},
-	}
-}()
+	}, nil
+}
 
 func GetDefaultLocalhostConfig() (*typesv1.ServeLocalhostConfig, error) {
 	stateDir, err := state.GetDefaultStateDirpath()
