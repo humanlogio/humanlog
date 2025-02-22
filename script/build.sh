@@ -99,9 +99,11 @@ function main() {
         ldflags+=" -X main.versionPrerelease=${pre}"
         ldflags+=" -X main.defaultApiAddr=https://api.humanlog.dev"
         ldflags+=" -X main.defaultBaseSiteAddr=https://humanlog.dev"
+        ldflags+=" -X main.defaultReleaseChannel=dev"
     else
         ldflags+=" -X main.defaultApiAddr=https://api.humanlog.io"
         ldflags+=" -X main.defaultBaseSiteAddr=https://humanlog.io"
+        ldflags+=" -X main.defaultReleaseChannel=main"
     fi
 
     flags+=" -ldflags=\"${ldflags}\""

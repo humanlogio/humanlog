@@ -43,7 +43,11 @@ func configCmd(
 					if err != nil {
 						return fmt.Errorf("getting default config filepath: %v", err)
 					}
-					if err := config.WriteConfigFile(fp, &config.DefaultConfig); err != nil {
+					cfg, err := config.GetDefaultConfig(defaultReleaseChannel)
+					if err != nil {
+						return fmt.Errorf("preparing default config: %v", err)
+					}
+					if err := config.WriteConfigFile(fp, cfg); err != nil {
 						return fmt.Errorf("writing default config to filepath: %v", err)
 					}
 					loginfo("reset config to defaults: %v", fp)
@@ -76,7 +80,12 @@ func configCmd(
 			{
 				Name: "show-defaults",
 				Action: func(cctx *cli.Context) error {
-					out, err := json.MarshalIndent(config.DefaultConfig, "", "   ")
+					cfg, err := config.GetDefaultConfig(defaultReleaseChannel)
+					if err != nil {
+						return err
+					}
+
+					out, err := json.MarshalIndent(cfg, "", "   ")
 					if err != nil {
 						return err
 					}

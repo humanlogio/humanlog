@@ -69,6 +69,7 @@ var (
 	}()
 	defaultApiAddr         = "https://api.humanlog.io"
 	defaultBaseSiteAddr    = "https://humanlog.io"
+	defaultReleaseChannel  = "main"
 	hideUnreleasedFeatures = ""
 
 	huhTheme = func() *huh.Theme {
@@ -310,9 +311,14 @@ func newApp() *cli.App {
 		ctx, cancel = signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)
 
 		// read config
+		dfltCfg, err := config.GetDefaultConfig(defaultReleaseChannel)
+		if err != nil {
+			panic(err)
+		}
+
 		if c.IsSet(configFlag.Name) {
 			configFilepath := c.String(configFlag.Name)
-			cfgFromFlag, err := config.ReadConfigFile(configFilepath, &config.DefaultConfig, false)
+			cfgFromFlag, err := config.ReadConfigFile(configFilepath, dfltCfg, false)
 			if err != nil {
 				return fmt.Errorf("reading --config file %q: %v", configFilepath, err)
 			}
@@ -322,7 +328,7 @@ func newApp() *cli.App {
 			if err != nil {
 				return fmt.Errorf("looking up config file path: %v", err)
 			}
-			cfgFromDir, err := config.ReadConfigFile(configFilepath, &config.DefaultConfig, true)
+			cfgFromDir, err := config.ReadConfigFile(configFilepath, dfltCfg, true)
 			if err != nil {
 				return fmt.Errorf("reading default config file: %v", err)
 			}
