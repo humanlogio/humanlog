@@ -243,7 +243,7 @@ func (cfg Config) populateEmpty(other *Config) *Config {
 	if other.path != "" {
 		out.path = other.path
 	}
-	out.CurrentConfig = mergeLocalhostConfig(cfg.CurrentConfig, other.CurrentConfig)
+	out.CurrentConfig = mergeLocalhostConfig(other.CurrentConfig, cfg.CurrentConfig)
 	return out
 }
 
