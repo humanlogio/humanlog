@@ -13,10 +13,10 @@ import (
 func TestConfig_populateEmpty(t *testing.T) {
 
 	tests := []struct {
-		name  string
-		input Config
-		other *Config
-		want  *Config
+		name       string
+		input      Config
+		defaultCfg *Config
+		want       *Config
 	}{
 		{
 			name: "ignore empty update",
@@ -27,7 +27,7 @@ func TestConfig_populateEmpty(t *testing.T) {
 					},
 				},
 			},
-			other: &Config{},
+			defaultCfg: &Config{},
 			want: &Config{
 				CurrentConfig: &typesv1.LocalhostConfig{
 					Formatter: &typesv1.FormatConfig{
@@ -39,7 +39,7 @@ func TestConfig_populateEmpty(t *testing.T) {
 		{
 			name:  "replace empty",
 			input: Config{},
-			other: &Config{
+			defaultCfg: &Config{
 				CurrentConfig: &typesv1.LocalhostConfig{
 					Formatter: &typesv1.FormatConfig{
 						SkipFields: []string{"hello"},
@@ -63,7 +63,7 @@ func TestConfig_populateEmpty(t *testing.T) {
 					},
 				},
 			},
-			other: &Config{
+			defaultCfg: &Config{
 				CurrentConfig: &typesv1.LocalhostConfig{
 					Formatter: &typesv1.FormatConfig{
 						SkipFields: []string{"world"},
@@ -73,7 +73,7 @@ func TestConfig_populateEmpty(t *testing.T) {
 			want: &Config{
 				CurrentConfig: &typesv1.LocalhostConfig{
 					Formatter: &typesv1.FormatConfig{
-						SkipFields: []string{"world"},
+						SkipFields: []string{"hello"},
 					},
 				},
 			},
@@ -84,17 +84,17 @@ func TestConfig_populateEmpty(t *testing.T) {
 			originput, err := json.Marshal(tt.input)
 			require.NoError(t, err)
 
-			origother, err := json.Marshal(tt.other)
+			origother, err := json.Marshal(tt.defaultCfg)
 			require.NoError(t, err)
 
-			got := tt.input.populateEmpty(tt.other)
+			got := tt.input.populateEmpty(tt.defaultCfg)
 			require.Empty(t, cmp.Diff(tt.want.CurrentConfig, got.CurrentConfig, protocmp.Transform()), "config should not differ")
 
 			afterinput, err := json.Marshal(tt.input)
 			require.NoError(t, err)
 			require.Equal(t, originput, afterinput, "input shouldn't be changed")
 
-			afterother, err := json.Marshal(tt.other)
+			afterother, err := json.Marshal(tt.defaultCfg)
 			require.NoError(t, err)
 			require.Equal(t, origother, afterother, "other shouldn't be changed")
 		})
