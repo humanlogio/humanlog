@@ -676,7 +676,7 @@ func (hdl *serviceHandler) DoUpdate(ctx context.Context) error {
 		ll.ErrorContext(ctx, "getting current version", "error", err)
 		sv = semver.Version{}
 	}
-	if err := selfupdate.UpgradeInPlace(ctx, sv, baseSiteURL, channelName, nil, nil, nil, false); err != nil {
+	if err := selfupdate.UpgradeInPlace(ctx, sv, baseSiteURL, channelName, nil, nil, nil); err != nil {
 		return fmt.Errorf("applying self-update: %v", err)
 	}
 	// triggering self-shutdown

@@ -161,7 +161,7 @@ func versionCmd(
 						log.Printf("you're already running the latest version: v%v", semverVersion.String())
 						return nil
 					}
-					err = selfupdate.UpgradeInPlace(ctx, semverVersion, baseSiteURL, channelName, os.Stdout, os.Stderr, os.Stdin, false)
+					err = selfupdate.UpgradeInPlace(ctx, semverVersion, baseSiteURL, channelName, os.Stdout, os.Stderr, os.Stdin)
 					if err != nil {
 						return fmt.Errorf("performing upgrade in place: %v", err)
 					}

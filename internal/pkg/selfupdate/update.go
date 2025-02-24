@@ -18,7 +18,7 @@ import (
 	"github.com/cli/safeexec"
 )
 
-func UpgradeInPlace(ctx context.Context, curSV semver.Version, baseSiteURL string, channelName *string, stdout, stderr io.Writer, stdin io.Reader, detach bool) error {
+func UpgradeInPlace(ctx context.Context, curSV semver.Version, baseSiteURL string, channelName *string, stdout, stderr io.Writer, stdin io.Reader) error {
 	shellToUse, ok := os.LookupEnv("SHELL")
 	switchToUse := "-c"
 
@@ -48,35 +48,25 @@ func UpgradeInPlace(ctx context.Context, curSV semver.Version, baseSiteURL strin
 	if channelName != nil {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("HUMANLOG_CHANNEL=%s", *channelName))
 	}
-	if detach {
-		if err := cmd.Start(); err != nil {
-			return fmt.Errorf("starting update command: %v", err)
-		}
-		if err := cmd.Process.Release(); err != nil {
-			return fmt.Errorf("releasing update process: %v", err)
-		}
-		return nil
-	} else {
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("running update script: %v", err)
-		}
-		currentBinaryPath, err := os.Executable()
-		if err != nil {
-			return fmt.Errorf("getting executable path: %v", err)
-		}
-		newBinaryPath := filepath.Join(tmp, "bin", "humanlog") // command 'install.sh | sh' makes new directory 'bin' under the 'HUMANLOG_INSTALL' path
-		_, err = os.Stat(newBinaryPath)
-		if err != nil {
-			if errors.Is(err, fs.ErrNotExist) {
-				return fmt.Errorf("new binary not exists: %v", err)
-			}
-			return fmt.Errorf("stat file at %s: %v", newBinaryPath, err)
-		}
-		if err := os.Rename(newBinaryPath, currentBinaryPath); err != nil {
-			return fmt.Errorf("replace current binary with new one: %v", err)
-		}
-		return nil
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("running update script: %v", err)
 	}
+	currentBinaryPath, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("getting executable path: %v", err)
+	}
+	newBinaryPath := filepath.Join(tmp, "bin", "humanlog") // command 'install.sh | sh' makes new directory 'bin' under the 'HUMANLOG_INSTALL' path
+	_, err = os.Stat(newBinaryPath)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return fmt.Errorf("new binary not exists: %v", err)
+		}
+		return fmt.Errorf("stat file at %s: %v", newBinaryPath, err)
+	}
+	if err := os.Rename(newBinaryPath, currentBinaryPath); err != nil {
+		return fmt.Errorf("replace current binary with new one: %v", err)
+	}
+	return nil
 }
 
 func isUnderHomebrew() bool {
