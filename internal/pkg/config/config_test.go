@@ -78,6 +78,28 @@ func TestConfig_populateEmpty(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "respect update to api client settings",
+			input: Config{
+				CurrentConfig: &typesv1.LocalhostConfig{
+					Runtime: &typesv1.RuntimeConfig{
+						ApiClient: &typesv1.RuntimeConfig_ClientConfig{
+							HttpProtocol: ptr(typesv1.RuntimeConfig_ClientConfig_HTTP1),
+						},
+					},
+				},
+			},
+			defaultCfg: &Config{},
+			want: &Config{
+				CurrentConfig: &typesv1.LocalhostConfig{
+					Runtime: &typesv1.RuntimeConfig{
+						ApiClient: &typesv1.RuntimeConfig_ClientConfig{
+							HttpProtocol: ptr(typesv1.RuntimeConfig_ClientConfig_HTTP1),
+						},
+					},
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
