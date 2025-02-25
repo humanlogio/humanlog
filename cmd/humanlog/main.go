@@ -368,13 +368,26 @@ func newApp() *cli.App {
 			logdebug("base site URL set to %q (due to --%s flag or $%s env var)", baseSiteURL, baseSiteServerAddr.Name, baseSiteServerAddr.EnvVar)
 		}
 
-		if c.Bool(useHTTP1.Name) {
+		if c.IsSet(useHTTP1.Name) && c.Bool(useHTTP1.Name) {
 			httpTransport = &http.Transport{TLSClientConfig: tlsClientConfig}
 			httpClient.Transport = httpTransport
 			logdebug("using http/1 client instead of http/2")
+		} else {
+			protocol := cfg.GetRuntime().GetApiClient().GetHttpProtocol()
+			switch protocol {
+			case types.RuntimeConfig_ClientConfig_HTTP2:
+				// no change
+			case types.RuntimeConfig_ClientConfig_HTTP1:
+				httpTransport = &http.Transport{TLSClientConfig: tlsClientConfig}
+				httpClient.Transport = httpTransport
+				logdebug("using http/1 client instead of http/2")
+			default:
+				return fmt.Errorf("unexpected HTTP protocol: %#v", protocol)
+			}
 		}
 
-		if protocol := c.String(useProtocol.Name); protocol != "" {
+		if c.IsSet(useProtocol.Name) {
+			protocol := c.String(useProtocol.Name)
 			switch protocol {
 			case "grpc":
 				clOpts = append(clOpts, connect.WithGRPC())
@@ -384,6 +397,18 @@ func newApp() *cli.App {
 				clOpts = append(clOpts, connect.WithProtoJSON())
 			default:
 				return fmt.Errorf("unknown protocol (must be one of %v): %q", []string{"grpc", "grpc-web", "protojson"}, protocol)
+			}
+		} else {
+			protocol := cfg.GetRuntime().GetApiClient().GetRpcProtocol()
+			switch protocol {
+			case types.RuntimeConfig_ClientConfig_GRPC:
+				clOpts = append(clOpts, connect.WithGRPC())
+			case types.RuntimeConfig_ClientConfig_GRPC_WEB:
+				clOpts = append(clOpts, connect.WithGRPCWeb())
+			case types.RuntimeConfig_ClientConfig_PROTOJSON:
+				clOpts = append(clOpts, connect.WithProtoJSON())
+			default:
+				return fmt.Errorf("unexpected RPC protocol: %#v", protocol)
 			}
 		}
 

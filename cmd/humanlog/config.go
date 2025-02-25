@@ -10,6 +10,7 @@ import (
 	"os"
 
 	"connectrpc.com/connect"
+	typesv1 "github.com/humanlogio/api/go/types/v1"
 	"github.com/humanlogio/humanlog/internal/pkg/config"
 	"github.com/humanlogio/humanlog/internal/pkg/state"
 	"github.com/humanlogio/humanlog/pkg/auth"
@@ -93,6 +94,27 @@ func configCmd(
 					}
 					_, err = os.Stdout.Write(out)
 					return err
+				},
+			},
+			{
+				Name: "hack",
+				Subcommands: []cli.Command{
+					{
+						Name:        "for-netskope",
+						Description: "hacks to make netskope happy: http2 -> http1",
+						Action: func(cctx *cli.Context) error {
+							cfg := getCfg(cctx)
+							if cfg.Runtime == nil {
+								cfg.Runtime = &typesv1.RuntimeConfig{}
+							}
+							if cfg.Runtime.ApiClient == nil {
+								cfg.Runtime.ApiClient = &typesv1.RuntimeConfig_ClientConfig{}
+							}
+							httpProtocol := typesv1.RuntimeConfig_ClientConfig_HTTP1
+							cfg.Runtime.ApiClient.HttpProtocol = &httpProtocol
+							return cfg.WriteBack()
+						},
+					},
 				},
 			},
 		},
