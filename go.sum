@@ -37,6 +37,8 @@ github.com/blang/semver v3.5.1+incompatible h1:cQNTCjp13qL8KC3Nbxr/y2Bqb63oX6wdn
 github.com/blang/semver v3.5.1+incompatible/go.mod h1:kRBLl5iJ+tD4TcOOxsy/0fnwebNt5EWlYSAyrTnjyyk=
 github.com/catppuccin/go v0.2.0 h1:ktBeIrIP42b/8FGiScP9sgrWOss3lw0Z5SktRoithGA=
 github.com/catppuccin/go v0.2.0/go.mod h1:8IHJuMGaUUjQM82qBrGNBv7LFq6JI3NnQCF6MOlZjpc=
+github.com/charlievieth/strcase v0.0.5 h1:gV4iXVyD6eI5KdfOV+/vIVCKXZwtCWOmDMcu7Uy00Rs=
+github.com/charlievieth/strcase v0.0.5/go.mod h1:FIOYY1aDBMSIOFqmVomHBpoK+bteGlESRsgsdWjrhx8=
 github.com/charmbracelet/bubbles v0.20.0 h1:jSZu6qD8cRQ6k9OMfR1WlM+ruM8fkPWkHvQWD9LIutE=
 github.com/charmbracelet/bubbles v0.20.0/go.mod h1:39slydyswPy+uVOHZ5x/GjwVAFkCsV8IIVy+4MhzwwU=
 github.com/charmbracelet/bubbletea v1.2.4 h1:KN8aCViA0eps9SCOThb2/XPIlea3ANJLUkv3KnQRNCE=
@@ -118,10 +120,10 @@ github.com/gsterjov/go-libsecret v0.0.0-20161001094733-a6f4afe4910c h1:6rhixN/i8
 github.com/gsterjov/go-libsecret v0.0.0-20161001094733-a6f4afe4910c/go.mod h1:NMPJylDgVpX0MLRlPy15sqSwOFv/U1GZ2m21JhFfek0=
 github.com/hexops/gotextdiff v1.0.3 h1:gitA9+qJrrTCsiCl7+kh75nPqQt1cx4ZkudSTLoUqJM=
 github.com/hexops/gotextdiff v1.0.3/go.mod h1:pSWU5MAI3yDq+fZBTazCSJysOMbxWL1BSow5/V2vxeg=
-github.com/humanlogio/api/go v0.0.0-20250222043209-13f9a4b26e94 h1:FcLQHo8SfuhYZBKU/ozMDifmOFmcgnI56j6V8UBsbr4=
-github.com/humanlogio/api/go v0.0.0-20250222043209-13f9a4b26e94/go.mod h1:sjMKAl97fvxNckIhcGWAxZwv6+c+I0thx5QvMc1ifaM=
-github.com/humanlogio/humanlog-pro v0.0.0-20250224035452-c0fd0fb9c9b2 h1:397XuaSy3Yy8B0C+xMcGDSqegRjID3pYhMeTPLYSgcg=
-github.com/humanlogio/humanlog-pro v0.0.0-20250224035452-c0fd0fb9c9b2/go.mod h1:mXX0jDbqEqk5xz3NZivPQF4xxznkPurJX+rW/6DbVkM=
+github.com/humanlogio/api/go v0.0.0-20250224091223-bbd5441cf91b h1:FCQtv5XIL2T7Nn7eMecF7ffW+wX8nxhprhv7EAsnS4U=
+github.com/humanlogio/api/go v0.0.0-20250224091223-bbd5441cf91b/go.mod h1:sjMKAl97fvxNckIhcGWAxZwv6+c+I0thx5QvMc1ifaM=
+github.com/humanlogio/humanlog-pro v0.0.0-20250225051305-25192bfc8396 h1:naA8vBLX5XLwouSY9ISBP2E3kkvAeVrVGDH7Ag4YdAg=
+github.com/humanlogio/humanlog-pro v0.0.0-20250225051305-25192bfc8396/go.mod h1:mXH8reE8W1LnCX6jcADhPFPJe+ZZg4EiLWXrNHo+PLU=
 github.com/kardianos/service v1.2.2 h1:ZvePhAHfvo0A7Mftk/tEzqEZ7Q4lgnR8sGz4xu1YX60=
 github.com/kardianos/service v1.2.2/go.mod h1:CIMRFEJVL+0DS1a3Nx06NaMn4Dz63Ng6O7dl0qH0zVM=
 github.com/klauspost/asmfmt v1.3.2 h1:4Ri7ox3EwapiOjCki+hw14RyKk201CN4rzyCJRFLpK4=

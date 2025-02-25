@@ -23,8 +23,8 @@ require (
 	github.com/go-logfmt/logfmt v0.5.1
 	github.com/google/go-cmp v0.6.0
 	github.com/google/uuid v1.6.0
-	github.com/humanlogio/api/go v0.0.0-20250222043209-13f9a4b26e94
-	github.com/humanlogio/humanlog-pro v0.0.0-20250224035452-c0fd0fb9c9b2
+	github.com/humanlogio/api/go v0.0.0-20250224091223-bbd5441cf91b
+	github.com/humanlogio/humanlog-pro v0.0.0-20250225051305-25192bfc8396
 	github.com/kardianos/service v1.2.2
 	github.com/kr/logfmt v0.0.0-20210122060352-19f9bcb100e6
 	github.com/lrstanley/bubblezone v0.0.0-20240914071701-b48c55a5e78e
@@ -52,6 +52,7 @@ require (
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/aymerick/douceur v0.2.0 // indirect
 	github.com/catppuccin/go v0.2.0 // indirect
+	github.com/charlievieth/strcase v0.0.5 // indirect
 	github.com/charmbracelet/x/ansi v0.4.5 // indirect
 	github.com/charmbracelet/x/exp/strings v0.0.0-20240722160745-212f7b056ed0 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
