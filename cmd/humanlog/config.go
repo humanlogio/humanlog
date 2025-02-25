@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 
+	"connectrpc.com/connect"
 	"github.com/humanlogio/humanlog/internal/pkg/config"
 	"github.com/humanlogio/humanlog/internal/pkg/state"
 	"github.com/humanlogio/humanlog/pkg/auth"
@@ -29,6 +30,7 @@ func configCmd(
 	getAPIUrl func(cctx *cli.Context) string,
 	getBaseSiteURL func(cctx *cli.Context) string,
 	getHTTPClient func(cctx *cli.Context, apiURL string) *http.Client,
+	getConnectOpts func(cctx *cli.Context) []connect.ClientOption,
 ) cli.Command {
 	return cli.Command{
 		Hidden:    hideUnreleasedFeatures == "true",

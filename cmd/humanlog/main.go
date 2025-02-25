@@ -203,6 +203,23 @@ func newApp() *cli.App {
 		Hidden: true,
 	}
 
+	debug := cli.BoolFlag{
+		Name:   "debug",
+		EnvVar: "HUMANLOG_DEBUG",
+		Hidden: true,
+	}
+
+	useHTTP1 := cli.BoolFlag{
+		Name:   "use-http1",
+		EnvVar: "HUMANLOG_USE_HTTP1",
+		Hidden: true,
+	}
+	useProtocol := cli.StringFlag{
+		Name:   "use-protocol",
+		EnvVar: "HUMANLOG_USE_PROTOCOL",
+		Hidden: true,
+	}
+
 	app := cli.NewApp()
 	app.Author = "humanlog.io"
 	app.Email = "antoine@webscale.lol"
@@ -226,26 +243,31 @@ func newApp() *cli.App {
 	}
 
 	var (
-		ctx        context.Context
-		cancel     context.CancelFunc
-		cfg        *config.Config
-		statefile  *state.State
-		dialer     = &net.Dialer{Timeout: time.Second}
+		ctx             context.Context
+		cancel          context.CancelFunc
+		cfg             *config.Config
+		statefile       *state.State
+		dialer                            = &net.Dialer{Timeout: time.Second}
+		tlsClientConfig                   = &tls.Config{}
+		httpTransport   http.RoundTripper = &http2.Transport{
+			TLSClientConfig: tlsClientConfig,
+			DialTLS: func(network, addr string, cfg *tls.Config) (net.Conn, error) {
+				return tls.DialWithDialer(dialer, network, addr, cfg)
+			},
+		}
 		httpClient = &http.Client{
-			Transport: &http2.Transport{
-				DialTLS: func(network, addr string, cfg *tls.Config) (net.Conn, error) {
-					return tls.DialWithDialer(dialer, network, addr, cfg)
-				},
+			Transport: httpTransport,
+		}
+		localhostHttpTransport = &http2.Transport{
+			AllowHTTP: true,
+			DialTLS: func(network, addr string, _ *tls.Config) (net.Conn, error) {
+				return dialer.Dial(network, addr)
 			},
 		}
 		localhostHttpClient = &http.Client{
-			Transport: &http2.Transport{
-				AllowHTTP: true,
-				DialTLS: func(network, addr string, _ *tls.Config) (net.Conn, error) {
-					return dialer.Dial(network, addr)
-				},
-			},
+			Transport: localhostHttpTransport,
 		}
+		clOpts           []connect.ClientOption
 		promptedToUpdate *semver.Version
 		updateRes        <-chan *checkForUpdateRes
 		apiURL           = ""
@@ -305,8 +327,11 @@ func newApp() *cli.App {
 		getLocalhostHTTPClient = func(*cli.Context) *http.Client {
 			return localhostHttpClient
 		}
+		getConnectOpts = func(cctx *cli.Context) []connect.ClientOption {
+			return clOpts
+		}
 	)
-
+	var closers []func()
 	app.Before = func(c *cli.Context) error {
 		ctx, cancel = signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)
 
@@ -343,6 +368,45 @@ func newApp() *cli.App {
 			logdebug("base site URL set to %q (due to --%s flag or $%s env var)", baseSiteURL, baseSiteServerAddr.Name, baseSiteServerAddr.EnvVar)
 		}
 
+		if c.Bool(useHTTP1.Name) {
+			httpTransport = &http.Transport{TLSClientConfig: tlsClientConfig}
+			httpClient.Transport = httpTransport
+			logdebug("using http/1 client instead of http/2")
+		}
+
+		if protocol := c.String(useProtocol.Name); protocol != "" {
+			switch protocol {
+			case "grpc":
+				clOpts = append(clOpts, connect.WithGRPC())
+			case "grpc-web":
+				clOpts = append(clOpts, connect.WithGRPCWeb())
+			case "protojson":
+				clOpts = append(clOpts, connect.WithProtoJSON())
+			default:
+				return fmt.Errorf("unknown protocol (must be one of %v): %q", []string{"grpc", "grpc-web", "protojson"}, protocol)
+			}
+		}
+
+		if sslKeylogFile := os.Getenv("SSLKEYLOGFILE"); sslKeylogFile != "" {
+			if !c.Bool(debug.Name) {
+				return fmt.Errorf("flag --%q is required to use SSLKEYLOGFILE", debug.Name)
+			} else {
+				logwarn("saving TLS secrets to SSLKEYLOGFILE=%q", sslKeylogFile)
+				keylogFile, err := os.Create(sslKeylogFile)
+				if err != nil {
+					return fmt.Errorf("creating SSLKEYLOGFILE file %q: %v", sslKeylogFile, err)
+				}
+				closers = append(closers, func() {
+					if err := keylogFile.Close(); err != nil {
+						logerror("failed to close TLS secret SSLKEYLOGFILE=%q: %v", sslKeylogFile, err)
+					} else {
+						logwarn("saved TLS secrets to SSLKEYLOGFILE=%q, please delete it when you're done debugging", sslKeylogFile)
+					}
+				})
+				tlsClientConfig.KeyLogWriter = keylogFile
+			}
+		}
+
 		stateFilepath, err := state.GetDefaultStateFilepath()
 		if err != nil {
 			return fmt.Errorf("looking up state file path: %v", err)
@@ -362,12 +426,13 @@ func newApp() *cli.App {
 			}
 			ll := getLogger(c)
 			tokenSource := getTokenSource(c)
+			clOpts := getConnectOpts(c)
 			var channelName *string
 			expcfg := cfg.GetRuntime().GetExperimentalFeatures()
 			if expcfg != nil && expcfg.ReleaseChannel != nil {
 				channelName = expcfg.ReleaseChannel
 			}
-			updateRes = asyncCheckForUpdate(ctx, ll, cfg, statefile, apiURL, httpClient, tokenSource, channelName)
+			updateRes = asyncCheckForUpdate(ctx, ll, cfg, statefile, apiURL, httpClient, tokenSource, channelName, clOpts)
 		}
 
 		return nil
@@ -389,22 +454,25 @@ func newApp() *cli.App {
 			}
 		default:
 		}
+		for _, closer := range closers {
+			closer()
+		}
 		return nil
 	}
 	app.Commands = append(
 		app.Commands,
-		onboardingCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getBaseSiteURL, getHTTPClient),
-		versionCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getBaseSiteURL, getHTTPClient),
-		authCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getHTTPClient),
-		serviceCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getBaseSiteURL, getHTTPClient),
-		configCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getBaseSiteURL, getHTTPClient),
-		organizationCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getHTTPClient),
-		environmentCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getHTTPClient),
-		machineCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getHTTPClient),
-		queryCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getHTTPClient),
+		onboardingCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getBaseSiteURL, getHTTPClient, getConnectOpts),
+		versionCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getBaseSiteURL, getHTTPClient, getConnectOpts),
+		authCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getHTTPClient, getConnectOpts),
+		serviceCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getBaseSiteURL, getHTTPClient, getConnectOpts),
+		configCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getBaseSiteURL, getHTTPClient, getConnectOpts),
+		organizationCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getHTTPClient, getConnectOpts),
+		environmentCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getHTTPClient, getConnectOpts),
+		machineCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getHTTPClient, getConnectOpts),
+		queryCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getHTTPClient, getConnectOpts),
 		gennyCmd(getCtx, getLogger, getCfg, getState),
 	)
-	app.Flags = []cli.Flag{configFlag, skipFlag, keepFlag, sortLongest, skipUnchanged, truncates, truncateLength, colorFlag, timeFormat, ignoreInterrupts, messageFieldsFlag, timeFieldsFlag, levelFieldsFlag, apiServerAddr}
+	app.Flags = []cli.Flag{configFlag, skipFlag, keepFlag, sortLongest, skipUnchanged, truncates, truncateLength, colorFlag, timeFormat, ignoreInterrupts, messageFieldsFlag, timeFieldsFlag, levelFieldsFlag, apiServerAddr, baseSiteServerAddr, debug, useHTTP1, useProtocol}
 	app.Action = func(cctx *cli.Context) error {
 		// flags overwrite config file
 		if cfg.CurrentConfig == nil {
@@ -543,7 +611,7 @@ func newApp() *cli.App {
 					time.Sleep(2 * flushTimeout) // give it 2x timeout to flush before nipping the ctx entirely
 					ingestcancel()
 				}()
-				remotesink, err := ingest(ingestctx, ll, cctx, apiURL, getCfg, getState, getTokenSource, getHTTPClient, notifyUnableToIngest)
+				remotesink, err := ingest(ingestctx, ll, cctx, apiURL, getCfg, getState, getTokenSource, getHTTPClient, getConnectOpts, notifyUnableToIngest)
 				if err != nil {
 					return fmt.Errorf("can't send logs: %v", err)
 				}
@@ -572,7 +640,7 @@ func newApp() *cli.App {
 					// TODO(antoine): if an environment token exists, auto-onboard the machine.
 					if isTerminal(os.Stdout) {
 						// no machine ID assigned, ensure machine gets onboarded via the login flow
-						_, err := ensureLoggedIn(ctx, cctx, state, getTokenSource(cctx), apiURL, getHTTPClient(cctx, apiURL))
+						_, err := ensureLoggedIn(ctx, cctx, state, getTokenSource(cctx), apiURL, getHTTPClient(cctx, apiURL), getConnectOpts(cctx))
 						if err != nil {
 							return fmt.Errorf("this feature requires a valid machine ID, which requires an environment. failed to login: %v", err)
 						}

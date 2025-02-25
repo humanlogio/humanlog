@@ -29,6 +29,7 @@ func authCmd(
 	getTokenSource func(cctx *cli.Context) *auth.UserRefreshableTokenSource,
 	getAPIUrl func(cctx *cli.Context) string,
 	getHTTPClient func(cctx *cli.Context, apiURL string) *http.Client,
+	getConnectOpts func(cctx *cli.Context) []connect.ClientOption,
 ) cli.Command {
 	return cli.Command{
 		Name:  authCmdName,
@@ -42,7 +43,7 @@ func authCmd(
 					tokenSource := getTokenSource(cctx)
 					apiURL := getAPIUrl(cctx)
 					httpClient := getHTTPClient(cctx, apiURL)
-					authClient := authv1connect.NewAuthServiceClient(httpClient, apiURL)
+					authClient := authv1connect.NewAuthServiceClient(httpClient, apiURL, getConnectOpts(cctx)...)
 					_, err := performLoginFlow(ctx, state, authClient, tokenSource, "")
 					return err
 				},
@@ -54,20 +55,23 @@ func authCmd(
 					apiURL := getAPIUrl(cctx)
 					state := getState(cctx)
 					httpClient := getHTTPClient(cctx, apiURL)
+					clOpts := getConnectOpts(cctx)
 					tokenSource := getTokenSource(cctx)
-					userToken, err := ensureLoggedIn(ctx, cctx, state, tokenSource, apiURL, httpClient)
+					userToken, err := ensureLoggedIn(ctx, cctx, state, tokenSource, apiURL, httpClient, clOpts)
 					if err != nil {
 						return fmt.Errorf("looking up local user state: %v", err)
 					}
 
 					ll := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{}))
-					clOpts := connect.WithInterceptors(
-						auth.Interceptors(ll, tokenSource)...,
+					clOpts = append(clOpts,
+						connect.WithInterceptors(
+							auth.Interceptors(ll, tokenSource)...,
+						),
 					)
 
 					printFact("token user ID", userToken.UserId)
 
-					userClient := userv1connect.NewUserServiceClient(httpClient, apiURL, clOpts)
+					userClient := userv1connect.NewUserServiceClient(httpClient, apiURL, clOpts...)
 					res, err := userClient.Whoami(ctx, connect.NewRequest(&userpb.WhoamiRequest{}))
 					if err != nil {
 						return fmt.Errorf("looking up who you are: %v", err)
@@ -92,10 +96,11 @@ func authCmd(
 					tokenSource := getTokenSource(cctx)
 
 					ll := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{}))
-					clOpts := connect.WithInterceptors(
+					clOpts := append(getConnectOpts(cctx), connect.WithInterceptors(
 						auth.Interceptors(ll, tokenSource)...,
-					)
-					userClient := userv1connect.NewUserServiceClient(httpClient, apiURL, clOpts)
+					))
+
+					userClient := userv1connect.NewUserServiceClient(httpClient, apiURL, clOpts...)
 
 					return performLogoutFlow(ctx, userClient, tokenSource, "")
 				},

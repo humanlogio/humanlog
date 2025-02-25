@@ -32,15 +32,17 @@ func ingest(
 	getState func(*cli.Context) *state.State,
 	getTokenSource func(cctx *cli.Context) *auth.UserRefreshableTokenSource,
 	getHTTPClient func(*cli.Context, string) *http.Client,
+	getConnectOpts func(*cli.Context) []connect.ClientOption,
 	notifyUnableToIngest func(error),
 ) (sink.Sink, error) {
 	state := getState(cctx)
 	tokenSource := getTokenSource(cctx)
 	httpClient := getHTTPClient(cctx, apiURL)
+	clOpts := getConnectOpts(cctx)
 
 	if state.IngestionToken == nil || time.Now().After(state.IngestionToken.ExpiresAt.AsTime()) {
 		// we need to create an environment token
-		environmentToken, err := createIngestionToken(ctx, ll, cctx, state, tokenSource, apiURL, httpClient)
+		environmentToken, err := createIngestionToken(ctx, ll, cctx, state, tokenSource, apiURL, httpClient, clOpts)
 		if err != nil {
 			return nil, fmt.Errorf("no ingestion token configured, and couldn't generate one: %v", err)
 		}
@@ -55,12 +57,10 @@ func ingest(
 		return nil, fmt.Errorf("It looks like this machine isn't associated with this environment. Try to login again, or register with humanlog.io.")
 	}
 
-	clOpts := []connect.ClientOption{
-		connect.WithInterceptors(
-			auth.NewEnvironmentAuthInterceptor(ll, state.IngestionToken),
-		),
+	clOpts = append(clOpts,
+		connect.WithInterceptors(auth.NewEnvironmentAuthInterceptor(ll, state.IngestionToken)),
 		connect.WithGRPC(),
-	}
+	)
 
 	client := ingestv1connect.NewIngestServiceClient(httpClient, apiURL, clOpts...)
 	var snk sink.Sink
@@ -86,8 +86,9 @@ func createIngestionToken(
 	tokenSource *auth.UserRefreshableTokenSource,
 	apiURL string,
 	httpClient *http.Client,
+	clOpts []connect.ClientOption,
 ) (*typesv1.EnvironmentToken, error) {
-	_, err := ensureLoggedIn(ctx, cctx, state, tokenSource, apiURL, httpClient)
+	_, err := ensureLoggedIn(ctx, cctx, state, tokenSource, apiURL, httpClient, clOpts)
 	if err != nil {
 		return nil, fmt.Errorf("ensuring you're logged in: %v", err)
 	}
@@ -99,10 +100,10 @@ func createIngestionToken(
 
 	// userToken is most likely valid and unexpired, use it
 	// to generate an environment token with the right roles
-	clOpts := connect.WithInterceptors(
+	clOpts = append(clOpts, connect.WithInterceptors(
 		auth.Interceptors(ll, tokenSource)...,
-	)
-	tokenClient := tokenv1connect.NewTokenServiceClient(httpClient, apiURL, clOpts)
+	))
+	tokenClient := tokenv1connect.NewTokenServiceClient(httpClient, apiURL, clOpts...)
 
 	expiresAt, err := hubAskTokenExpiry("Creating an ingestion token.")
 	if err != nil {

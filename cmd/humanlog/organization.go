@@ -30,6 +30,7 @@ func organizationCmd(
 	getTokenSource func(cctx *cli.Context) *auth.UserRefreshableTokenSource,
 	getAPIUrl func(cctx *cli.Context) string,
 	getHTTPClient func(cctx *cli.Context, apiURL string) *http.Client,
+	getConnectOpts func(*cli.Context) []connect.ClientOption,
 ) cli.Command {
 
 	var (
@@ -50,7 +51,8 @@ func organizationCmd(
 			tokenSource := getTokenSource(cctx)
 			apiURL := getAPIUrl(cctx)
 			httpClient := getHTTPClient(cctx, apiURL)
-			_, err := ensureLoggedIn(ctx, cctx, state, tokenSource, apiURL, httpClient)
+			clOpts := getConnectOpts(cctx)
+			_, err := ensureLoggedIn(ctx, cctx, state, tokenSource, apiURL, httpClient, clOpts)
 			if err != nil {
 				return err
 			}
@@ -68,17 +70,17 @@ func organizationCmd(
 					tokenSource := getTokenSource(cctx)
 					apiURL := getAPIUrl(cctx)
 					httpClient := getHTTPClient(cctx, apiURL)
-
+					clOpts := getConnectOpts(cctx)
 					organizationName := cctx.Args().First()
 					if organizationName == "" {
 						logerror("missing argument: <name>")
 						return cli.ShowSubcommandHelp(cctx)
 					}
 
-					clOpts := connect.WithInterceptors(
+					clOpts = append(clOpts, connect.WithInterceptors(
 						auth.Interceptors(ll, tokenSource)...,
-					)
-					userClient := userv1connect.NewUserServiceClient(httpClient, apiURL, clOpts)
+					))
+					userClient := userv1connect.NewUserServiceClient(httpClient, apiURL, clOpts...)
 
 					iter := ListOrganizations(ctx, userClient)
 
@@ -107,15 +109,16 @@ func organizationCmd(
 					tokenSource := getTokenSource(cctx)
 					apiURL := getAPIUrl(cctx)
 					httpClient := getHTTPClient(cctx, apiURL)
+					clOpts := getConnectOpts(cctx)
 
 					if state.CurrentOrgID == nil {
 						return fmt.Errorf("no org is currently set")
 					}
 
-					clOpts := connect.WithInterceptors(
+					clOpts = append(clOpts, connect.WithInterceptors(
 						auth.Interceptors(ll, tokenSource)...,
-					)
-					userClient := userv1connect.NewUserServiceClient(httpClient, apiURL, clOpts)
+					))
+					userClient := userv1connect.NewUserServiceClient(httpClient, apiURL, clOpts...)
 
 					iter := ListOrganizations(ctx, userClient)
 
@@ -147,11 +150,12 @@ func organizationCmd(
 					tokenSource := getTokenSource(cctx)
 					apiURL := getAPIUrl(cctx)
 					httpClient := getHTTPClient(cctx, apiURL)
+					clOpts := getConnectOpts(cctx)
 
-					clOpts := connect.WithInterceptors(
+					clOpts = append(clOpts, connect.WithInterceptors(
 						auth.Interceptors(ll, tokenSource)...,
-					)
-					userClient := userv1connect.NewUserServiceClient(httpClient, apiURL, clOpts)
+					))
+					userClient := userv1connect.NewUserServiceClient(httpClient, apiURL, clOpts...)
 					orgID, err := huhSelectOrganizations(ctx, userClient, "Which org do you want to switch to?")
 					if err != nil {
 						return err
@@ -170,11 +174,12 @@ func organizationCmd(
 					tokenSource := getTokenSource(cctx)
 					apiURL := getAPIUrl(cctx)
 					httpClient := getHTTPClient(cctx, apiURL)
+					clOpts := getConnectOpts(cctx)
 
-					clOpts := connect.WithInterceptors(
+					clOpts = append(clOpts, connect.WithInterceptors(
 						auth.Interceptors(ll, tokenSource)...,
-					)
-					userClient := userv1connect.NewUserServiceClient(httpClient, apiURL, clOpts)
+					))
+					userClient := userv1connect.NewUserServiceClient(httpClient, apiURL, clOpts...)
 
 					req := &userv1.CreateOrganizationRequest{
 						Name: cctx.String(createOrgNameFlag.Name),
@@ -212,17 +217,17 @@ func organizationCmd(
 					tokenSource := getTokenSource(cctx)
 					apiURL := getAPIUrl(cctx)
 					httpClient := getHTTPClient(cctx, apiURL)
-
+					clOpts := getConnectOpts(cctx)
 					organizationName := cctx.Args().First()
 					if organizationName == "" {
 						logerror("missing argument: <name>")
 						return cli.ShowSubcommandHelp(cctx)
 					}
 
-					clOpts := connect.WithInterceptors(
+					clOpts = append(clOpts, connect.WithInterceptors(
 						auth.Interceptors(ll, tokenSource)...,
-					)
-					userClient := userv1connect.NewUserServiceClient(httpClient, apiURL, clOpts)
+					))
+					userClient := userv1connect.NewUserServiceClient(httpClient, apiURL, clOpts...)
 
 					el, ok, err := iterapi.Find(ListOrganizations(ctx, userClient), func(el *userv1.ListOrganizationResponse_ListItem) bool {
 						return el.Organization.Name == organizationName
@@ -248,11 +253,11 @@ func organizationCmd(
 					tokenSource := getTokenSource(cctx)
 					apiURL := getAPIUrl(cctx)
 					httpClient := getHTTPClient(cctx, apiURL)
-
-					clOpts := connect.WithInterceptors(
+					clOpts := getConnectOpts(cctx)
+					clOpts = append(clOpts, connect.WithInterceptors(
 						auth.Interceptors(ll, tokenSource)...,
-					)
-					userClient := userv1connect.NewUserServiceClient(httpClient, apiURL, clOpts)
+					))
+					userClient := userv1connect.NewUserServiceClient(httpClient, apiURL, clOpts...)
 
 					iter := ListOrganizations(ctx, userClient)
 
@@ -277,11 +282,11 @@ func organizationCmd(
 					tokenSource := getTokenSource(cctx)
 					apiURL := getAPIUrl(cctx)
 					httpClient := getHTTPClient(cctx, apiURL)
-
-					clOpts := connect.WithInterceptors(
+					clOpts := getConnectOpts(cctx)
+					clOpts = append(clOpts, connect.WithInterceptors(
 						auth.Interceptors(ll, tokenSource)...,
-					)
-					organizationClient := organizationv1connect.NewOrganizationServiceClient(httpClient, apiURL, clOpts)
+					))
+					organizationClient := organizationv1connect.NewOrganizationServiceClient(httpClient, apiURL, clOpts...)
 					iter := ListOrgUser(ctx, organizationClient)
 					for iter.Next() {
 						u := iter.Current().User
@@ -305,17 +310,17 @@ func organizationCmd(
 					tokenSource := getTokenSource(cctx)
 					apiURL := getAPIUrl(cctx)
 					httpClient := getHTTPClient(cctx, apiURL)
-
+					clOpts := getConnectOpts(cctx)
 					_ = ctx
 					_ = state
 					_ = tokenSource
 					_ = apiURL
 					_ = httpClient
 
-					clOpts := connect.WithInterceptors(
+					clOpts = append(clOpts, connect.WithInterceptors(
 						auth.Interceptors(ll, tokenSource)...,
-					)
-					organizationClient := organizationv1connect.NewOrganizationServiceClient(httpClient, apiURL, clOpts)
+					))
+					organizationClient := organizationv1connect.NewOrganizationServiceClient(httpClient, apiURL, clOpts...)
 					_ = organizationClient
 					return nil
 				},
@@ -330,17 +335,17 @@ func organizationCmd(
 					tokenSource := getTokenSource(cctx)
 					apiURL := getAPIUrl(cctx)
 					httpClient := getHTTPClient(cctx, apiURL)
-
+					clOpts := getConnectOpts(cctx)
 					_ = ctx
 					_ = state
 					_ = tokenSource
 					_ = apiURL
 					_ = httpClient
 
-					clOpts := connect.WithInterceptors(
+					clOpts = append(clOpts, connect.WithInterceptors(
 						auth.Interceptors(ll, tokenSource)...,
-					)
-					organizationClient := organizationv1connect.NewOrganizationServiceClient(httpClient, apiURL, clOpts)
+					))
+					organizationClient := organizationv1connect.NewOrganizationServiceClient(httpClient, apiURL, clOpts...)
 					_ = organizationClient
 					return nil
 				},
