@@ -60,6 +60,7 @@ func serviceCmd(
 	getAPIUrl func(cctx *cli.Context) string,
 	getBaseSiteURL func(cctx *cli.Context) string,
 	getHTTPClient func(cctx *cli.Context, apiURL string) *http.Client,
+	getConnectOpts func(*cli.Context) []connect.ClientOption,
 ) cli.Command {
 	var svcHandler *serviceHandler
 	return cli.Command{

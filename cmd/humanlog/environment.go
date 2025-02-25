@@ -32,6 +32,7 @@ func environmentCmd(
 	getTokenSource func(cctx *cli.Context) *auth.UserRefreshableTokenSource,
 	getAPIUrl func(cctx *cli.Context) string,
 	getHTTPClient func(cctx *cli.Context, apiURL string) *http.Client,
+	getConnectOpts func(cctx *cli.Context) []connect.ClientOption,
 ) cli.Command {
 	return cli.Command{
 		Hidden: hideUnreleasedFeatures == "true",
@@ -43,7 +44,8 @@ func environmentCmd(
 			tokenSource := getTokenSource(cctx)
 			apiURL := getAPIUrl(cctx)
 			httpClient := getHTTPClient(cctx, apiURL)
-			_, err := ensureLoggedIn(ctx, cctx, state, tokenSource, apiURL, httpClient)
+			clOpts := getConnectOpts(cctx)
+			_, err := ensureLoggedIn(ctx, cctx, state, tokenSource, apiURL, httpClient, clOpts)
 			if err != nil {
 				return err
 			}
@@ -86,19 +88,19 @@ func environmentCmd(
 					tokenSource := getTokenSource(cctx)
 					apiURL := getAPIUrl(cctx)
 					httpClient := getHTTPClient(cctx, apiURL)
-
-					orgID, err := ensureOrgSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient)
+					clOpts := getConnectOpts(cctx)
+					orgID, err := ensureOrgSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient, clOpts)
 					if err != nil {
 						return err
 					}
-					environmentID, err := ensureEnvironmentSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient, orgID)
+					environmentID, err := ensureEnvironmentSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient, clOpts, orgID)
 					if err != nil {
 						return err
 					}
-					clOpts := connect.WithInterceptors(
+					clOpts = append(clOpts, connect.WithInterceptors(
 						auth.Interceptors(ll, tokenSource)...,
-					)
-					orgClient := organizationv1connect.NewOrganizationServiceClient(httpClient, apiURL, clOpts)
+					))
+					orgClient := organizationv1connect.NewOrganizationServiceClient(httpClient, apiURL, clOpts...)
 					iter := ListEnvironments(ctx, orgClient)
 					a, ok, err := iterapi.Find(iter, func(el *organizationv1.ListEnvironmentResponse_ListItem) bool {
 						return el.Environment.Id == environmentID
@@ -125,16 +127,16 @@ func environmentCmd(
 					tokenSource := getTokenSource(cctx)
 					apiURL := getAPIUrl(cctx)
 					httpClient := getHTTPClient(cctx, apiURL)
-
-					_, err := ensureOrgSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient)
+					clOpts := getConnectOpts(cctx)
+					_, err := ensureOrgSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient, clOpts)
 					if err != nil {
 						return err
 					}
 
-					clOpts := connect.WithInterceptors(
+					clOpts = append(clOpts, connect.WithInterceptors(
 						auth.Interceptors(ll, tokenSource)...,
-					)
-					orgClient := organizationv1connect.NewOrganizationServiceClient(httpClient, apiURL, clOpts)
+					))
+					orgClient := organizationv1connect.NewOrganizationServiceClient(httpClient, apiURL, clOpts...)
 
 					res, err := orgClient.CreateEnvironment(ctx, connect.NewRequest(&organizationv1.CreateEnvironmentRequest{}))
 					if err != nil {
@@ -162,16 +164,16 @@ func environmentCmd(
 						logerror("missing argument: <name>")
 						return cli.ShowSubcommandHelp(cctx)
 					}
-
-					_, err := ensureOrgSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient)
+					clOpts := getConnectOpts(cctx)
+					_, err := ensureOrgSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient, clOpts)
 					if err != nil {
 						return err
 					}
 
-					clOpts := connect.WithInterceptors(
+					clOpts = append(clOpts, connect.WithInterceptors(
 						auth.Interceptors(ll, tokenSource)...,
-					)
-					orgClient := organizationv1connect.NewOrganizationServiceClient(httpClient, apiURL, clOpts)
+					))
+					orgClient := organizationv1connect.NewOrganizationServiceClient(httpClient, apiURL, clOpts...)
 
 					el, ok, err := iterapi.Find(ListEnvironments(ctx, orgClient), func(el *organizationv1.ListEnvironmentResponse_ListItem) bool {
 						return el.Environment.Name == environmentName
@@ -197,12 +199,12 @@ func environmentCmd(
 					tokenSource := getTokenSource(cctx)
 					apiURL := getAPIUrl(cctx)
 					httpClient := getHTTPClient(cctx, apiURL)
-					clOpts := connect.WithInterceptors(
+					clOpts := getConnectOpts(cctx)
+					clOpts = append(clOpts, connect.WithInterceptors(
 						auth.Interceptors(ll, tokenSource)...,
-					)
-					orgClient := organizationv1connect.NewOrganizationServiceClient(httpClient, apiURL, clOpts)
-
-					_, err := ensureOrgSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient)
+					))
+					orgClient := organizationv1connect.NewOrganizationServiceClient(httpClient, apiURL, clOpts...)
+					_, err := ensureOrgSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient, clOpts)
 					if err != nil {
 						return err
 					}
@@ -231,12 +233,12 @@ func environmentCmd(
 					tokenSource := getTokenSource(cctx)
 					apiURL := getAPIUrl(cctx)
 					httpClient := getHTTPClient(cctx, apiURL)
-
-					orgID, err := ensureOrgSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient)
+					clOpts := getConnectOpts(cctx)
+					orgID, err := ensureOrgSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient, clOpts)
 					if err != nil {
 						return err
 					}
-					environmentID, err := ensureEnvironmentSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient, orgID)
+					environmentID, err := ensureEnvironmentSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient, clOpts, orgID)
 					if err != nil {
 						return err
 					}
@@ -248,11 +250,11 @@ func environmentCmd(
 					if err != nil {
 						return err
 					}
-					clOpts := connect.WithInterceptors(
+					clOpts = append(clOpts, connect.WithInterceptors(
 						auth.Interceptors(ll, tokenSource)...,
-					)
+					))
 
-					tokenClient := tokenv1connect.NewTokenServiceClient(httpClient, apiURL, clOpts)
+					tokenClient := tokenv1connect.NewTokenServiceClient(httpClient, apiURL, clOpts...)
 
 					res, err := tokenClient.GenerateEnvironmentToken(ctx, connect.NewRequest(&tokenv1.GenerateEnvironmentTokenRequest{
 						EnvironmentId: environmentID,
@@ -282,12 +284,12 @@ func environmentCmd(
 					tokenSource := getTokenSource(cctx)
 					apiURL := getAPIUrl(cctx)
 					httpClient := getHTTPClient(cctx, apiURL)
-
-					orgID, err := ensureOrgSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient)
+					clOpts := getConnectOpts(cctx)
+					orgID, err := ensureOrgSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient, clOpts)
 					if err != nil {
 						return err
 					}
-					environmentID, err := ensureEnvironmentSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient, orgID)
+					environmentID, err := ensureEnvironmentSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient, clOpts, orgID)
 					if err != nil {
 						return err
 					}
@@ -303,11 +305,11 @@ func environmentCmd(
 						return err
 					}
 
-					clOpts := connect.WithInterceptors(
+					clOpts = append(clOpts, connect.WithInterceptors(
 						auth.Interceptors(ll, tokenSource)...,
-					)
+					))
 
-					tokenClient := tokenv1connect.NewTokenServiceClient(httpClient, apiURL, clOpts)
+					tokenClient := tokenv1connect.NewTokenServiceClient(httpClient, apiURL, clOpts...)
 
 					loginfo("revoking token %d on environment %d", tokenID, environmentID)
 					res, err := tokenClient.RevokeEnvironmentToken(ctx, connect.NewRequest(&tokenv1.RevokeEnvironmentTokenRequest{
@@ -333,12 +335,12 @@ func environmentCmd(
 					tokenSource := getTokenSource(cctx)
 					apiURL := getAPIUrl(cctx)
 					httpClient := getHTTPClient(cctx, apiURL)
-
-					orgID, err := ensureOrgSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient)
+					clOpts := getConnectOpts(cctx)
+					orgID, err := ensureOrgSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient, clOpts)
 					if err != nil {
 						return err
 					}
-					environmentID, err := ensureEnvironmentSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient, orgID)
+					environmentID, err := ensureEnvironmentSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient, clOpts, orgID)
 					if err != nil {
 						return err
 					}
@@ -354,11 +356,11 @@ func environmentCmd(
 						return err
 					}
 
-					clOpts := connect.WithInterceptors(
+					clOpts = append(clOpts, connect.WithInterceptors(
 						auth.Interceptors(ll, tokenSource)...,
-					)
+					))
 
-					tokenClient := tokenv1connect.NewTokenServiceClient(httpClient, apiURL, clOpts)
+					tokenClient := tokenv1connect.NewTokenServiceClient(httpClient, apiURL, clOpts...)
 
 					res, err := tokenClient.GetEnvironmentToken(ctx, connect.NewRequest(&tokenv1.GetEnvironmentTokenRequest{
 						EnvironmentId: environmentID,
@@ -395,21 +397,21 @@ func environmentCmd(
 					tokenSource := getTokenSource(cctx)
 					apiURL := getAPIUrl(cctx)
 					httpClient := getHTTPClient(cctx, apiURL)
-
-					orgID, err := ensureOrgSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient)
+					clOpts := getConnectOpts(cctx)
+					orgID, err := ensureOrgSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient, clOpts)
 					if err != nil {
 						return err
 					}
-					environmentID, err := ensureEnvironmentSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient, orgID)
+					environmentID, err := ensureEnvironmentSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient, clOpts, orgID)
 					if err != nil {
 						return err
 					}
 
-					clOpts := connect.WithInterceptors(
+					clOpts = append(clOpts, connect.WithInterceptors(
 						auth.Interceptors(ll, tokenSource)...,
-					)
+					))
 
-					tokenClient := tokenv1connect.NewTokenServiceClient(httpClient, apiURL, clOpts)
+					tokenClient := tokenv1connect.NewTokenServiceClient(httpClient, apiURL, clOpts...)
 
 					hasAny := false
 					iter := ListEnvironmentTokens(ctx, environmentID, tokenClient)

@@ -37,12 +37,14 @@ func ensureLoggedIn(
 	state *state.State,
 	tokenSource *auth.UserRefreshableTokenSource,
 	apiURL string,
-	httpClient *http.Client) (*typesv1.UserToken, error) {
+	httpClient *http.Client,
+	clOpts []connect.ClientOption,
+) (*typesv1.UserToken, error) {
 	userToken, err := tokenSource.GetUserToken(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("looking up local user state: %v", err)
 	}
-	authClient := authv1connect.NewAuthServiceClient(httpClient, apiURL)
+	authClient := authv1connect.NewAuthServiceClient(httpClient, apiURL, clOpts...)
 	if userToken == nil {
 		confirms := false
 		err := huh.NewConfirm().
@@ -67,7 +69,7 @@ func ensureLoggedIn(
 	} else {
 		// check that the token is valid
 		ll := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{}))
-		user, err := checkUserLoggedIn(ctx, ll, httpClient, apiURL, tokenSource)
+		user, err := checkUserLoggedIn(ctx, ll, httpClient, apiURL, tokenSource, clOpts)
 		if err != nil {
 			return nil, fmt.Errorf("requesting whoami: %v", err)
 		}
@@ -97,12 +99,12 @@ func ensureLoggedIn(
 	return userToken, nil
 }
 
-func checkUserLoggedIn(ctx context.Context, ll *slog.Logger, httpClient *http.Client, apiURL string, tokenSource *auth.UserRefreshableTokenSource) (*typesv1.User, error) {
-	clOpts := connect.WithInterceptors(
+func checkUserLoggedIn(ctx context.Context, ll *slog.Logger, httpClient *http.Client, apiURL string, tokenSource *auth.UserRefreshableTokenSource, clOpts []connect.ClientOption) (*typesv1.User, error) {
+	clOpts = append(clOpts, connect.WithInterceptors(
 		auth.Interceptors(ll, tokenSource)...,
-	)
+	))
 	cerr := new(connect.Error)
-	userClient := userv1connect.NewUserServiceClient(httpClient, apiURL, clOpts)
+	userClient := userv1connect.NewUserServiceClient(httpClient, apiURL, clOpts...)
 	res, err := userClient.Whoami(ctx, connect.NewRequest(&userv1.WhoamiRequest{}))
 	if errors.As(err, &cerr) && cerr.Code() == connect.CodeUnauthenticated {
 		return nil, nil
@@ -206,15 +208,16 @@ func ensureOrgSelected(
 	tokenSource *auth.UserRefreshableTokenSource,
 	apiURL string,
 	httpClient *http.Client,
+	clOpts []connect.ClientOption,
 ) (int64, error) {
 	if state.CurrentOrgID != nil {
 		return *state.CurrentOrgID, nil
 	}
-	clOpts := connect.WithInterceptors(
+	clOpts = append(clOpts, connect.WithInterceptors(
 		auth.Interceptors(ll, tokenSource)...,
-	)
+	))
 
-	client := userv1connect.NewUserServiceClient(httpClient, apiURL, clOpts)
+	client := userv1connect.NewUserServiceClient(httpClient, apiURL, clOpts...)
 	orgID, err := huhSelectOrganizations(ctx, client, "You belong to many orgs. Which one would you like to use?")
 	if err != nil {
 		return -1, err
@@ -260,17 +263,18 @@ func ensureEnvironmentSelected(
 	tokenSource *auth.UserRefreshableTokenSource,
 	apiURL string,
 	httpClient *http.Client,
+	clOpts []connect.ClientOption,
 	orgID int64,
 ) (int64, error) {
 	if state.CurrentEnvironmentID != nil {
 		return *state.CurrentEnvironmentID, nil
 	}
-	clOpts := connect.WithInterceptors(
+	clOpts = append(clOpts, connect.WithInterceptors(
 		auth.Interceptors(ll, tokenSource)...,
-	)
+	))
 
 	var options []huh.Option[*typesv1.Environment]
-	client := organizationv1connect.NewOrganizationServiceClient(httpClient, apiURL, clOpts)
+	client := organizationv1connect.NewOrganizationServiceClient(httpClient, apiURL, clOpts...)
 	iter := ListEnvironments(ctx, client)
 	for iter.Next() {
 		item := iter.Current().Environment

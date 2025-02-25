@@ -46,6 +46,7 @@ func queryCmd(
 	getTokenSource func(cctx *cli.Context) *auth.UserRefreshableTokenSource,
 	getAPIUrl func(cctx *cli.Context) string,
 	getHTTPClient func(cctx *cli.Context, apiURL string) *http.Client,
+	getConnectOpts func(*cli.Context) []connect.ClientOption,
 ) cli.Command {
 	return cli.Command{
 		Hidden: hideUnreleasedFeatures == "true",
@@ -64,6 +65,7 @@ func queryCmd(
 						getTokenSource,
 						getAPIUrl,
 						getHTTPClient,
+						getConnectOpts,
 					),
 					queryApiRunCmd(
 						getCtx,
@@ -73,6 +75,7 @@ func queryCmd(
 						getTokenSource,
 						getAPIUrl,
 						getHTTPClient,
+						getConnectOpts,
 					),
 				},
 			},
@@ -84,14 +87,15 @@ func queryCmd(
 			tokenSource := getTokenSource(cctx)
 			apiURL := getAPIUrl(cctx)
 			httpClient := getHTTPClient(cctx, apiURL)
-			_, err := ensureLoggedIn(ctx, cctx, state, tokenSource, apiURL, httpClient)
+			clOpts := getConnectOpts(cctx)
+			_, err := ensureLoggedIn(ctx, cctx, state, tokenSource, apiURL, httpClient, clOpts)
 			if err != nil {
 				return err
 			}
 			ll := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{}))
-			clOpts := connect.WithInterceptors(
+			clOpts = append(clOpts, connect.WithInterceptors(
 				auth.Interceptors(ll, tokenSource)...,
-			)
+			))
 			return query(ctx, state, apiURL, httpClient, clOpts)
 		},
 	}
@@ -102,13 +106,13 @@ func query(
 	state *state.State,
 	apiURL string,
 	httpClient *http.Client,
-	clOpts connect.ClientOption,
+	clOpts []connect.ClientOption,
 ) error {
 	var (
-		userClient         = userv1connect.NewUserServiceClient(httpClient, apiURL, clOpts)
-		organizationClient = organizationv1connect.NewOrganizationServiceClient(httpClient, apiURL, clOpts)
-		environmentClient  = environmentv1connect.NewEnvironmentServiceClient(httpClient, apiURL, clOpts)
-		queryClient        = queryv1connect.NewQueryServiceClient(httpClient, apiURL, clOpts)
+		userClient         = userv1connect.NewUserServiceClient(httpClient, apiURL, clOpts...)
+		organizationClient = organizationv1connect.NewOrganizationServiceClient(httpClient, apiURL, clOpts...)
+		environmentClient  = environmentv1connect.NewEnvironmentServiceClient(httpClient, apiURL, clOpts...)
+		queryClient        = queryv1connect.NewQueryServiceClient(httpClient, apiURL, clOpts...)
 	)
 	return tui.RunTUI(ctx, state, userClient, organizationClient, environmentClient, queryClient)
 }
@@ -121,6 +125,7 @@ func queryApiSummarizeCmd(
 	getTokenSource func(cctx *cli.Context) *auth.UserRefreshableTokenSource,
 	getAPIUrl func(cctx *cli.Context) string,
 	getHTTPClient func(cctx *cli.Context, apiURL string) *http.Client,
+	getConnectOpts func(cctx *cli.Context) []connect.ClientOption,
 ) cli.Command {
 	bucket := cli.IntFlag{Name: "buckets", Value: 20}
 	fromFlag := cli.DurationFlag{Name: "since", Value: 365 * 24 * time.Hour}
@@ -139,14 +144,15 @@ func queryApiSummarizeCmd(
 				tokenSource := getTokenSource(cctx)
 				apiURL := getAPIUrl(cctx)
 				httpClient := getHTTPClient(cctx, apiURL)
-				_, err := ensureLoggedIn(ctx, cctx, state, tokenSource, apiURL, httpClient)
+				clOpts := getConnectOpts(cctx)
+				_, err := ensureLoggedIn(ctx, cctx, state, tokenSource, apiURL, httpClient, clOpts)
 				if err != nil {
 					return err
 				}
-				clOpts := connect.WithInterceptors(
+				clOpts = append(clOpts, connect.WithInterceptors(
 					auth.Interceptors(ll, tokenSource)...,
-				)
-				queryClient = queryv1connect.NewQueryServiceClient(httpClient, apiURL, clOpts)
+				))
+				queryClient = queryv1connect.NewQueryServiceClient(httpClient, apiURL, clOpts...)
 			} else {
 				cfg := getCfg(cctx)
 				expcfg := cfg.GetRuntime().GetExperimentalFeatures()
@@ -272,6 +278,7 @@ func queryApiRunCmd(
 	getTokenSource func(cctx *cli.Context) *auth.UserRefreshableTokenSource,
 	getAPIUrl func(cctx *cli.Context) string,
 	getHTTPClient func(cctx *cli.Context, apiURL string) *http.Client,
+	getConnectOpts func(*cli.Context) []connect.ClientOption,
 ) cli.Command {
 	fromFlag := cli.DurationFlag{Name: "since", Value: 365 * 24 * time.Hour}
 	toFlag := cli.DurationFlag{Name: "to", Value: 0}
@@ -291,14 +298,15 @@ func queryApiRunCmd(
 				tokenSource := getTokenSource(cctx)
 				apiURL := getAPIUrl(cctx)
 				httpClient := getHTTPClient(cctx, apiURL)
-				_, err := ensureLoggedIn(ctx, cctx, state, tokenSource, apiURL, httpClient)
+				clOpts := getConnectOpts(cctx)
+				_, err := ensureLoggedIn(ctx, cctx, state, tokenSource, apiURL, httpClient, clOpts)
 				if err != nil {
 					return err
 				}
-				clOpts := connect.WithInterceptors(
+				clOpts = append(clOpts, connect.WithInterceptors(
 					auth.Interceptors(ll, tokenSource)...,
-				)
-				queryClient = queryv1connect.NewQueryServiceClient(httpClient, apiURL, clOpts)
+				))
+				queryClient = queryv1connect.NewQueryServiceClient(httpClient, apiURL, clOpts...)
 			} else {
 				cfg := getCfg(cctx)
 				expcfg := cfg.GetRuntime().GetExperimentalFeatures()

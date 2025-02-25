@@ -9,6 +9,7 @@ import (
 	"os"
 	"time"
 
+	"connectrpc.com/connect"
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/huh"
 	"github.com/humanlogio/api/go/svc/auth/v1/authv1connect"
@@ -30,6 +31,7 @@ func onboardingCmd(
 	getAPIUrl func(cctx *cli.Context) string,
 	getBaseSiteURL func(cctx *cli.Context) string,
 	getHTTPClient func(*cli.Context, string) *http.Client,
+	getConnectOpts func(*cli.Context) []connect.ClientOption,
 ) cli.Command {
 
 	runsAsService := func(cfg *config.Config) bool {
@@ -104,11 +106,12 @@ func onboardingCmd(
 			tokenSource := getTokenSource(cctx)
 			apiURL := getAPIUrl(cctx)
 			httpClient := getHTTPClient(cctx, apiURL)
+			clOpts := getConnectOpts(cctx)
 			// clOpts := connect.WithClientOptions(connect.WithInterceptors(auth.Interceptors(ll, tokenSource)...))
-			// userSvc := userv1connect.NewUserServiceClient(httpClient, apiURL, clOpts)
+			// userSvc := userv1connect.NewUserServiceClient(httpClient, apiURL, clOpts...)
 
 			loginfo("checking logged in status")
-			user, err := checkUserLoggedIn(ctx, ll, httpClient, apiURL, tokenSource)
+			user, err := checkUserLoggedIn(ctx, ll, httpClient, apiURL, tokenSource, clOpts)
 			if err != nil {
 				logwarn("unable to check if you're logged in: %v", err)
 			}

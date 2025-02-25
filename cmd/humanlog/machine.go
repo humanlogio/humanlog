@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"connectrpc.com/connect"
 	"github.com/humanlogio/humanlog/internal/pkg/config"
 	"github.com/humanlogio/humanlog/internal/pkg/state"
 	"github.com/humanlogio/humanlog/pkg/auth"
@@ -24,6 +25,7 @@ func machineCmd(
 	getTokenSource func(cctx *cli.Context) *auth.UserRefreshableTokenSource,
 	getAPIUrl func(cctx *cli.Context) string,
 	getHTTPClient func(cctx *cli.Context, apiURL string) *http.Client,
+	getConnectOpts func(*cli.Context) []connect.ClientOption,
 ) cli.Command {
 	return cli.Command{
 		Hidden: hideUnreleasedFeatures == "true",
@@ -35,7 +37,8 @@ func machineCmd(
 			tokenSource := getTokenSource(cctx)
 			apiURL := getAPIUrl(cctx)
 			httpClient := getHTTPClient(cctx, apiURL)
-			_, err := ensureLoggedIn(ctx, cctx, state, tokenSource, apiURL, httpClient)
+			clOpts := getConnectOpts(cctx)
+			_, err := ensureLoggedIn(ctx, cctx, state, tokenSource, apiURL, httpClient, clOpts)
 			if err != nil {
 				return err
 			}
@@ -52,7 +55,8 @@ func machineCmd(
 					tokenSource := getTokenSource(cctx)
 					apiURL := getAPIUrl(cctx)
 					httpClient := getHTTPClient(cctx, apiURL)
-					environmentToken, err := createIngestionToken(ctx, ll, cctx, state, tokenSource, apiURL, httpClient)
+					clOpts := getConnectOpts(cctx)
+					environmentToken, err := createIngestionToken(ctx, ll, cctx, state, tokenSource, apiURL, httpClient, clOpts)
 					if err != nil {
 						return fmt.Errorf("ingestion token couldn't be generated: %v", err)
 					}
