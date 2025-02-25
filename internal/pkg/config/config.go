@@ -336,6 +336,9 @@ func mergeRuntime(prev, next *typesv1.RuntimeConfig) *typesv1.RuntimeConfig {
 	if next.ExperimentalFeatures != nil {
 		out.ExperimentalFeatures = mergeRuntimeExperimentalFeatures(prev.GetExperimentalFeatures(), next.ExperimentalFeatures)
 	}
+	if next.ApiClient != nil {
+		out.ApiClient = mergeRuntimeClientConfig(prev.GetApiClient(), next.ApiClient)
+	}
 	return out
 }
 func mergeThemes(prev, next *typesv1.FormatConfig_Themes) *typesv1.FormatConfig_Themes {
@@ -471,6 +474,20 @@ func mergeRuntimeExperimentalFeatures(prev, next *typesv1.RuntimeConfig_Experime
 	}
 	if next.ServeLocalhost != nil {
 		out.ServeLocalhost = mergeRuntimeServeLocalhostConfig(prev.GetServeLocalhost(), next.ServeLocalhost)
+	}
+	return out
+}
+
+func mergeRuntimeClientConfig(prev, next *typesv1.RuntimeConfig_ClientConfig) *typesv1.RuntimeConfig_ClientConfig {
+	out := proto.Clone(prev).(*typesv1.RuntimeConfig_ClientConfig)
+	if out == nil {
+		out = new(typesv1.RuntimeConfig_ClientConfig)
+	}
+	if next.HttpProtocol != nil {
+		out.HttpProtocol = next.HttpProtocol
+	}
+	if next.RpcProtocol != nil {
+		out.RpcProtocol = next.RpcProtocol
 	}
 	return out
 }
