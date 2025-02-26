@@ -21,13 +21,13 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
+	_, err = GetDefaultLocalhostConfig()
+	if err != nil {
+		panic(err)
+	}
 }
 
 func GetDefaultConfig(releaseChannel string) (*Config, error) {
-	serveLocalhost, err := GetDefaultLocalhostConfig()
-	if err != nil {
-		return nil, err
-	}
 	return &Config{
 		Version: currentConfigVersion,
 		CurrentConfig: &typesv1.LocalhostConfig{
@@ -64,7 +64,6 @@ func GetDefaultConfig(releaseChannel string) (*Config, error) {
 				Features:            &typesv1.RuntimeConfig_Features{},
 				ExperimentalFeatures: &typesv1.RuntimeConfig_ExperimentalFeatures{
 					ReleaseChannel: &releaseChannel,
-					ServeLocalhost: serveLocalhost,
 				},
 			},
 		},

@@ -110,28 +110,28 @@ func onboardingCmd(
 			// clOpts := connect.WithClientOptions(connect.WithInterceptors(auth.Interceptors(ll, tokenSource)...))
 			// userSvc := userv1connect.NewUserServiceClient(httpClient, apiURL, clOpts...)
 
-			loginfo("checking logged in status")
+			logdebug("checking logged in status")
 			user, err := checkUserLoggedIn(ctx, ll, httpClient, apiURL, tokenSource, clOpts)
 			if err != nil {
 				logwarn("unable to check if you're logged in: %v", err)
 			}
 
 			defer func() {
-				loginfo("checking if should run humanlog as a service")
+				logdebug("checking if should run humanlog as a service")
 				if !runsAsService(cfg) {
-					loginfo("humanlog should not run as a servive")
+					logdebug("humanlog should not run as a servive")
 					return
 				}
-				loginfo("humanlog should run as a servive, enabling it")
+				logdebug("humanlog should run as a servive, enabling it (due to config)")
 				if err := ensureServiceEnabled(cctx); err != nil {
 					logerror("unable to configure humanlog service: %v", err)
 				} else {
-					loginfo("humanlog service is configured")
+					logdebug("humanlog service is configured")
 				}
 			}()
 
 			if !isTerminal(os.Stdout) || cctx.Bool(forceNonInteractiveFlag.Name) {
-				loginfo("stdout isn't a terminal, disabling interactive prompts")
+				logdebug("stdout isn't a terminal, disabling interactive prompts")
 				in := `# humanlog updates
 
 Hey there!
@@ -167,7 +167,7 @@ Bye! <3`
 
 			var fields []huh.Field
 			if promptQueryEngine {
-				loginfo("prompting about query engine")
+				logdebug("prompting about query engine")
 				wantsSignup = user == nil
 				var titleSignupExtra, titleDescriptionExtra string
 				if wantsSignup {
@@ -185,10 +185,10 @@ Bye! <3`
 				)
 				state.LastPromptedToEnableLocalhostAt = ptr(time.Now())
 			} else {
-				loginfo("not prompting about query engine")
+				logdebug("not prompting about query engine")
 			}
 			if promptSignup && !promptQueryEngine {
-				loginfo("prompting about signing up")
+				logdebug("prompting about signing up")
 				fields = append(fields,
 					huh.NewConfirm().
 						Title("New features are coming soon. Sign in to learn more.").
@@ -197,7 +197,7 @@ Bye! <3`
 				)
 				state.LastPromptedToSignupAt = ptr(time.Now())
 			} else {
-				loginfo("not prompting about signing up")
+				logdebug("not prompting about signing up")
 			}
 			if len(fields) > 0 {
 				err := huh.NewForm(huh.NewGroup(fields...)).WithTheme(huhTheme).Run()

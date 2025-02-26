@@ -33,6 +33,7 @@ func configCmd(
 	getHTTPClient func(cctx *cli.Context, apiURL string) *http.Client,
 	getConnectOpts func(cctx *cli.Context) []connect.ClientOption,
 ) cli.Command {
+
 	return cli.Command{
 		Hidden:    hideUnreleasedFeatures == "true",
 		Name:      configCmdName,
@@ -94,6 +95,108 @@ func configCmd(
 					}
 					_, err = os.Stdout.Write(out)
 					return err
+				},
+			},
+			{
+				Name: "enable",
+				Subcommands: []cli.Command{
+					{
+						Name:        "localhost",
+						Usage:       "(experimental) enables the localhost query engine",
+						Description: "(experimental) enables the localhost query engine",
+						Action: func(cctx *cli.Context) error {
+							ctx := getCtx(cctx)
+							cfg := getCfg(cctx)
+							if cfg.Runtime == nil {
+								cfg.Runtime = &typesv1.RuntimeConfig{}
+							}
+							if cfg.Runtime.ExperimentalFeatures == nil {
+								cfg.Runtime.ExperimentalFeatures = &typesv1.RuntimeConfig_ExperimentalFeatures{}
+							}
+							localhostCfg, err := config.GetDefaultLocalhostConfig()
+							if err != nil {
+								return fmt.Errorf("getting default localhost config: %v", err)
+							}
+							cfg.Runtime.ExperimentalFeatures.ServeLocalhost = localhostCfg
+							if err := cfg.WriteBack(); err != nil {
+								return fmt.Errorf("enabling localhost feature: %v", err)
+							}
+							svc, err := prepareServiceCmd(cctx,
+								getCtx,
+								getLogger,
+								getCfg,
+								getState,
+								getTokenSource,
+								getAPIUrl,
+								getBaseSiteURL,
+								getHTTPClient,
+							)
+							if err != nil {
+								return fmt.Errorf("failed to get humanlog service details: %v", err)
+							}
+							// in case it already ran
+							if err = svc.Stop(ctx); err != nil {
+								logdebug("failed to stop if already started: %v", err)
+							}
+							if err := svc.Uninstall(); err != nil {
+								logdebug("failed to uninstall service if already installed: %v", err)
+							}
+							if err := svc.Install(); err != nil {
+								return fmt.Errorf("installing humanlog service: %v", err)
+							}
+							if err := svc.Start(ctx); err != nil {
+								return fmt.Errorf("installing humanlog service: %v", err)
+							}
+							loginfo("localhost query engine enabled")
+							return nil
+						},
+					},
+				},
+			},
+			{
+				Name: "disable",
+				Subcommands: []cli.Command{
+					{
+						Name:        "localhost",
+						Usage:       "(experimental) disables the localhost query engine",
+						Description: "(experimental) disables the localhost query engine",
+						Action: func(cctx *cli.Context) error {
+							ctx := getCtx(cctx)
+							cfg := getCfg(cctx)
+							if cfg.Runtime == nil {
+								cfg.Runtime = &typesv1.RuntimeConfig{}
+							}
+							if cfg.Runtime.ExperimentalFeatures == nil {
+								cfg.Runtime.ExperimentalFeatures = &typesv1.RuntimeConfig_ExperimentalFeatures{}
+							}
+							cfg.Runtime.ExperimentalFeatures.ServeLocalhost = nil
+							if err := cfg.WriteBack(); err != nil {
+								return fmt.Errorf("enabling localhost feature: %v", err)
+							}
+							svc, err := prepareServiceCmd(cctx,
+								getCtx,
+								getLogger,
+								getCfg,
+								getState,
+								getTokenSource,
+								getAPIUrl,
+								getBaseSiteURL,
+								getHTTPClient,
+							)
+							if err != nil {
+								return fmt.Errorf("failed to get humanlog service details: %v", err)
+							}
+							// in case it already ran
+							if err = svc.Stop(ctx); err != nil {
+								logdebug("failed to stop if already started: %v", err)
+							}
+							if err := svc.Uninstall(); err != nil {
+								logdebug("failed to uninstall service if already installed: %v", err)
+							}
+							loginfo("localhost query engine disabled")
+							return nil
+						},
+					},
 				},
 			},
 			{
