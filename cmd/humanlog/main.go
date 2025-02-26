@@ -80,7 +80,6 @@ var (
 		base.Blurred.BlurredButton = base.Focused.BlurredButton.Bold(false).Underline(false).Strikethrough(true)
 		return base
 	}()
-	accessibleTUI = os.Getenv("HUMANLOG_ACCESSIBILITY") == "true"
 )
 
 func fatalf(c *cli.Context, format string, args ...interface{}) {

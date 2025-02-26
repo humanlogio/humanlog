@@ -27,7 +27,26 @@ func init() {
 	}
 }
 
+const (
+	runLocalhostByDefault    = false
+	sendLogsToCloudByDefault = false
+)
+
 func GetDefaultConfig(releaseChannel string) (*Config, error) {
+	var (
+		serveLocalhostCfg *typesv1.ServeLocalhostConfig
+		sendLogsToCloud   *bool
+		err               error
+	)
+	if runLocalhostByDefault {
+		serveLocalhostCfg, err = GetDefaultLocalhostConfig()
+		if err != nil {
+			return nil, err
+		}
+	}
+	if sendLogsToCloudByDefault {
+		sendLogsToCloud = ptr(true)
+	}
 	return &Config{
 		Version: currentConfigVersion,
 		CurrentConfig: &typesv1.LocalhostConfig{
@@ -63,7 +82,9 @@ func GetDefaultConfig(releaseChannel string) (*Config, error) {
 				SkipCheckForUpdates: ptr(false),
 				Features:            &typesv1.RuntimeConfig_Features{},
 				ExperimentalFeatures: &typesv1.RuntimeConfig_ExperimentalFeatures{
-					ReleaseChannel: &releaseChannel,
+					ReleaseChannel:  &releaseChannel,
+					SendLogsToCloud: sendLogsToCloud,
+					ServeLocalhost:  serveLocalhostCfg,
 				},
 			},
 		},
