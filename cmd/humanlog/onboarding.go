@@ -158,7 +158,9 @@ Bye! <3`
 			expcfg := cfg.GetRuntime().GetExperimentalFeatures()
 
 			promptSignup := state.LastPromptedToSignupAt == nil && (user == nil)
-			promptQueryEngine := state.LastPromptedToEnableLocalhostAt == nil && (expcfg == nil || expcfg.ServeLocalhost == nil)
+
+			queryEngineIsExperimental := true
+			promptQueryEngine := !queryEngineIsExperimental && state.LastPromptedToEnableLocalhostAt == nil && (expcfg == nil || expcfg.ServeLocalhost == nil)
 
 			var (
 				wantsSignup      = promptSignup && true
@@ -209,7 +211,7 @@ Bye! <3`
 				}
 			}
 
-			if wantsSignup {
+			if wantsSignup || wantsQueryEngine {
 				loginfo("awesome, thanks for your interest!")
 
 				authClient := authv1connect.NewAuthServiceClient(httpClient, apiURL)
