@@ -100,6 +100,34 @@ func TestConfig_populateEmpty(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "respect update to localhost defaults",
+			input: Config{
+				CurrentConfig: &typesv1.LocalhostConfig{
+					Runtime: &typesv1.RuntimeConfig{
+						ExperimentalFeatures: &typesv1.RuntimeConfig_ExperimentalFeatures{
+							ServeLocalhost: &typesv1.ServeLocalhostConfig{
+								Port:   32764,
+								Engine: "hello world",
+							},
+						},
+					},
+				},
+			},
+			defaultCfg: &Config{},
+			want: &Config{
+				CurrentConfig: &typesv1.LocalhostConfig{
+					Runtime: &typesv1.RuntimeConfig{
+						ExperimentalFeatures: &typesv1.RuntimeConfig_ExperimentalFeatures{
+							ServeLocalhost: &typesv1.ServeLocalhostConfig{
+								Port:   32764,
+								Engine: "hello world",
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

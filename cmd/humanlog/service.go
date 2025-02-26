@@ -358,6 +358,8 @@ func (hdl *serviceHandler) run(ctx context.Context, cancel context.CancelFunc) e
 	cfg := hdl.config.GetRuntime()
 	hdl.cancel = cancel
 
+	hdl.ll.InfoContext(ctx, "service handler starting", slog.Any("runtime_config", cfg))
+
 	eg, ctx := errgroup.WithContext(ctx)
 
 	if cfg != nil && cfg.ExperimentalFeatures != nil && cfg.ExperimentalFeatures.ServeLocalhost != nil {
@@ -386,6 +388,8 @@ func (hdl *serviceHandler) run(ctx context.Context, cancel context.CancelFunc) e
 			cancel()
 			return nil
 		})
+	} else {
+		hdl.ll.InfoContext(ctx, "not running with localhost")
 	}
 
 	eg.Go(func() error {

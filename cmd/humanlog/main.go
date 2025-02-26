@@ -231,9 +231,9 @@ func newApp() *cli.App {
    attempting to make detected logs prettier on stdout.`
 	if hideUnreleasedFeatures != "true" {
 		app.Description += `
-   It also allows searching
-   the logs that were parsed, both in a TUI by pressing "s" or in a
-   webapp by pressing "space".
+   It also allows searching the logs that were parsed. Run a query with:
+
+      humanlog query 'summarize count() by msg'
 
    If registered to ingest logs via "humanlog machine register" logs
    will be saved to humanlog.io for vizualization, searching and
@@ -493,7 +493,7 @@ func newApp() *cli.App {
 		organizationCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getHTTPClient, getConnectOpts),
 		environmentCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getHTTPClient, getConnectOpts),
 		machineCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getHTTPClient, getConnectOpts),
-		queryCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getHTTPClient, getConnectOpts),
+		queryCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getBaseSiteURL, getHTTPClient, getConnectOpts),
 		gennyCmd(getCtx, getLogger, getCfg, getState),
 	)
 	app.Flags = []cli.Flag{configFlag, skipFlag, keepFlag, sortLongest, skipUnchanged, truncates, truncateLength, colorFlag, timeFormat, ignoreInterrupts, messageFieldsFlag, timeFieldsFlag, levelFieldsFlag, apiServerAddr, baseSiteServerAddr, debug, useHTTP1, useProtocol}

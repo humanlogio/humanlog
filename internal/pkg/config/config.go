@@ -520,6 +520,7 @@ func mergeRuntimeServeLocalhostConfig(prev, next *typesv1.ServeLocalhostConfig) 
 	// next overrides everything, but not
 	// - ShowInSystray
 	// - LogDir
+	out.Port = next.Port
 	out.Engine = next.Engine
 	out.EngineConfig = next.EngineConfig
 	if next.ShowInSystray != nil {

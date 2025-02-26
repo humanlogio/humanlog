@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -29,6 +31,7 @@ import (
 	"github.com/humanlogio/humanlog/pkg/auth"
 	"github.com/humanlogio/humanlog/pkg/sink/stdiosink"
 	"github.com/humanlogio/humanlog/pkg/tui"
+	"github.com/pkg/browser"
 	"github.com/urfave/cli"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -45,17 +48,18 @@ func queryCmd(
 	getState func(cctx *cli.Context) *state.State,
 	getTokenSource func(cctx *cli.Context) *auth.UserRefreshableTokenSource,
 	getAPIUrl func(cctx *cli.Context) string,
+	getBaseSiteURL func(cctx *cli.Context) string,
 	getHTTPClient func(cctx *cli.Context, apiURL string) *http.Client,
 	getConnectOpts func(*cli.Context) []connect.ClientOption,
 ) cli.Command {
 	return cli.Command{
-		Hidden: hideUnreleasedFeatures == "true",
-		Name:   queryCmdName,
-		Usage:  "Query your logs",
+		Name:  queryCmdName,
+		Usage: "Query your logs",
 
 		Subcommands: []cli.Command{
 			{
-				Name: "api",
+				Hidden: hideUnreleasedFeatures == "true",
+				Name:   "api",
 				Subcommands: []cli.Command{
 					queryApiSummarizeCmd(
 						getCtx,
@@ -82,21 +86,20 @@ func queryCmd(
 		},
 
 		Action: func(cctx *cli.Context) error {
-			ctx := getCtx(cctx)
-			state := getState(cctx)
-			tokenSource := getTokenSource(cctx)
-			apiURL := getAPIUrl(cctx)
-			httpClient := getHTTPClient(cctx, apiURL)
-			clOpts := getConnectOpts(cctx)
-			_, err := ensureLoggedIn(ctx, cctx, state, tokenSource, apiURL, httpClient, clOpts)
+			// ctx := getCtx(cctx)
+			q := strings.Join(cctx.Args(), " ")
+			log.Printf("query=%q", q)
+			baseSiteURL := getBaseSiteURL(cctx)
+
+			baseSiteU, err := url.Parse(baseSiteURL)
 			if err != nil {
-				return err
+				return fmt.Errorf("parsing base url: %v", err)
 			}
-			ll := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{}))
-			clOpts = append(clOpts, connect.WithInterceptors(
-				auth.Interceptors(ll, tokenSource)...,
-			))
-			return query(ctx, state, apiURL, httpClient, clOpts)
+			queryu := baseSiteU.JoinPath("/localhost")
+			v := queryu.Query()
+			v.Set("query", q)
+			queryu.RawQuery = v.Encode()
+			return browser.OpenURL(queryu.String())
 		},
 	}
 }
