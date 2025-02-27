@@ -35,7 +35,6 @@ func configCmd(
 ) cli.Command {
 
 	return cli.Command{
-		Hidden:    hideUnreleasedFeatures == "true",
 		Name:      configCmdName,
 		ShortName: "cfg",
 		Usage:     "Manipulate humanlog's configuration.",
