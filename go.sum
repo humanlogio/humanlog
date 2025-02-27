@@ -122,8 +122,8 @@ github.com/hexops/gotextdiff v1.0.3 h1:gitA9+qJrrTCsiCl7+kh75nPqQt1cx4ZkudSTLoUq
 github.com/hexops/gotextdiff v1.0.3/go.mod h1:pSWU5MAI3yDq+fZBTazCSJysOMbxWL1BSow5/V2vxeg=
 github.com/humanlogio/api/go v0.0.0-20250225132714-12a7d1043c75 h1:oHaOCO4eu8b6LE+Dr8tWE5fCXWdNBx9J5O+hFCstCuA=
 github.com/humanlogio/api/go v0.0.0-20250225132714-12a7d1043c75/go.mod h1:sjMKAl97fvxNckIhcGWAxZwv6+c+I0thx5QvMc1ifaM=
-github.com/humanlogio/humanlog-pro v0.0.0-20250225114213-faa8df65dbeb h1:v05Nof2k7B6ze8MPISaDVHnQoNlf3qMdizRrlHxJk5o=
-github.com/humanlogio/humanlog-pro v0.0.0-20250225114213-faa8df65dbeb/go.mod h1:mXH8reE8W1LnCX6jcADhPFPJe+ZZg4EiLWXrNHo+PLU=
+github.com/humanlogio/humanlog-pro v0.0.0-20250227085034-dcd3cde1b327 h1:aJymDICY5I+kJflYjakkUC/RiUUp+50uD6kAizAYAWs=
+github.com/humanlogio/humanlog-pro v0.0.0-20250227085034-dcd3cde1b327/go.mod h1:Myvc8nEr9cOd8bFO7dz1ckb7MkivG7MT+T+86LY+ZQE=
 github.com/kardianos/service v1.2.2 h1:ZvePhAHfvo0A7Mftk/tEzqEZ7Q4lgnR8sGz4xu1YX60=
 github.com/kardianos/service v1.2.2/go.mod h1:CIMRFEJVL+0DS1a3Nx06NaMn4Dz63Ng6O7dl0qH0zVM=
 github.com/klauspost/asmfmt v1.3.2 h1:4Ri7ox3EwapiOjCki+hw14RyKk201CN4rzyCJRFLpK4=
