@@ -84,6 +84,7 @@ jobs:
           HUMANLOG_GOTAGS: ${{ matrix.targets.tags }}
           GOOS: ${{ matrix.targets.goos }}
           GOARCH: ${{ matrix.targets.goarch }}
+          HUMANLOG_IS_PROD_BUILD: 'true'
       - uses: actions/upload-artifact@v4
         with:
           name: humanlog-bins-${{ matrix.targets.goos }}-${{ matrix.targets.goarch }}
