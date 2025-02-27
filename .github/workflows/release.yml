@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       channel:
-        description: 'Release channel'
+        description: 'Release channel, defaults to `weekly` for safety. Prefer tags to trigger a `main` release.'
         required: true
-        default: 'main'
+        default: 'weekly'
         type: choice
         options:
         - main
