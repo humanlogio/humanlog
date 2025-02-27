@@ -102,6 +102,7 @@ function main() {
         ldflags+=" -X main.defaultReleaseChannel=dev"
     else
         ldflags+=" -X main.versionPrerelease="
+        ldflags+=" -X main.hideUnreleasedFeatures=true"
         ldflags+=" -X main.defaultApiAddr=https://api.humanlog.io"
         ldflags+=" -X main.defaultBaseSiteAddr=https://humanlog.io"
         ldflags+=" -X main.defaultReleaseChannel=main"
