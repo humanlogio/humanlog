@@ -4,7 +4,7 @@ set -euox pipefail
 
 root=$(git rev-parse --show-toplevel)
 
-is_prod_build="${IS_PROD_BUILD:-}"
+is_prod_build="${HUMANLOG_IS_PROD_BUILD:-}"
 api_url="${API_URL:-"https://api.humanlog.io"}"
 channel="${CHANNEL:-main}"
 project="${PROJECT:-humanlog}"
