@@ -221,7 +221,7 @@ func newApp() *cli.App {
 
 	app := cli.NewApp()
 	app.Author = "humanlog.io"
-	app.Email = "antoine@webscale.lol"
+	app.Email = "support@webscale.lol"
 	app.Name = "humanlog"
 	app.Version = semverVersion.String()
 	app.Usage = "reads structured logs from stdin, makes them pretty on stdout!"

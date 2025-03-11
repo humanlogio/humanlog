@@ -82,6 +82,13 @@ func TestTimeParseFloat64(t *testing.T) {
 			t.Fatal(tm.UnixNano())
 		}
 	})
+	t.Run("f64 timestamp with nanosec", func(t *testing.T) {
+		input := float64(1540369190.123456)
+		want := time.Unix(1540369190, 123456000)
+		got := parseTimeFloat64(input)
+
+		require.WithinDuration(t, want, got, time.Microsecond)
+	})
 }
 
 func TestTryParseFloatTime(t *testing.T) {
