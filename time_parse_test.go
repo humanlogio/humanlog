@@ -126,5 +126,21 @@ func TestTryParseFloatTime(t *testing.T) {
 			t.Fatalf("time not equal: %d != %d", actualTime.Unix(), testTime.Unix())
 		}
 	})
+}
 
+func TestTimeFormats(t *testing.T) {
+	tests := []struct {
+		name string
+		in   any
+		want time.Time
+	}{
+		{"adhoc", "2025-03-24T10:30:06.002", time.Date(2025, 3, 24, 10, 30, 6, 2000000, time.UTC)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := tryParseTime(tt.in)
+			require.True(t, ok)
+			require.Equal(t, tt.want, got)
+		})
+	}
 }
