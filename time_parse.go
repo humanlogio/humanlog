@@ -27,6 +27,7 @@ var TimeFormats = []string{
 	"2006/01/02 15:04:05",
 	"2006/01/02 15:04:05.999999999",
 	"06-01-02 15:04:05,999",
+	"2006-01-02T15:04:06.999999999",
 }
 
 func parseTimeFloat64(value float64) time.Time {
@@ -38,7 +39,9 @@ func parseTimeFloat64(value float64) time.Time {
 	case v > 1e12:
 		v *= 1e6
 	default:
-		return fixTimebeforeUnixZero(time.Unix(v, 0))
+		decimals := value - float64(v)
+		nsec := int64(decimals * float64(time.Second))
+		return fixTimebeforeUnixZero(time.Unix(v, nsec))
 	}
 
 	return fixTimebeforeUnixZero(time.Unix(v/1e9, v%1e9))
