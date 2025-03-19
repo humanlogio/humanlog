@@ -1,0 +1,31 @@
+{
+  "skip": null,
+  "keep": [
+    "peers*"
+  ],
+  "time-fields": [
+    "time",
+    "ts",
+    "@timestamp",
+    "timestamp"
+  ],
+  "message-fields": [
+    "message",
+    "msg"
+  ],
+  "level-fields": [
+    "level",
+    "lvl",
+    "loglevel",
+    "severity"
+  ],
+  "sort-longest": true,
+  "skip-unchanged": true,
+  "truncates": false,
+  "light-bg": false,
+  "color-mode": "off",
+  "truncate-length": 15,
+  "time-format": "Jan _2 15:04:05.000",
+  "time-zone": "UTC",
+  "palette": null
+}
