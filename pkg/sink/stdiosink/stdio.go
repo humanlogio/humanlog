@@ -14,6 +14,7 @@ import (
 	"github.com/humanlogio/api/go/pkg/logql"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
 	"github.com/humanlogio/humanlog/pkg/sink"
+	"github.com/ryanuber/go-glob"
 )
 
 var (
@@ -32,8 +33,8 @@ type Stdio struct {
 }
 
 type StdioOpts struct {
-	Keep              map[string]struct{}
-	Skip              map[string]struct{}
+	Keep              []string
+	Skip              []string
 	SkipUnchanged     bool
 	SortLongest       bool
 	TimeFormat        string
@@ -66,10 +67,10 @@ func StdioOptsFrom(cfg *typesv1.FormatConfig) (StdioOpts, []error) {
 	var errs []error
 	opts := DefaultStdioOpts
 	if cfg.SkipFields != nil && len(cfg.SkipFields) > 0 {
-		opts.Skip = sliceToSet(cfg.SkipFields)
+		opts.Skip = cfg.SkipFields
 	}
 	if cfg.KeepFields != nil && len(cfg.KeepFields) > 0 {
-		opts.Keep = sliceToSet(cfg.KeepFields)
+		opts.Keep = cfg.KeepFields
 	}
 	if cfg.SortLongest != nil {
 		opts.SortLongest = *cfg.SortLongest
@@ -325,13 +326,17 @@ func (std *Stdio) joinKVs(data *typesv1.StructuredLogEvent, sep string) []string
 
 func (opts *StdioOpts) shouldShowKey(key string) bool {
 	if len(opts.Keep) != 0 {
-		if _, keep := opts.Keep[key]; keep {
-			return true
+		for _, keep := range opts.Keep {
+			if glob.Glob(keep, key) {
+				return true
+			}
 		}
 	}
 	if len(opts.Skip) != 0 {
-		if _, skip := opts.Skip[key]; skip {
-			return false
+		for _, skip := range opts.Skip {
+			if glob.Glob(skip, key) {
+				return false
+			}
 		}
 	}
 	return true
@@ -339,8 +344,10 @@ func (opts *StdioOpts) shouldShowKey(key string) bool {
 
 func (opts *StdioOpts) shouldShowUnchanged(key string) bool {
 	if len(opts.Keep) != 0 {
-		if _, keep := opts.Keep[key]; keep {
-			return true
+		for _, keep := range opts.Keep {
+			if glob.Glob(keep, key) {
+				return true
+			}
 		}
 	}
 	return false
@@ -357,15 +364,4 @@ func imin(a, b int) int {
 		return a
 	}
 	return b
-}
-
-func sliceToSet(arr []string) map[string]struct{} {
-	if arr == nil {
-		return nil
-	}
-	out := make(map[string]struct{})
-	for _, key := range arr {
-		out[key] = struct{}{}
-	}
-	return out
 }
