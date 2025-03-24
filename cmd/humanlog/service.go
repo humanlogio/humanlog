@@ -39,9 +39,13 @@ import (
 	ksvc "github.com/kardianos/service"
 	"github.com/rs/cors"
 	"github.com/urfave/cli"
+	otlplogssvcpb "go.opentelemetry.io/proto/otlp/collector/logs/v1"
+	otlpmetricssvcpb "go.opentelemetry.io/proto/otlp/collector/metrics/v1"
+	otlptracesvcpb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/grpc"
 
 	// imported for side-effect of `init()` registration
 	_ "github.com/humanlogio/humanlog/internal/diskstorage"
@@ -370,6 +374,8 @@ func (hdl *serviceHandler) run(ctx context.Context, cancel context.CancelFunc) e
 				return fmt.Errorf("please sign in with the systray button, or via `humanlog auth login`")
 			},
 			Features: hdl.featureSvc,
+			Config:   hdl.config,
+			State:    hdl.state,
 		}
 		registerOnCloseServer := func(srv *http.Server) {
 			hdl.onCloseMu.Lock()
@@ -474,6 +480,18 @@ func (hdl *serviceHandler) runLocalhost(
 	defer l.Close()
 	ll.InfoContext(ctx, "obtained listener")
 
+	var otlpl net.Listener
+	if localhostCfg.Otlp != nil && localhostCfg.Otlp.Port != localhostCfg.Port {
+		otlpPort := int(localhostCfg.Otlp.Port)
+		ll.InfoContext(ctx, "requesting listener for address (OTLP service)", slog.Int("port", otlpPort))
+		otlpl, err = net.Listen("localhost", strconv.Itoa(otlpPort))
+		if err != nil {
+			return fmt.Errorf("listening on OTLP port: %v", err)
+		}
+		defer otlpl.Close()
+		ll.InfoContext(ctx, "obtained OTLP listener")
+	}
+
 	ll.InfoContext(ctx, "opening storage engine")
 	storage, err := localstorage.Open(
 		ctx,
@@ -528,7 +546,30 @@ func (hdl *serviceHandler) runLocalhost(
 	registerOnCloseServer(srv)
 
 	ll.InfoContext(ctx, "serving localhost services")
-	if err := srv.Serve(l); err != nil && !errors.Is(err, http.ErrServerClosed) {
+
+	eg, ctx := errgroup.WithContext(ctx)
+	if otlpl != nil {
+		// otel receiver handlers
+		gsrv := grpc.NewServer()
+		otlplogssvcpb.RegisterLogsServiceServer(gsrv, localhostsvc.AsLoggingOTLP())
+		otlpmetricssvcpb.RegisterMetricsServiceServer(gsrv, localhostsvc.AsMetricsOTLP())
+		otlptracesvcpb.RegisterTraceServiceServer(gsrv, localhostsvc.AsTracingOTLP())
+		eg.Go(func() error {
+			if err := gsrv.Serve(otlpl); err != nil {
+				ll.ErrorContext(ctx, "otlp server errored", slog.Any("err", err))
+				return err
+			}
+			return nil
+		})
+	}
+	eg.Go(func() error {
+		if err := srv.Serve(l); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			ll.ErrorContext(ctx, "query engine server errored", slog.Any("err", err))
+			return err
+		}
+		return nil
+	})
+	if err := eg.Wait(); err != nil {
 		return err
 	}
 	ll.InfoContext(ctx, "stopped serving localhost services")
