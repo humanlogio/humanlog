@@ -8,12 +8,19 @@ import (
 
 	"github.com/humanlogio/api/go/svc/feature/v1/featurev1connect"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
+	"github.com/humanlogio/humanlog/internal/pkg/config"
+	"github.com/humanlogio/humanlog/internal/pkg/state"
 	"github.com/humanlogio/humanlog/pkg/sink"
+	otlplogssvcpb "go.opentelemetry.io/proto/otlp/collector/logs/v1"
+	otlpmetricssvcpb "go.opentelemetry.io/proto/otlp/collector/metrics/v1"
+	otlptracesvcpb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 )
 
 type AppCtx struct {
 	EnsureLoggedIn func(ctx context.Context) error
 	Features       featurev1connect.FeatureServiceClient
+	Config         *config.Config
+	State          *state.State
 }
 
 type StorageBuilder func(
@@ -46,6 +53,22 @@ type Storage interface {
 	SinkFor(ctx context.Context, machineID, sessionID int64) (_ sink.Sink, heartbeatIn time.Duration, _ error)
 	Heartbeat(ctx context.Context, machineID, sessionID int64) (time.Duration, error)
 	Close() error
+
+	OTLPLogger
+	OTLPTracer
+	OTLPMeter
+}
+
+type OTLPLogger interface {
+	ExportLogs(ctx context.Context, req *otlplogssvcpb.ExportLogsServiceRequest) (*otlplogssvcpb.ExportLogsServiceResponse, error)
+}
+
+type OTLPTracer interface {
+	ExportTraces(ctx context.Context, req *otlptracesvcpb.ExportTraceServiceRequest) (*otlptracesvcpb.ExportTraceServiceResponse, error)
+}
+
+type OTLPMeter interface {
+	ExportMetrics(ctx context.Context, req *otlpmetricssvcpb.ExportMetricsServiceRequest) (*otlpmetricssvcpb.ExportMetricsServiceResponse, error)
 }
 
 type Queryable interface {

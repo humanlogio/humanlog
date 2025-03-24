@@ -71,6 +71,10 @@ var (
 	_ qrsvcpb.QueryServiceHandler     = (*Service)(nil)
 )
 
+func (svc *Service) AsLoggingOTLP() *LoggingOTLP { return newLoggingOTLP(svc) }
+func (svc *Service) AsTracingOTLP() *TracingOTLP { return newTracingOTLP(svc) }
+func (svc *Service) AsMetricsOTLP() *MetricsOTLP { return newMetricsOTLP(svc) }
+
 func (svc *Service) Ping(ctx context.Context, req *connect.Request[lhv1.PingRequest]) (*connect.Response[lhv1.PingResponse], error) {
 	res := &lhv1.PingResponse{
 		ClientVersion: svc.ownVersion,

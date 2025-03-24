@@ -111,6 +111,9 @@ func GetDefaultLocalhostConfig() (*typesv1.ServeLocalhostConfig, error) {
 		EngineConfig:  engineConfig,
 		ShowInSystray: ptr(true),
 		LogDir:        ptr(logDir),
+		Otlp: &typesv1.ServeLocalhostConfig_OTLP{
+			Port: 4318,
+		},
 	}, nil
 }
 
