@@ -104,6 +104,7 @@ require (
 	github.com/yuin/goldmark v1.7.4 // indirect
 	github.com/yuin/goldmark-emoji v1.0.3 // indirect
 	github.com/zeebo/xxh3 v1.0.2 // indirect
+	go.opentelemetry.io/collector/semconv v0.122.1 // indirect
 	go.opentelemetry.io/otel v1.35.0 // indirect
 	golang.org/x/mod v0.21.0 // indirect
 	golang.org/x/term v0.27.0 // indirect

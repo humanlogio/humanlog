@@ -532,6 +532,18 @@ func mergeRuntimeServeLocalhostConfig(prev, next *typesv1.ServeLocalhostConfig) 
 	if next.LogDir != nil {
 		out.LogDir = next.LogDir
 	}
+	if next.Otlp != nil {
+		out.Otlp = mergeRuntimeServeLocalhostConfigOltp(prev.GetOtlp(), next.Otlp)
+	}
+	return out
+}
+
+func mergeRuntimeServeLocalhostConfigOltp(prev, next *typesv1.ServeLocalhostConfig_OTLP) *typesv1.ServeLocalhostConfig_OTLP {
+	out := proto.Clone(prev).(*typesv1.ServeLocalhostConfig_OTLP)
+	if out == nil {
+		out = new(typesv1.ServeLocalhostConfig_OTLP)
+	}
+	out.Port = next.Port
 	return out
 }
 

@@ -483,8 +483,9 @@ func (hdl *serviceHandler) runLocalhost(
 	var otlpl net.Listener
 	if localhostCfg.Otlp != nil && localhostCfg.Otlp.Port != localhostCfg.Port {
 		otlpPort := int(localhostCfg.Otlp.Port)
-		ll.InfoContext(ctx, "requesting listener for address (OTLP service)", slog.Int("port", otlpPort))
-		otlpl, err = net.Listen("localhost", strconv.Itoa(otlpPort))
+		localhostOtlpAddr := net.JoinHostPort("localhost", strconv.Itoa(otlpPort))
+		ll.InfoContext(ctx, "requesting listener for address (OTLP service)", slog.String("addr", localhostOtlpAddr))
+		otlpl, err = net.Listen("tcp", localhostOtlpAddr)
 		if err != nil {
 			return fmt.Errorf("listening on OTLP port: %v", err)
 		}
