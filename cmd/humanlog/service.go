@@ -480,17 +480,30 @@ func (hdl *serviceHandler) runLocalhost(
 	defer l.Close()
 	ll.InfoContext(ctx, "obtained listener")
 
-	var otlpl net.Listener
-	if localhostCfg.Otlp != nil && localhostCfg.Otlp.Port != localhostCfg.Port {
-		otlpPort := int(localhostCfg.Otlp.Port)
-		localhostOtlpAddr := net.JoinHostPort("localhost", strconv.Itoa(otlpPort))
-		ll.InfoContext(ctx, "requesting listener for address (OTLP service)", slog.String("addr", localhostOtlpAddr))
-		otlpl, err = net.Listen("tcp", localhostOtlpAddr)
+	var otlpGrpcL net.Listener
+	if localhostCfg.Otlp != nil {
+		otlpGrpcPort := int(localhostCfg.Otlp.GrpcPort)
+		localhostOtlpAddr := net.JoinHostPort("localhost", strconv.Itoa(otlpGrpcPort))
+		ll.InfoContext(ctx, "requesting listener for address (OTLP gRPC service)", slog.String("addr", localhostOtlpAddr))
+		otlpGrpcL, err = net.Listen("tcp", localhostOtlpAddr)
 		if err != nil {
-			return fmt.Errorf("listening on OTLP port: %v", err)
+			return fmt.Errorf("listening on OTLP gRPC port: %v", err)
 		}
-		defer otlpl.Close()
-		ll.InfoContext(ctx, "obtained OTLP listener")
+		defer otlpGrpcL.Close()
+		ll.InfoContext(ctx, "obtained OTLP gRPC listener")
+	}
+
+	var otlpHttpL net.Listener
+	if localhostCfg.Otlp != nil && localhostCfg.Otlp.HttpPort != localhostCfg.Port {
+		otlpHttpPort := int(localhostCfg.Otlp.HttpPort)
+		localhostOtlpAddr := net.JoinHostPort("localhost", strconv.Itoa(otlpHttpPort))
+		ll.InfoContext(ctx, "requesting listener for address (OTLP HTTP service)", slog.String("addr", localhostOtlpAddr))
+		otlpHttpL, err = net.Listen("tcp", localhostOtlpAddr)
+		if err != nil {
+			return fmt.Errorf("listening on OTLP HTTP port: %v", err)
+		}
+		defer otlpHttpL.Close()
+		ll.InfoContext(ctx, "obtained OTLP HTTP listener")
 	}
 
 	ll.InfoContext(ctx, "opening storage engine")
@@ -549,19 +562,22 @@ func (hdl *serviceHandler) runLocalhost(
 	ll.InfoContext(ctx, "serving localhost services")
 
 	eg, ctx := errgroup.WithContext(ctx)
-	if otlpl != nil {
-		// otel receiver handlers
+	if otlpGrpcL != nil {
+		// otel gRPC receiver handlers
 		gsrv := grpc.NewServer()
 		otlplogssvcpb.RegisterLogsServiceServer(gsrv, localhostsvc.AsLoggingOTLP())
 		otlpmetricssvcpb.RegisterMetricsServiceServer(gsrv, localhostsvc.AsMetricsOTLP())
 		otlptracesvcpb.RegisterTraceServiceServer(gsrv, localhostsvc.AsTracingOTLP())
 		eg.Go(func() error {
-			if err := gsrv.Serve(otlpl); err != nil {
-				ll.ErrorContext(ctx, "otlp server errored", slog.Any("err", err))
+			if err := gsrv.Serve(otlpGrpcL); err != nil {
+				ll.ErrorContext(ctx, "otlp gRPC server errored", slog.Any("err", err))
 				return err
 			}
 			return nil
 		})
+	}
+	if otlpHttpL != nil {
+		// TODO
 	}
 	eg.Go(func() error {
 		if err := srv.Serve(l); err != nil && !errors.Is(err, http.ErrServerClosed) {

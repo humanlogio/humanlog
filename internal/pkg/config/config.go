@@ -112,7 +112,8 @@ func GetDefaultLocalhostConfig() (*typesv1.ServeLocalhostConfig, error) {
 		ShowInSystray: ptr(true),
 		LogDir:        ptr(logDir),
 		Otlp: &typesv1.ServeLocalhostConfig_OTLP{
-			Port: 4318,
+			GrpcPort: 4318,
+			HttpPort: 4317,
 		},
 	}, nil
 }
@@ -543,7 +544,8 @@ func mergeRuntimeServeLocalhostConfigOltp(prev, next *typesv1.ServeLocalhostConf
 	if out == nil {
 		out = new(typesv1.ServeLocalhostConfig_OTLP)
 	}
-	out.Port = next.Port
+	out.GrpcPort = next.GrpcPort
+	out.HttpPort = next.HttpPort
 	return out
 }
 
