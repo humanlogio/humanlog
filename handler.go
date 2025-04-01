@@ -17,7 +17,9 @@ type Handler interface {
 
 var DefaultOptions = func() *HandlerOptions {
 	opts := &HandlerOptions{
-		TimeFields:    []string{"time", "ts", "@timestamp", "timestamp", "Timestamp", "asctime"},
+		TimeFields: []string{"time", "ts", "@timestamp", "timestamp", "Timestamp", "asctime",
+			"stageTimestamp", "requestReceivedTimestamp", // for kubernetes audit logs
+		},
 		MessageFields: []string{"message", "msg", "Body"},
 		LevelFields:   []string{"level", "lvl", "loglevel", "severity", "SeverityText"},
 		timeNow:       time.Now,
