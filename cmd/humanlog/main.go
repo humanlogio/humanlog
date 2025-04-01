@@ -354,7 +354,8 @@ func newApp() *cli.App {
 			}
 			cfgFromDir, err := config.ReadConfigFile(configFilepath, dfltCfg, true)
 			if err != nil {
-				return fmt.Errorf("reading default config file: %v", err)
+				logerror("invalid config file, falling back to use defaults. please fix the config file: %v", err)
+				cfg, _ = config.GetDefaultConfig(defaultReleaseChannel)
 			}
 			cfg = cfgFromDir
 		}
