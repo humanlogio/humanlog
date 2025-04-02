@@ -9,12 +9,68 @@ import (
 	"github.com/google/go-cmp/cmp"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
 	"github.com/humanlogio/humanlog/pkg/sink/bufsink"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
+
+func TestScannerSuite(t *testing.T) {
+	now := time.Date(2024, 10, 11, 15, 25, 6, 0, time.UTC)
+	tests := []struct {
+		name  string
+		input string
+		want  []*typesv1.StructuredLogEvent
+	}{
+		{
+			name: "json zaplog from cockroach db, with float64 `ts`",
+			input: `{"level":"error","ts":1743519389.4320688,"logger":"controller.CrdbCluster","msg":"action failed"}` + "\n" +
+				`{"level":"error","ts":1743519389.4320688,"logger":"controller.CrdbCluster","msg":"action failed"}` + "\n",
+			want: []*typesv1.StructuredLogEvent{
+				{
+					Timestamp: timestamppb.New(time.Date(2025, 4, 1, 14, 56, 29, 432068824, time.UTC)),
+					Lvl:       "error",
+					Msg:       "action failed",
+					Kvs: []*typesv1.KV{
+						{Key: "logger", Value: typesv1.ValStr("controller.CrdbCluster")},
+					},
+				},
+				{
+					Timestamp: timestamppb.New(time.Date(2025, 4, 1, 14, 56, 29, 432068824, time.UTC)),
+					Lvl:       "error",
+					Msg:       "action failed",
+					Kvs: []*typesv1.KV{
+						{Key: "logger", Value: typesv1.ValStr("controller.CrdbCluster")},
+					},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			src := strings.NewReader(tt.input)
+			opts := DefaultOptions()
+			opts.timeNow = func() time.Time {
+				return now
+			}
+
+			sink := bufsink.NewSizedBufferedSink(100, nil)
+			err := Scan(ctx, src, sink, opts)
+			require.NoError(t, err, "got %#v", err)
+
+			got := make([]*typesv1.StructuredLogEvent, 0, len(sink.Buffered))
+			for _, le := range sink.Buffered {
+				got = append(got, le.Structured)
+			}
+			assert.Len(t, got, len(tt.want))
+			diff := cmp.Diff(tt.want, got, protocmp.Transform())
+			require.Empty(t, diff)
+		})
+	}
+}
 
 func TestScannerLongLine(t *testing.T) {
 	data := `{"msg":"` + strings.Repeat("a", 3 /*1023*1024*/) + `"}`

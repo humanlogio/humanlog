@@ -1,6 +1,7 @@
 package humanlog
 
 import (
+	"encoding/json"
 	"strconv"
 	"time"
 )
@@ -61,25 +62,13 @@ func fixTimebeforeUnixZero(t time.Time) time.Time {
 }
 
 // tries to parse time using a couple of formats before giving up
-func tryParseTime(value interface{}) (time.Time, bool) {
+func tryParseTime(value any) (time.Time, bool) {
 	var t time.Time
 	switch v := value.(type) {
 	case string:
-		for i, layout := range TimeFormats {
-			t, err := time.Parse(layout, value.(string))
-			if err == nil {
-				if dynamicReordering {
-					TimeFormats = moveToFront(i, TimeFormats)
-				}
-				t = fixTimebeforeUnixZero(t)
-				return t, true
-			}
-		}
-		// try to parse unix time number from string
-		floatVal, err := strconv.ParseFloat(v, 64)
-		if err == nil {
-			return parseTimeFloat64(floatVal), true
-		}
+		return tryParseTimeString(v)
+	case json.Number:
+		return tryParseTimeString(v.String())
 	case float32:
 		return parseTimeFloat64(float64(v)), true
 	case float64:
@@ -104,4 +93,49 @@ func tryParseTime(value interface{}) (time.Time, bool) {
 		}
 	}
 	return t, false
+}
+
+var timeParsers = func() []timeParserFn {
+	var out []timeParserFn
+	// parse time standard Go time formats
+	for _, layout := range TimeFormats {
+		out = append(out, timeParserForGoLayout(layout))
+	}
+	// then try to parse other types of strings
+	out = append(out, timeParserForF64)
+	return out
+}()
+
+func tryParseTimeString(v string) (time.Time, bool) {
+	var t time.Time
+	for i, parser := range timeParsers {
+		t, ok := parser(v)
+		if ok {
+			if dynamicReordering {
+				timeParsers = moveToFront(i, timeParsers)
+			}
+			t = fixTimebeforeUnixZero(t)
+			return t, true
+		}
+	}
+	return t, false
+}
+
+type timeParserFn func(string) (time.Time, bool)
+
+var zero time.Time
+
+func timeParserForGoLayout(layout string) timeParserFn {
+	return func(v string) (time.Time, bool) {
+		t, err := time.Parse(layout, v)
+		return t, err == nil
+	}
+}
+
+func timeParserForF64(v string) (time.Time, bool) {
+	floatVal, err := strconv.ParseFloat(v, 64)
+	if err == nil {
+		return parseTimeFloat64(floatVal), true
+	}
+	return zero, false
 }
