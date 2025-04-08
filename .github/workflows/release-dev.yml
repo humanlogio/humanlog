@@ -59,6 +59,7 @@ jobs:
       - run: git config --global --add safe.directory '*'
       - run: git config --global url.https://$GH_ACCESS_TOKEN_FOR_HUMANLOGPRO@github.com/.insteadOf https://github.com/
       - run: go install github.com/goware/modvendor@latest
+      - run: go mod tidy
       - run: go mod vendor
       - run: modvendor -copy="**/*.a **/*.h" -v
       - run: mkdir -p dist/${{ matrix.targets.goos }}-${{ matrix.targets.goarch }}
