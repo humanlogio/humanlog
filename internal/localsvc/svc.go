@@ -435,6 +435,36 @@ func (svc *Service) Parse(ctx context.Context, req *connect.Request[qrv1.ParseRe
 	return connect.NewResponse(out), nil
 }
 
+func (svc *Service) Format(ctx context.Context, req *connect.Request[qrv1.FormatRequest]) (*connect.Response[qrv1.FormatResponse], error) {
+	query := req.Msg.GetQuery()
+
+	var parsed *typesv1.LogQuery
+	switch q := query.(type) {
+	case *qrv1.FormatRequest_Parsed:
+		parsed = q.Parsed
+	case *qrv1.FormatRequest_Raw:
+		v, err := logql.Parse(q.Raw)
+		if err != nil {
+			if cerr, ok := err.(*connect.Error); ok {
+				return nil, cerr
+			}
+			return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("parsing query: %v", err))
+		}
+		parsed = v
+
+	default:
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("unsupported query option %T", q))
+	}
+
+	formatted, err := svc.storage.Format(ctx, parsed)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("formatting query: %v", err))
+	}
+
+	out := &qrv1.FormatResponse{Formatted: formatted}
+	return connect.NewResponse(out), nil
+}
+
 func (svc *Service) Query(ctx context.Context, req *connect.Request[qrv1.QueryRequest]) (*connect.Response[qrv1.QueryResponse], error) {
 	query := req.Msg.GetQuery()
 	if query == nil {
