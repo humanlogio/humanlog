@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/humanlogio/api/go/pkg/logql"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
+	"github.com/humanlogio/humanlog/internal/logqleval"
 	"github.com/stretchr/testify/require"
 )
 
@@ -65,7 +65,7 @@ func TestPutKV(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			key := tt.args.Key
-			value, err := logql.ResolveVal(tt.args.Value, logql.MakeFlatGoMap, logql.MakeFlatMapGoSlice)
+			value, err := logqleval.ResolveVal(tt.args.Value, logqleval.MakeFlatGoMap, logqleval.MakeFlatMapGoSlice)
 			require.NoError(t, err)
 
 			kvs := make(map[string]string)

@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	"github.com/humanlogio/api/go/pkg/logql"
 	igv1 "github.com/humanlogio/api/go/svc/ingest/v1"
 	igsvcpb "github.com/humanlogio/api/go/svc/ingest/v1/ingestv1connect"
 	lhv1 "github.com/humanlogio/api/go/svc/localhost/v1"
@@ -417,7 +416,8 @@ func (svc *Service) WatchQuery(ctx context.Context, req *connect.Request[qrv1.Wa
 
 func (svc *Service) Parse(ctx context.Context, req *connect.Request[qrv1.ParseRequest]) (*connect.Response[qrv1.ParseResponse], error) {
 	query := req.Msg.GetQuery()
-	q, err := logql.Parse(query)
+
+	q, err := svc.storage.Parse(ctx, query)
 	if err != nil {
 		if cerr, ok := err.(*connect.Error); ok {
 			return nil, cerr
@@ -443,7 +443,7 @@ func (svc *Service) Format(ctx context.Context, req *connect.Request[qrv1.Format
 	case *qrv1.FormatRequest_Parsed:
 		parsed = q.Parsed
 	case *qrv1.FormatRequest_Raw:
-		v, err := logql.Parse(q.Raw)
+		v, err := svc.storage.Parse(ctx, q.Raw)
 		if err != nil {
 			if cerr, ok := err.(*connect.Error); ok {
 				return nil, cerr

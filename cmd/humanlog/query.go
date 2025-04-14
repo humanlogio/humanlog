@@ -20,17 +20,13 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/term"
 	"github.com/crazy3lf/colorconv"
-	"github.com/humanlogio/api/go/svc/environment/v1/environmentv1connect"
-	"github.com/humanlogio/api/go/svc/organization/v1/organizationv1connect"
 	queryv1 "github.com/humanlogio/api/go/svc/query/v1"
 	"github.com/humanlogio/api/go/svc/query/v1/queryv1connect"
-	"github.com/humanlogio/api/go/svc/user/v1/userv1connect"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
 	"github.com/humanlogio/humanlog/internal/pkg/config"
 	"github.com/humanlogio/humanlog/internal/pkg/state"
 	"github.com/humanlogio/humanlog/pkg/auth"
 	"github.com/humanlogio/humanlog/pkg/sink/stdiosink"
-	"github.com/humanlogio/humanlog/pkg/tui"
 	"github.com/pkg/browser"
 	"github.com/urfave/cli"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -102,22 +98,6 @@ func queryCmd(
 			return browser.OpenURL(queryu.String())
 		},
 	}
-}
-
-func query(
-	ctx context.Context,
-	state *state.State,
-	apiURL string,
-	httpClient *http.Client,
-	clOpts []connect.ClientOption,
-) error {
-	var (
-		userClient         = userv1connect.NewUserServiceClient(httpClient, apiURL, clOpts...)
-		organizationClient = organizationv1connect.NewOrganizationServiceClient(httpClient, apiURL, clOpts...)
-		environmentClient  = environmentv1connect.NewEnvironmentServiceClient(httpClient, apiURL, clOpts...)
-		queryClient        = queryv1connect.NewQueryServiceClient(httpClient, apiURL, clOpts...)
-	)
-	return tui.RunTUI(ctx, state, userClient, organizationClient, environmentClient, queryClient)
 }
 
 func queryApiSummarizeCmd(
