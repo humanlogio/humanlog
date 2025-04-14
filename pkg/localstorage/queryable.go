@@ -72,6 +72,7 @@ type OTLPMeter interface {
 }
 
 type Queryable interface {
+	Parse(ctx context.Context, q string) (*typesv1.LogQuery, error)
 	Format(ctx context.Context, q *typesv1.LogQuery) (string, error)
 
 	WatchLogQuery(context.Context, *typesv1.LogQuery) (<-chan Cursor, error)

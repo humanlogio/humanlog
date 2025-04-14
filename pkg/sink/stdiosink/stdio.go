@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/humanlogio/api/go/pkg/logql"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
+	"github.com/humanlogio/humanlog/internal/logqleval"
 	"github.com/humanlogio/humanlog/pkg/sink"
 	"github.com/ryanuber/go-glob"
 )
@@ -225,7 +225,7 @@ func (std *Stdio) ReceiveWithPostProcess(ctx context.Context, ev *typesv1.LogEve
 	kvs := make(map[string]string, len(data.Kvs))
 	for _, kv := range data.Kvs {
 		key := kv.Key
-		value, err := logql.ResolveVal(kv.Value, logql.MakeFlatGoMap, logql.MakeFlatMapGoSlice)
+		value, err := logqleval.ResolveVal(kv.Value, logqleval.MakeFlatGoMap, logqleval.MakeFlatMapGoSlice)
 		if err != nil {
 			return err
 		}
@@ -238,7 +238,7 @@ func (std *Stdio) ReceiveWithPostProcess(ctx context.Context, ev *typesv1.LogEve
 }
 
 func toString(value *typesv1.Val) (string, error) {
-	v, err := logql.ResolveVal(value, nil, nil)
+	v, err := logqleval.ResolveVal(value, nil, nil)
 	if err != nil {
 		return "", err
 	}

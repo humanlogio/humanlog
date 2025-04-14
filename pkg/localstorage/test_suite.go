@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/humanlogio/api/go/pkg/logql"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
 	"github.com/humanlogio/humanlog/pkg/sink"
 	"github.com/stretchr/testify/require"
@@ -295,7 +294,7 @@ func RunTest(t *testing.T, constructor func(t *testing.T) Storage) {
 				require.NoError(t, err)
 			}
 
-			q, err := logql.Parse(tt.q)
+			q, err := db.Parse(ctx, tt.q)
 			require.NoError(t, err)
 
 			var (
