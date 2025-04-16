@@ -11,8 +11,6 @@ require (
 	github.com/NimbleMarkets/ntcharts v0.1.2
 	github.com/aybabtme/rgbterm v0.0.0-20170906152045-cc83f3b3ce59
 	github.com/blang/semver v3.5.1+incompatible
-	github.com/charmbracelet/bubbles v0.20.0
-	github.com/charmbracelet/bubbletea v1.2.4
 	github.com/charmbracelet/glamour v0.8.0
 	github.com/charmbracelet/huh v0.6.0
 	github.com/charmbracelet/lipgloss v1.0.0
@@ -26,10 +24,9 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
 	github.com/humanlogio/api/go v0.0.0-20250414094343-be63663e798f
-	github.com/humanlogio/humanlog-pro v0.0.0-20250414094300-08af373b843b
+	github.com/humanlogio/humanlog-pro v0.0.0-20250416023443-0fe47b9e1cf8
 	github.com/kardianos/service v1.2.2
 	github.com/kr/logfmt v0.0.0-20210122060352-19f9bcb100e6
-	github.com/lrstanley/bubblezone v0.0.0-20240914071701-b48c55a5e78e
 	github.com/lucasb-eyer/go-colorful v1.2.0
 	github.com/matoous/go-nanoid v1.5.0
 	github.com/mattn/go-colorable v0.1.13
@@ -58,6 +55,8 @@ require (
 	github.com/aymerick/douceur v0.2.0 // indirect
 	github.com/catppuccin/go v0.2.0 // indirect
 	github.com/charlievieth/strcase v0.0.5 // indirect
+	github.com/charmbracelet/bubbles v0.20.0 // indirect
+	github.com/charmbracelet/bubbletea v1.2.4 // indirect
 	github.com/charmbracelet/x/ansi v0.4.5 // indirect
 	github.com/charmbracelet/x/exp/strings v0.0.0-20240722160745-212f7b056ed0 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
@@ -91,6 +90,7 @@ require (
 	github.com/gsterjov/go-libsecret v0.0.0-20161001094733-a6f4afe4910c // indirect
 	github.com/klauspost/compress v1.17.11 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.9 // indirect
+	github.com/lrstanley/bubblezone v0.0.0-20240914071701-b48c55a5e78e // indirect
 	github.com/marcboeker/go-duckdb/arrowmapping v0.0.7 // indirect
 	github.com/marcboeker/go-duckdb/mapping v0.0.7 // indirect
 	github.com/marcboeker/go-duckdb/v2 v2.2.0 // indirect
