@@ -338,7 +338,7 @@ func (svc *Service) SummarizeEvents(ctx context.Context, req *connect.Request[qr
 	period := req.Msg.To.AsTime().Sub(req.Msg.From.AsTime())
 	bucketWidth := period / time.Duration(req.Msg.BucketCount)
 
-	data, _, err := svc.storage.Query(ctx, &typesv1.LogQuery{
+	data, _, err := svc.storage.Query(ctx, &typesv1.Query{
 		Timerange: &typesv1.Timerange{
 			From: typesv1.ExprLiteral(typesv1.ValTimestamp(req.Msg.From)),
 			To:   typesv1.ExprLiteral(typesv1.ValTimestamp(req.Msg.To)),
@@ -410,10 +410,6 @@ func (svc *Service) SummarizeEvents(ctx context.Context, req *connect.Request[qr
 	return connect.NewResponse(out), nil
 }
 
-func (svc *Service) WatchQuery(ctx context.Context, req *connect.Request[qrv1.WatchQueryRequest], stream *connect.ServerStream[qrv1.WatchQueryResponse]) error {
-	return connect.NewError(connect.CodeUnimplemented, fmt.Errorf("watching queries is going away for now"))
-}
-
 func (svc *Service) Parse(ctx context.Context, req *connect.Request[qrv1.ParseRequest]) (*connect.Response[qrv1.ParseResponse], error) {
 	query := req.Msg.GetQuery()
 
@@ -438,7 +434,7 @@ func (svc *Service) Parse(ctx context.Context, req *connect.Request[qrv1.ParseRe
 func (svc *Service) Format(ctx context.Context, req *connect.Request[qrv1.FormatRequest]) (*connect.Response[qrv1.FormatResponse], error) {
 	query := req.Msg.GetQuery()
 
-	var parsed *typesv1.LogQuery
+	var parsed *typesv1.Query
 	switch q := query.(type) {
 	case *qrv1.FormatRequest_Parsed:
 		parsed = q.Parsed
