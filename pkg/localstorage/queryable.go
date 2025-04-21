@@ -75,10 +75,13 @@ type Queryable interface {
 	Parse(ctx context.Context, q string) (*typesv1.Query, error)
 	Format(ctx context.Context, q *typesv1.Query) (string, error)
 
-	WatchLogQuery(context.Context, *typesv1.Query) (<-chan Cursor, error)
 	Query(ctx context.Context, q *typesv1.Query, c *typesv1.Cursor, limit int) (*typesv1.Data, *typesv1.Cursor, error)
 	ResolveQueryType(ctx context.Context, query *typesv1.Query) (*typesv1.DataStreamType, error)
 	ListSymbols(ctx context.Context, c *typesv1.Cursor, limit int) ([]*typesv1.Symbol, *typesv1.Cursor, error)
+
+	GetTraceByID(ctx context.Context, traceID string) (*typesv1.Trace, error)
+	GetTraceBySpanID(ctx context.Context, spanID string) (*typesv1.Trace, error)
+	GetSpanByID(ctx context.Context, spanID string) (*typesv1.Span, error)
 }
 
 type Symbol struct {
