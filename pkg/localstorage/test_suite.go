@@ -321,25 +321,6 @@ func RunTest(t *testing.T, constructor func(t *testing.T) Storage) {
 	}
 }
 
-func drainCursors(t *testing.T, ctx context.Context, cursors <-chan Cursor) []*typesv1.LogEventGroup {
-	out := make([]*typesv1.LogEventGroup, 0, len(cursors))
-	for cursor := range cursors {
-		mid, sid := cursor.IDs()
-		leg := &typesv1.LogEventGroup{
-			MachineId: mid, SessionId: sid,
-		}
-		for cursor.Next(ctx) {
-			ev := new(typesv1.LogEvent)
-			err := cursor.Event(ev)
-			require.NoError(t, err)
-			leg.Logs = append(leg.Logs, ev)
-		}
-		require.NoError(t, cursor.Err())
-		out = append(out, leg)
-	}
-	return out
-}
-
 func musttime(str string) time.Time {
 	t, err := time.Parse("2006-01-02T15:04:05.000", str)
 	if err != nil {
