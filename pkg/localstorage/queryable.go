@@ -79,9 +79,9 @@ type Queryable interface {
 	ResolveQueryType(ctx context.Context, query *typesv1.Query) (*typesv1.DataStreamType, error)
 	ListSymbols(ctx context.Context, c *typesv1.Cursor, limit int) ([]*typesv1.Symbol, *typesv1.Cursor, error)
 
-	GetTraceByID(ctx context.Context, traceID string) (*typesv1.Trace, error)
-	GetTraceBySpanID(ctx context.Context, spanID string) (*typesv1.Trace, error)
-	GetSpanByID(ctx context.Context, spanID string) (*typesv1.Span, error)
+	GetTraceByID(ctx context.Context, traceID []byte) (*typesv1.Trace, error)
+	GetTraceBySpanID(ctx context.Context, spanID []byte) (*typesv1.Trace, error)
+	GetSpanByID(ctx context.Context, spanID []byte) (*typesv1.Span, error)
 }
 
 type Symbol struct {
