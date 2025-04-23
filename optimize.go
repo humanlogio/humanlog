@@ -15,3 +15,8 @@ func moveToFront[El any](i int, s []El) []El {
 }
 
 const dynamicReordering = true
+
+func fieldsEqualAllString(a, b string) bool {
+	return a == b
+	// return strings.EqualFold(a, b)
+}

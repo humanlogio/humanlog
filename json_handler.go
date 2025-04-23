@@ -26,7 +26,7 @@ type JSONHandler struct {
 // kvs is the deserialized json document.
 // fieldList is a list of field names that should be searched. Sub-documents can be searched by using the dot (.). For example, to search {"data"{"message": "<this field>"}} the item would be data.message
 func searchJSON(kvs map[string]interface{}, fieldList []string, found func(key string, value interface{}) bool) bool {
-	for _, field := range fieldList {
+	for i, field := range fieldList {
 		splits := strings.SplitN(field, ".", 2)
 		if len(splits) > 1 {
 			name, fieldKey := splits[0], splits[1]
@@ -42,7 +42,11 @@ func searchJSON(kvs map[string]interface{}, fieldList []string, found func(key s
 		} else {
 			// this is not a sub-document search, so search the root
 			for k, v := range kvs {
-				if field == k && found(k, v) {
+				if fieldsEqualAllString(field, k) && found(k, v) {
+					if dynamicReordering {
+						// the log stream probably will always be using this field
+						moveToFront(i, fieldList)
+					}
 					return true
 				}
 			}

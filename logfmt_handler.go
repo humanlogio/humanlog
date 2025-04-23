@@ -53,14 +53,14 @@ func (h *LogfmtHandler) UnmarshalLogfmt(data []byte) bool {
 	for dec.ScanRecord() {
 	next_kv:
 		for dec.ScanKeyval() {
-			key := dec.Key()
-			val := dec.Value()
+			key := string(dec.Key())
+			val := string(dec.Value())
 			if h.Time.IsZero() {
 				foundTime := checkEachUntilFound(h.Opts.TimeFields, func(field string) bool {
-					if !bytes.Equal(key, []byte(field)) {
+					if !fieldsEqualAllString(key, field) {
 						return false
 					}
-					time, ok := tryParseTime(string(val))
+					time, ok := tryParseTime(val)
 					if ok {
 						h.Time = time
 					}
@@ -73,10 +73,10 @@ func (h *LogfmtHandler) UnmarshalLogfmt(data []byte) bool {
 
 			if len(h.Message) == 0 {
 				foundMessage := checkEachUntilFound(h.Opts.MessageFields, func(field string) bool {
-					if !bytes.Equal(key, []byte(field)) {
+					if !fieldsEqualAllString(key, field) {
 						return false
 					}
-					h.Message = string(val)
+					h.Message = val
 					return true
 				})
 				if foundMessage {
@@ -86,10 +86,10 @@ func (h *LogfmtHandler) UnmarshalLogfmt(data []byte) bool {
 
 			if len(h.Level) == 0 {
 				foundLevel := checkEachUntilFound(h.Opts.LevelFields, func(field string) bool {
-					if !bytes.Equal(key, []byte(field)) {
+					if !fieldsEqualAllString(key, field) {
 						return false
 					}
-					h.Level = string(val)
+					h.Level = val
 					return true
 				})
 				if foundLevel {
@@ -97,7 +97,7 @@ func (h *LogfmtHandler) UnmarshalLogfmt(data []byte) bool {
 				}
 			}
 
-			h.Fields[string(key)] = typesv1.ValStr(string(val))
+			h.Fields[key] = typesv1.ValStr(val)
 		}
 	}
 	return dec.Err() == nil
