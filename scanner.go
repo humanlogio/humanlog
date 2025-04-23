@@ -134,8 +134,12 @@ func Scan(ctx context.Context, src io.Reader, sink sink.Sink, opts *HandlerOptio
 }
 
 func checkEachUntilFound(fieldList []string, found func(string) bool) bool {
-	for _, field := range fieldList {
+	for i, field := range fieldList {
 		if found(field) {
+			if dynamicReordering {
+				// the log stream probably will always be using this field
+				moveToFront(i, fieldList)
+			}
 			return true
 		}
 	}
