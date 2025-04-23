@@ -255,6 +255,8 @@ func toString(value *typesv1.Val) (string, error) {
 		return t.Format(time.RFC3339Nano), nil
 	case time.Duration:
 		return t.String(), nil
+	case nil:
+		return "null", nil
 	default:
 		return "", fmt.Errorf("unsupported type: %T", t)
 	}
@@ -279,7 +281,11 @@ func put(ref *map[string]string, key string, value any) {
 			put(ref, key+"."+k, v)
 		}
 	default:
-		(*ref)[key] = fmt.Sprintf("%v", t)
+		if value == nil {
+			(*ref)[key] = "null"
+		} else {
+			(*ref)[key] = fmt.Sprintf("%v", t)
+		}
 	}
 }
 
