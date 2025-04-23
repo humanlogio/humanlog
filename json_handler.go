@@ -1,12 +1,13 @@
 package humanlog
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/aybabtme/flatjson"
 
 	typesv1 "github.com/humanlogio/api/go/types/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -19,7 +20,7 @@ type JSONHandler struct {
 	Level   string
 	Time    time.Time
 	Message string
-	Fields  map[string]*typesv1.Val
+	Fields  []*typesv1.KV
 }
 
 // searchJSON searches a document for a key using the found func to determine if the value is accepted.
@@ -59,7 +60,7 @@ func (h *JSONHandler) clear() {
 	h.Level = ""
 	h.Time = time.Time{}
 	h.Message = ""
-	h.Fields = make(map[string]*typesv1.Val)
+	h.Fields = nil
 }
 
 // TryHandle tells if this line was handled by this handler.
@@ -71,9 +72,7 @@ func (h *JSONHandler) TryHandle(d []byte, out *typesv1.StructuredLogEvent) bool 
 	out.Timestamp = timestamppb.New(h.Time)
 	out.Msg = h.Message
 	out.Lvl = h.Level
-	for k, v := range h.Fields {
-		out.Kvs = append(out.Kvs, &typesv1.KV{Key: k, Value: v})
-	}
+	out.Kvs = h.Fields
 	return true
 }
 
@@ -170,88 +169,169 @@ func getFlattenedArrayFields(data []interface{}) map[string]*typesv1.Val {
 // UnmarshalJSON sets the fields of the handler.
 func (h *JSONHandler) UnmarshalJSON(data []byte) bool {
 
-	dec := json.NewDecoder(bytes.NewReader(data))
-	dec.UseNumber()
+	var (
+		hasFoundTimestamp = false
+		hasFoundLevel     = false
+		hasFoundMsg       = false
+	)
 
-	raw := make(map[string]interface{})
-	err := dec.Decode(&raw)
+	_, ok, err := flatjson.ScanObject(data, 0, &flatjson.Callbacks{
+		MaxDepth: 99,
+		OnFloat: func(prefixes flatjson.Prefixes, val flatjson.Float) {
+			key := keyFor(data, prefixes, val.Name)
+			if !hasFoundTimestamp {
+				hasFoundTimestamp = checkEachUntilFound(h.Opts.TimeFields, func(s string) bool {
+					if !fieldsEqualAllString(s, key) {
+						return false
+					}
+					h.Time = parseTimeFloat64(val.Value)
+					return true
+				})
+				if hasFoundTimestamp {
+					return
+				}
+			}
+			if !hasFoundLevel {
+				hasFoundLevel = checkEachUntilFound(h.Opts.LevelFields, func(s string) bool {
+					if !fieldsEqualAllString(s, key) {
+						return false
+					}
+					h.Level = convertBunyanLogLevelF64(val.Value)
+					return true
+				})
+				if hasFoundLevel {
+					return
+				}
+			}
+			h.Fields = append(h.Fields, typesv1.KeyVal(key, typesv1.ValF64(val.Value)))
+		},
+		OnInteger: func(prefixes flatjson.Prefixes, val flatjson.Integer) {
+			key := keyFor(data, prefixes, val.Name)
+			if !hasFoundTimestamp {
+				hasFoundTimestamp = checkEachUntilFound(h.Opts.TimeFields, func(s string) bool {
+					if !fieldsEqualAllString(s, key) {
+						return false
+					}
+
+					h.Time = parseTimeInt64(val.Value)
+					return true
+				})
+				if hasFoundTimestamp {
+					return
+				}
+			}
+			if !hasFoundLevel {
+				hasFoundLevel = checkEachUntilFound(h.Opts.LevelFields, func(s string) bool {
+					if !fieldsEqualAllString(s, key) {
+						return false
+					}
+
+					h.Level = convertBunyanLogLevelI64(val.Value)
+					return true
+				})
+				if hasFoundLevel {
+					return
+				}
+			}
+			h.Fields = append(h.Fields, typesv1.KeyVal(key, typesv1.ValI64(val.Value)))
+		},
+		OnString: func(prefixes flatjson.Prefixes, val flatjson.String) {
+			key := keyFor(data, prefixes, val.Name)
+			value, _ := strconv.Unquote(val.Value.String(data))
+			if !hasFoundTimestamp {
+				if val.Name.IsArrayIndex() && val.Name.Index() == 0 {
+					// it might be a weird timestamp in an array (`asctime`)
+				}
+
+				hasFoundTimestamp = checkEachUntilFound(h.Opts.TimeFields, func(s string) bool {
+					// HACK: `asctime` is a weird format...
+					if s == "asctime" && len(prefixes) == 1 && val.Name.IsArrayIndex() && val.Name.Index() == 0 {
+						// it might be a weird timestamp in an array (`asctime`)
+						// in this case, we look at the name of the key before the value
+						key = prefixes.AsString(data)
+					}
+					if !fieldsEqualAllString(s, key) {
+						return false
+					}
+					h.Time, hasFoundTimestamp = tryParseTimeString(value)
+					return hasFoundTimestamp
+				})
+				if hasFoundTimestamp {
+					return
+				}
+			}
+			if !hasFoundLevel {
+				hasFoundLevel = checkEachUntilFound(h.Opts.LevelFields, func(s string) bool {
+					if !fieldsEqualAllString(s, key) {
+						return false
+					}
+					h.Level = value
+					return true
+				})
+				if hasFoundLevel {
+					return
+				}
+			}
+			if !hasFoundMsg {
+				hasFoundMsg = checkEachUntilFound(h.Opts.MessageFields, func(s string) bool {
+					if !fieldsEqualAllString(s, key) {
+						return false
+					}
+					h.Message = value
+					return true
+				})
+				if hasFoundMsg {
+					return
+				}
+			}
+			h.Fields = append(h.Fields, typesv1.KeyVal(key, typesv1.ValStr(value)))
+		},
+		OnBoolean: func(prefixes flatjson.Prefixes, val flatjson.Bool) {
+			key := keyFor(data, prefixes, val.Name)
+			h.Fields = append(h.Fields, typesv1.KeyVal(key, typesv1.ValBool(val.Value)))
+		},
+		OnNull: func(prefixes flatjson.Prefixes, val flatjson.Null) {
+			key := keyFor(data, prefixes, val.Name)
+			h.Fields = append(h.Fields, typesv1.KeyVal(key, typesv1.ValNull()))
+		},
+	})
 	if err != nil {
 		return false
 	}
+	return ok
+}
 
-	searchJSON(raw, h.Opts.TimeFields, func(field string, value interface{}) bool {
-		var ok bool
-		h.Time, ok = tryParseTime(value)
-		if ok {
-			deleteJSONKey(field, raw)
-		}
-		return ok
-	})
-
-	searchJSON(raw, h.Opts.MessageFields, func(field string, value interface{}) bool {
-		var ok bool
-		h.Message, ok = value.(string)
-		if ok {
-			deleteJSONKey(field, raw)
-		}
-		return ok
-	})
-
-	searchJSON(raw, h.Opts.LevelFields, func(field string, value interface{}) bool {
-		if strLvl, ok := value.(string); ok {
-			h.Level = strLvl
-			deleteJSONKey(field, raw)
-		} else if flLvl, ok := value.(float64); ok {
-			h.Level = convertBunyanLogLevel(flLvl)
-			deleteJSONKey(field, raw)
-		} else {
-			h.Level = "???"
-		}
-		return true
-	})
-
-	if h.Fields == nil {
-		h.Fields = make(map[string]*typesv1.Val)
+func keyFor(data []byte, prefixes flatjson.Prefixes, pfx flatjson.Prefix) string {
+	if len(prefixes) == 0 {
+		return flatjson.Prefixes{pfx}.AsString(data)
 	}
-
-	for key, val := range raw {
-		switch v := val.(type) {
-		case json.Number:
-			if z, err := v.Int64(); err == nil {
-				h.Fields[key] = typesv1.ValI64(z)
-				continue
-			}
-			if f, err := v.Float64(); err == nil {
-				h.Fields[key] = typesv1.ValF64(f)
-				continue
-			}
-			h.Fields[key] = typesv1.ValStr(v.String())
-		case string:
-
-			h.Fields[key] = typesv1.ValStr(v)
-		case bool:
-			h.Fields[key] = typesv1.ValBool(v)
-		case []interface{}:
-			flattenedArrayFields := getFlattenedArrayFields(v)
-			for k, v := range flattenedArrayFields {
-				h.Fields[key+"."+k] = v
-			}
-		case map[string]interface{}:
-			flattenedFields := getFlattenedFields(v)
-			for keyNested, val := range flattenedFields {
-				h.Fields[key+"."+keyNested] = val
-			}
-		default:
-			h.Fields[key] = typesv1.ValStr(fmt.Sprintf("%v", v))
-		}
-	}
-
-	return true
+	return append(prefixes, pfx).AsString(data)
 }
 
 // convertBunyanLogLevel returns a human readable log level given a numerical bunyan level
 // https://github.com/trentm/node-bunyan#levels
-func convertBunyanLogLevel(level float64) string {
+func convertBunyanLogLevelF64(level float64) string {
+	switch level {
+	case 10:
+		return "trace"
+	case 20:
+		return "debug"
+	case 30:
+		return "info"
+	case 40:
+		return "warn"
+	case 50:
+		return "error"
+	case 60:
+		return "fatal"
+	default:
+		return "???"
+	}
+}
+
+// convertBunyanLogLevel returns a human readable log level given a numerical bunyan level
+// https://github.com/trentm/node-bunyan#levels
+func convertBunyanLogLevelI64(level int64) string {
 	switch level {
 	case 10:
 		return "trace"

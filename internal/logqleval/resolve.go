@@ -40,7 +40,7 @@ func visitScalars(keys []string, v *typesv1.Val, onScalar func(keys []string, sc
 			}
 		}
 	default:
-		return fmt.Errorf("unsupported type %v", val)
+		return fmt.Errorf("unsupported type %T (%v)", val, val)
 	}
 	return nil
 }
@@ -159,7 +159,9 @@ func resolveVal(
 		return mkSlice(prefixes, val.Arr.Items, mkMap, mkSlice, setVal)
 	case *typesv1.Val_Obj:
 		return mkMap(prefixes, val.Obj.Kvs, mkMap, mkSlice, setVal)
+	case *typesv1.Val_Null:
+		return setVal(prefixes, nil)
 	default:
-		return fmt.Errorf("unsupported type %v", val)
+		return fmt.Errorf("unsupported type %v (%T)", val, val)
 	}
 }

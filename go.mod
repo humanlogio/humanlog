@@ -9,6 +9,7 @@ require (
 	connectrpc.com/cors v0.1.0
 	github.com/99designs/keyring v1.2.2
 	github.com/NimbleMarkets/ntcharts v0.1.2
+	github.com/aybabtme/flatjson v0.1.3-0.20250423140351-aee9b1f10cb2
 	github.com/aybabtme/rgbterm v0.0.0-20170906152045-cc83f3b3ce59
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/charmbracelet/glamour v0.8.0

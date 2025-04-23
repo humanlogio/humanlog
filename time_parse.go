@@ -50,6 +50,17 @@ func parseTimeFloat64(value float64) time.Time {
 	return fixTimebeforeUnixZero(time.Unix(v/1e9, v%1e9))
 }
 
+func parseTimeInt64(v int64) time.Time {
+	switch {
+	case v > 1e18:
+	case v > 1e15:
+		v *= 1e3
+	case v > 1e12:
+		v *= 1e6
+	}
+	return fixTimebeforeUnixZero(time.Unix(v/1e9, v%1e9))
+}
+
 var zeroTime = time.Time{}
 
 func fixTimebeforeUnixZero(t time.Time) time.Time {
