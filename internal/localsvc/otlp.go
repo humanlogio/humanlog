@@ -25,6 +25,7 @@ func newLoggingOTLP(svc *Service) *LoggingOTLP {
 }
 
 func (otlp *LoggingOTLP) Export(ctx context.Context, req *otlplogssvcpb.ExportLogsServiceRequest) (*otlplogssvcpb.ExportLogsServiceResponse, error) {
+	otlp.svc.ll.DebugContext(ctx, "OTLP.Logging.Export")
 	return otlp.svc.storage.ExportLogs(ctx, req)
 }
 
@@ -38,6 +39,7 @@ func newMetricsOTLP(svc *Service) *MetricsOTLP {
 }
 
 func (otlp *MetricsOTLP) Export(ctx context.Context, req *otlpmetricssvcpb.ExportMetricsServiceRequest) (*otlpmetricssvcpb.ExportMetricsServiceResponse, error) {
+	otlp.svc.ll.DebugContext(ctx, "OTLP.Metrics.Export")
 	return otlp.svc.storage.ExportMetrics(ctx, req)
 }
 
@@ -51,5 +53,6 @@ func newTracingOTLP(svc *Service) *TracingOTLP {
 }
 
 func (otlp *TracingOTLP) Export(ctx context.Context, req *otlptracesvcpb.ExportTraceServiceRequest) (*otlptracesvcpb.ExportTraceServiceResponse, error) {
+	otlp.svc.ll.DebugContext(ctx, "OTLP.Tracing.Export")
 	return otlp.svc.storage.ExportTraces(ctx, req)
 }

@@ -16,7 +16,9 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+
 	connectcors "connectrpc.com/cors"
+	otelconnect "connectrpc.com/otelconnect"
 	"github.com/blang/semver"
 	"github.com/humanlogio/api/go/svc/auth/v1/authv1connect"
 	cliupdatepb "github.com/humanlogio/api/go/svc/cliupdate/v1"
@@ -39,6 +41,17 @@ import (
 	ksvc "github.com/kardianos/service"
 	"github.com/rs/cors"
 	"github.com/urfave/cli"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc/filters"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	"go.opentelemetry.io/otel/propagation"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/resource"
+	"go.opentelemetry.io/otel/sdk/trace"
 	otlplogssvcpb "go.opentelemetry.io/proto/otlp/collector/logs/v1"
 	otlpmetricssvcpb "go.opentelemetry.io/proto/otlp/collector/metrics/v1"
 	otlptracesvcpb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
@@ -85,6 +98,10 @@ func serviceCmd(
 				getHTTPClient,
 			)
 			return err
+		},
+		After: func(cctx *cli.Context) error {
+			ctx := getCtx(cctx)
+			return svcHandler.Stop(ctx)
 		},
 		Subcommands: []cli.Command{
 			{
@@ -221,6 +238,7 @@ func prepareServiceCmd(
 	authCheckFrequency := time.Minute
 	updateCheckFrequency := time.Hour
 
+	doneOtel := func() error { return nil }
 	expcfg := config.GetRuntime().GetExperimentalFeatures()
 	if expcfg != nil {
 		// check for updates more often if you use
@@ -230,10 +248,30 @@ func prepareServiceCmd(
 			// and even more frequently if using a non-default channel
 			updateCheckFrequency = time.Minute
 		}
+
+		shouldEmitOtel := expcfg.GetServeLocalhost().GetOtlp() != nil
+		isDevMode := expcfg.GetReleaseChannel() == "dev"
+		if shouldEmitOtel && isDevMode {
+			ll.InfoContext(ctx, "setting up self-monitoring with otel")
+			doneOtel, err = setupOtel(ctx, ll)
+			if err != nil {
+				ll.ErrorContext(ctx, "can't setup self-monitoring with otel", slog.Any("err", err))
+			}
+		}
 	}
 
-	publicClOpts := connect.WithInterceptors(auth.NewRefreshedUserAuthInterceptor(ll, tokenSource))
-	authedClOpts := connect.WithInterceptors(auth.Interceptors(ll, tokenSource)...)
+	otelIctpr, err := otelconnect.NewInterceptor()
+	if err != nil {
+		doneOtel()
+		return nil, fmt.Errorf("can't create otel interceptors for clients: %v", err)
+	}
+	baseIcptrs := []connect.Interceptor{otelIctpr}
+
+	publicIcptrs := append(baseIcptrs, auth.NewRefreshedUserAuthInterceptor(ll, tokenSource))
+	authedIcptrs := append(baseIcptrs, auth.Interceptors(ll, tokenSource)...)
+
+	publicClOpts := connect.WithInterceptors(publicIcptrs...)
+	authedClOpts := connect.WithInterceptors(authedIcptrs...)
 
 	svcCfg := &ksvc.Config{
 		Name:        "io.humanlog.humanlogd",
@@ -263,6 +301,7 @@ func prepareServiceCmd(
 		authv1connect.NewAuthServiceClient(httpClient, apiURL, publicClOpts),
 		userv1connect.NewUserServiceClient(httpClient, apiURL, authedClOpts),
 		featurev1connect.NewFeatureServiceClient(httpClient, apiURL, authedClOpts),
+		doneOtel,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("preparing service: %v", err)
@@ -326,6 +365,7 @@ func newServiceHandler(
 	authSvc authv1connect.AuthServiceClient,
 	userSvc userv1connect.UserServiceClient,
 	featureSvc featurev1connect.FeatureServiceClient,
+	doneOtel func() error,
 ) (*serviceHandler, error) {
 	if authCheckFrequency < time.Minute {
 		authCheckFrequency = time.Minute
@@ -353,6 +393,7 @@ func newServiceHandler(
 		authSvc:              authSvc,
 		userSvc:              userSvc,
 		featureSvc:           featureSvc,
+		onClose:              []func() error{doneOtel},
 	}
 
 	return hdl, nil
@@ -539,11 +580,18 @@ func (hdl *serviceHandler) runLocalhost(
 		hdl.SetConfig,
 		hdl.whoami,
 	)
-	mux.Handle(localhostv1connect.NewLocalhostServiceHandler(localhostsvc))
-	mux.Handle(ingestv1connect.NewIngestServiceHandler(localhostsvc))
-	mux.Handle(queryv1connect.NewQueryServiceHandler(localhostsvc))
+
+	otelIctpr, err := otelconnect.NewInterceptor()
+	if err != nil {
+		return fmt.Errorf("setting up otel interceptors: %v", err)
+	}
+
+	mux.Handle(localhostv1connect.NewLocalhostServiceHandler(localhostsvc, connect.WithInterceptors(otelIctpr)))
+	mux.Handle(ingestv1connect.NewIngestServiceHandler(localhostsvc, connect.WithInterceptors(otelIctpr)))
+	mux.Handle(queryv1connect.NewQueryServiceHandler(localhostsvc, connect.WithInterceptors(otelIctpr)))
 
 	httphdl := h2c.NewHandler(mux, &http2.Server{})
+	httphdl = otelhttp.NewHandler(httphdl, "humanlog localhost service")
 	httphdl = withCORS(httphdl)
 
 	srv := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -563,8 +611,23 @@ func (hdl *serviceHandler) runLocalhost(
 
 	eg, ctx := errgroup.WithContext(ctx)
 	if otlpGrpcL != nil {
+
+		stats := otelgrpc.NewServerHandler(
+			otelgrpc.WithMessageEvents(otelgrpc.ReceivedEvents, otelgrpc.SentEvents),
+			otelgrpc.WithFilter(
+				filters.Any(
+					filters.Not(
+						filters.ServiceName(otlptracesvcpb.TraceService_ServiceDesc.ServiceName),
+					),
+					filters.Not(
+						filters.ServiceName(otlpmetricssvcpb.MetricsService_ServiceDesc.ServiceName),
+					),
+				),
+			),
+		)
+
 		// otel gRPC receiver handlers
-		gsrv := grpc.NewServer()
+		gsrv := grpc.NewServer(grpc.StatsHandler(stats))
 		otlplogssvcpb.RegisterLogsServiceServer(gsrv, localhostsvc.AsLoggingOTLP())
 		otlpmetricssvcpb.RegisterMetricsServiceServer(gsrv, localhostsvc.AsMetricsOTLP())
 		otlptracesvcpb.RegisterTraceServiceServer(gsrv, localhostsvc.AsTracingOTLP())
@@ -867,4 +930,66 @@ func withCORS(connectHandler http.Handler) http.Handler {
 		MaxAge:         7200, // 2 hours in seconds
 	})
 	return c.Handler(connectHandler)
+}
+
+func setupOtel(ctx context.Context, ll *slog.Logger) (done func() error, _ error) {
+	var toClose []func() error
+	done = func() error {
+		var lastErr error
+		for _, closer := range toClose {
+			if err := closer(); err != nil {
+				lastErr = err
+			}
+		}
+		return lastErr
+	}
+
+	// trace and monitor yourself with... yourself in dev mode
+	res := resource.Default()
+	metricExp, err := otlpmetricgrpc.New(ctx, otlpmetricgrpc.WithInsecure())
+	if err != nil {
+		return done, fmt.Errorf("creating otel metrics exporter: %v", err)
+	}
+	meterProvider := sdkmetric.NewMeterProvider(
+		sdkmetric.WithResource(res),
+		sdkmetric.WithReader(sdkmetric.NewPeriodicReader(metricExp)),
+	)
+
+	toClose = append(toClose, func() error {
+		var err error
+		if err = meterProvider.Shutdown(ctx); err != nil {
+			err = fmt.Errorf("creating otel metrics provider: %v", err)
+		}
+		_ = metricExp.Shutdown(ctx)
+		return err
+	})
+	traceClient := otlptracegrpc.NewClient(otlptracegrpc.WithInsecure())
+	traceExp, err := otlptrace.New(ctx, traceClient)
+	if err != nil {
+		return done, fmt.Errorf("creating otel trace exporter: %v", err)
+	}
+
+	ll.InfoContext(ctx, "creating otel trace provider")
+	traceProvider := trace.NewTracerProvider(
+		trace.WithBatcher(traceExp),
+		trace.WithResource(res),
+	)
+	toClose = append(toClose, func() error {
+		var err error
+		if err = traceProvider.Shutdown(ctx); err != nil {
+			err = fmt.Errorf("shutting down otel trace provider: %v", err)
+		}
+		_ = traceExp.Shutdown(ctx)
+		return err
+	})
+
+	otel.SetTracerProvider(traceProvider)
+	otel.SetMeterProvider(meterProvider)
+	otel.SetTextMapPropagator(
+		propagation.NewCompositeTextMapPropagator(
+			propagation.TraceContext{},
+			propagation.Baggage{},
+		),
+	)
+	return done, nil
 }
