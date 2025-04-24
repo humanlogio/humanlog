@@ -155,6 +155,15 @@ func (svc *Service) SetConfig(ctx context.Context, req *connect.Request[lhv1.Set
 	return connect.NewResponse(out), nil
 }
 
+func (svc *Service) GetStats(ctx context.Context, req *connect.Request[lhv1.GetStatsRequest]) (*connect.Response[lhv1.GetStatsResponse], error) {
+	databaseStats, err := svc.storage.Stats(ctx)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to set database stats: %v", err))
+	}
+	out := &lhv1.GetStatsResponse{DatabaseStats: databaseStats}
+	return connect.NewResponse(out), nil
+}
+
 func (svc *Service) GetHeartbeat(ctx context.Context, req *connect.Request[igv1.GetHeartbeatRequest]) (*connect.Response[igv1.GetHeartbeatResponse], error) {
 	msg := req.Msg
 	if msg.MachineId == nil {

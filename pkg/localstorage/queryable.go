@@ -52,6 +52,7 @@ type Storage interface {
 	Queryable
 	SinkFor(ctx context.Context, machineID, sessionID int64) (_ sink.Sink, heartbeatIn time.Duration, _ error)
 	Heartbeat(ctx context.Context, machineID, sessionID int64) (time.Duration, error)
+	Stats(ctx context.Context) (*typesv1.Val, error)
 	Close() error
 
 	OTLPLogger
