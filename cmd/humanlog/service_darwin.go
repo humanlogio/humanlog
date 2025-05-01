@@ -21,7 +21,6 @@ func (hdl *serviceHandler) Stop(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-
 	cmd := execabs.CommandContext(ctx, "launchctl", "unload", confPath)
 	return cmd.Run()
 }
@@ -57,7 +56,6 @@ func (hdl *serviceHandler) Install() error {
 	if err != nil {
 		return fmt.Errorf("ensuring service directory exists: %v", err)
 	}
-
 	f, err := os.Create(confPath)
 	if err != nil {
 		return fmt.Errorf("creating service file: %v", err)
