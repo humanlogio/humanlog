@@ -101,7 +101,9 @@ func serviceCmd(
 		},
 		After: func(cctx *cli.Context) error {
 			ctx := getCtx(cctx)
-			return svcHandler.Stop(ctx)
+			ctx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+			defer cancel()
+			return svcHandler.close(ctx)
 		},
 		Subcommands: []cli.Command{
 			{
@@ -238,7 +240,7 @@ func prepareServiceCmd(
 	authCheckFrequency := time.Minute
 	updateCheckFrequency := time.Hour
 
-	doneOtel := func() error { return nil }
+	doneOtel := func(ctx context.Context) error { return nil }
 	expcfg := config.GetRuntime().GetExperimentalFeatures()
 	if expcfg != nil {
 		// check for updates more often if you use
@@ -262,7 +264,7 @@ func prepareServiceCmd(
 
 	otelIctpr, err := otelconnect.NewInterceptor()
 	if err != nil {
-		doneOtel()
+		doneOtel(ctx)
 		return nil, fmt.Errorf("can't create otel interceptors for clients: %v", err)
 	}
 	baseIcptrs := []connect.Interceptor{otelIctpr}
@@ -348,7 +350,7 @@ type serviceHandler struct {
 
 	cancel    context.CancelFunc
 	onCloseMu sync.Mutex
-	onClose   []func() error
+	onClose   []func(context.Context) error
 }
 
 func newServiceHandler(
@@ -365,7 +367,7 @@ func newServiceHandler(
 	authSvc authv1connect.AuthServiceClient,
 	userSvc userv1connect.UserServiceClient,
 	featureSvc featurev1connect.FeatureServiceClient,
-	doneOtel func() error,
+	doneOtel func(context.Context) error,
 ) (*serviceHandler, error) {
 	if authCheckFrequency < time.Minute {
 		authCheckFrequency = time.Minute
@@ -393,7 +395,7 @@ func newServiceHandler(
 		authSvc:              authSvc,
 		userSvc:              userSvc,
 		featureSvc:           featureSvc,
-		onClose:              []func() error{doneOtel},
+		onClose:              []func(context.Context) error{doneOtel},
 	}
 
 	return hdl, nil
@@ -421,7 +423,7 @@ func (hdl *serviceHandler) run(ctx context.Context, cancel context.CancelFunc) e
 		registerOnCloseServer := func(srv *http.Server) {
 			hdl.onCloseMu.Lock()
 			defer hdl.onCloseMu.Unlock()
-			hdl.onClose = append(hdl.onClose, func() error {
+			hdl.onClose = append(hdl.onClose, func(ctx context.Context) error {
 				ll.InfoContext(ctx, "requesting to close server")
 				return srv.Close()
 			})
@@ -458,6 +460,15 @@ func (hdl *serviceHandler) run(ctx context.Context, cancel context.CancelFunc) e
 	return nil
 }
 
+func (hdl *serviceHandler) close(ctx context.Context) error {
+	for _, onClose := range hdl.onClose {
+		if err := onClose(ctx); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (hdl *serviceHandler) shutdown(ctx context.Context) error {
 	ll := hdl.ll
 	ll.InfoContext(ctx, "stopping service")
@@ -472,10 +483,8 @@ func (hdl *serviceHandler) shutdown(ctx context.Context) error {
 		os.Exit(1)
 	}) // just die violently after 15s
 	defer dirtyExit.Stop()
-	for _, onClose := range hdl.onClose {
-		if err := onClose(); err != nil {
-			return err
-		}
+	if err := hdl.close(ctx); err != nil {
+		ll.ErrorContext(ctx, "error closing service handler", slog.Any("err", err))
 	}
 	ll.InfoContext(ctx, "service done")
 	return nil
@@ -932,12 +941,12 @@ func withCORS(connectHandler http.Handler) http.Handler {
 	return c.Handler(connectHandler)
 }
 
-func setupOtel(ctx context.Context, ll *slog.Logger) (done func() error, _ error) {
-	var toClose []func() error
-	done = func() error {
+func setupOtel(ctx context.Context, ll *slog.Logger) (done func(context.Context) error, _ error) {
+	var toClose []func(context.Context) error
+	done = func(context.Context) error {
 		var lastErr error
 		for _, closer := range toClose {
-			if err := closer(); err != nil {
+			if err := closer(ctx); err != nil {
 				lastErr = err
 			}
 		}
@@ -955,12 +964,13 @@ func setupOtel(ctx context.Context, ll *slog.Logger) (done func() error, _ error
 		sdkmetric.WithReader(sdkmetric.NewPeriodicReader(metricExp)),
 	)
 
-	toClose = append(toClose, func() error {
+	toClose = append(toClose, func(ctx context.Context) error {
+		ctx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+		defer cancel()
 		var err error
 		if err = meterProvider.Shutdown(ctx); err != nil {
 			err = fmt.Errorf("creating otel metrics provider: %v", err)
 		}
-		_ = metricExp.Shutdown(ctx)
 		return err
 	})
 	traceClient := otlptracegrpc.NewClient(otlptracegrpc.WithInsecure())
@@ -974,12 +984,13 @@ func setupOtel(ctx context.Context, ll *slog.Logger) (done func() error, _ error
 		trace.WithBatcher(traceExp),
 		trace.WithResource(res),
 	)
-	toClose = append(toClose, func() error {
+	toClose = append(toClose, func(ctx context.Context) error {
+		ctx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+		defer cancel()
 		var err error
 		if err = traceProvider.Shutdown(ctx); err != nil {
 			err = fmt.Errorf("shutting down otel trace provider: %v", err)
 		}
-		_ = traceExp.Shutdown(ctx)
 		return err
 	})
 
