@@ -91,7 +91,7 @@ func queryCmd(
 			if err != nil {
 				return fmt.Errorf("parsing base url: %v", err)
 			}
-			queryu := baseSiteU.JoinPath("/localhost")
+			queryu := baseSiteU.JoinPath("/localhost/query")
 			v := queryu.Query()
 			v.Set("query", q)
 			queryu.RawQuery = v.Encode()
