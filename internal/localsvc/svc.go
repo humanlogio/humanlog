@@ -18,6 +18,7 @@ import (
 	"github.com/humanlogio/humanlog/internal/pkg/state"
 	"github.com/humanlogio/humanlog/pkg/localstorage"
 	"github.com/humanlogio/humanlog/pkg/sink"
+	"github.com/humanlogio/humanlog/pkg/validate"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -489,8 +490,41 @@ func (svc *Service) Query(ctx context.Context, req *connect.Request[qrv1.QueryRe
 	return connect.NewResponse(out), nil
 }
 
+func (svc *Service) Stream(ctx context.Context, req *connect.Request[qrv1.StreamRequest], srv *connect.ServerStream[qrv1.StreamResponse]) error {
+	query := req.Msg.GetQuery()
+	if query == nil {
+		return connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("required: `query`"))
+	}
+
+	batchSize, err := validate.StreamResolveBatchSize(int(req.Msg.MaxBatchSize))
+	if err != nil {
+		return connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	ticker, doneTicker, err := validate.StreamResolveBatchTicker(req.Msg.MaxBatchingFor)
+	if err != nil {
+		return connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	defer doneTicker()
+
+	opts := &localstorage.StreamOption{
+		BatchSize:    batchSize,
+		BatchTrigger: ticker,
+	}
+
+	err = svc.storage.Stream(ctx, query, func(ctx context.Context, d *typesv1.Data) (bool, error) {
+		return true, srv.Send(&qrv1.StreamResponse{Data: d})
+	}, opts)
+	if err != nil {
+		if cerr, ok := err.(*connect.Error); ok {
+			return cerr
+		}
+		return connect.NewError(connect.CodeInternal, fmt.Errorf("streaming from local storage: %v", err))
+	}
+	return nil
+}
+
 func (svc *Service) ListSymbols(ctx context.Context, req *connect.Request[qrv1.ListSymbolsRequest]) (*connect.Response[qrv1.ListSymbolsResponse], error) {
-	symbols, next, err := svc.storage.ListSymbols(ctx, req.Msg.Cursor, int(req.Msg.Limit))
+	symbols, next, err := svc.storage.ListSymbols(ctx, nil, req.Msg.Cursor, int(req.Msg.Limit))
 	if err != nil {
 		if cerr, ok := err.(*connect.Error); ok {
 			return nil, cerr

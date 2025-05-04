@@ -72,13 +72,21 @@ type OTLPMeter interface {
 	ExportMetrics(ctx context.Context, req *otlpmetricssvcpb.ExportMetricsServiceRequest) (*otlpmetricssvcpb.ExportMetricsServiceResponse, error)
 }
 
+type StreamOption struct {
+	BatchSize             int
+	BatchTrigger          <-chan time.Time
+	NotifyStreamListening func(ctx context.Context)
+}
+
 type Queryable interface {
 	Parse(ctx context.Context, q string) (*typesv1.Query, error)
 	Format(ctx context.Context, q *typesv1.Query) (string, error)
 
 	Query(ctx context.Context, q *typesv1.Query, c *typesv1.Cursor, limit int) (*typesv1.Data, *typesv1.Cursor, error)
 	ResolveQueryType(ctx context.Context, query *typesv1.Query) (*typesv1.DataStreamType, error)
-	ListSymbols(ctx context.Context, c *typesv1.Cursor, limit int) ([]*typesv1.Symbol, *typesv1.Cursor, error)
+	ListSymbols(ctx context.Context, query *typesv1.Query, c *typesv1.Cursor, limit int) ([]*typesv1.Symbol, *typesv1.Cursor, error)
+
+	Stream(ctx context.Context, q *typesv1.Query, cb func(context.Context, *typesv1.Data) (bool, error), opts *StreamOption) error
 
 	GetTraceByID(ctx context.Context, traceID []byte) (*typesv1.Trace, error)
 	GetTraceBySpanID(ctx context.Context, spanID []byte) (*typesv1.Trace, error)
