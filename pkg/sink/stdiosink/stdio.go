@@ -3,6 +3,7 @@ package stdiosink
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"sort"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
+	"github.com/humanlogio/humanlog-pro/logql/printer"
 	"github.com/humanlogio/humanlog/internal/logqleval"
 	"github.com/humanlogio/humanlog/pkg/sink"
 	"github.com/ryanuber/go-glob"
@@ -33,16 +35,17 @@ type Stdio struct {
 }
 
 type StdioOpts struct {
-	Keep              []string
-	Skip              []string
-	SkipUnchanged     bool
-	SortLongest       bool
-	TimeFormat        string
-	TimeZone          *time.Location
-	TruncateLength    int
-	Truncates         bool
-	AbsentMsgContent  string
-	AbsentTimeContent string
+	Keep                    []string
+	Skip                    []string
+	SkipUnchanged           bool
+	SortLongest             bool
+	TimeFormat              string
+	TimeZone                *time.Location
+	TruncateLength          int
+	Truncates               bool
+	AbsentMsgContent        string
+	AbsentTimeContent       string
+	AbsentParentSpanContent string
 
 	LightTheme func(r *lipgloss.Renderer) (*Theme, error)
 	DarkTheme  func(r *lipgloss.Renderer) (*Theme, error)
@@ -50,14 +53,15 @@ type StdioOpts struct {
 
 var DefaultStdioOpts = StdioOpts{
 
-	SkipUnchanged:     true,
-	SortLongest:       true,
-	TimeFormat:        time.Stamp,
-	TimeZone:          time.Local,
-	TruncateLength:    15,
-	Truncates:         false,
-	AbsentMsgContent:  "<no msg>",
-	AbsentTimeContent: "<no time>",
+	SkipUnchanged:           true,
+	SortLongest:             true,
+	TimeFormat:              time.Stamp,
+	TimeZone:                time.Local,
+	TruncateLength:          15,
+	Truncates:               false,
+	AbsentMsgContent:        "<no msg>",
+	AbsentTimeContent:       "<no time>",
+	AbsentParentSpanContent: "<no parent>",
 
 	LightTheme: func(r *lipgloss.Renderer) (*Theme, error) { return ThemeFrom(r, DefaultLightTheme) },
 	DarkTheme:  func(r *lipgloss.Renderer) (*Theme, error) { return ThemeFrom(r, DefaultDarkTheme) },
@@ -149,6 +153,7 @@ func (std *Stdio) Receive(ctx context.Context, ev *typesv1.LogEvent) error {
 }
 
 func (std *Stdio) ReceiveWithPostProcess(ctx context.Context, ev *typesv1.LogEvent, postProcess func(string) string) error {
+	logtheme := std.theme.Logs
 	if ev.Structured == nil {
 		std.lastRaw = true
 		std.lastLevel = ""
@@ -168,37 +173,37 @@ func (std *Stdio) ReceiveWithPostProcess(ctx context.Context, ev *typesv1.LogEve
 
 	var msg string
 	if data.Msg == "" {
-		msg = std.theme.MsgAbsent.Render(std.opts.AbsentMsgContent)
+		msg = logtheme.MsgAbsent.Render(std.opts.AbsentMsgContent)
 	} else {
-		msg = std.theme.Msg.Render(data.Msg)
+		msg = logtheme.Msg.Render(data.Msg)
 	}
 
-	lvl := strings.ToUpper(data.Lvl)[:imin(4, len(data.Lvl))]
+	lvl := strings.ToUpper(data.Lvl)[:min(4, len(data.Lvl))]
 	var level string
 	switch strings.ToLower(data.Lvl) {
 	case "debug":
-		level = std.theme.DebugLevel.Render(lvl)
+		level = logtheme.DebugLevel.Render(lvl)
 	case "info":
-		level = std.theme.InfoLevel.Render(lvl)
+		level = logtheme.InfoLevel.Render(lvl)
 	case "warn", "warning":
-		level = std.theme.WarnLevel.Render(lvl)
+		level = logtheme.WarnLevel.Render(lvl)
 	case "error":
-		level = std.theme.ErrorLevel.Render(lvl)
+		level = logtheme.ErrorLevel.Render(lvl)
 	case "fatal", "panic":
-		level = std.theme.FatalLevel.Render(lvl)
+		level = logtheme.FatalLevel.Render(lvl)
 	default:
-		level = std.theme.UnknownLevel.Render(lvl)
+		level = logtheme.UnknownLevel.Render(lvl)
 	}
 
 	var timestr string
 	ts := data.Timestamp.AsTime()
 	if ts.IsZero() {
-		timestr = std.theme.TimeAbsent.Render(std.opts.AbsentTimeContent)
+		timestr = logtheme.TimeAbsent.Render(std.opts.AbsentTimeContent)
 	} else {
 		if std.opts.TimeZone != nil {
 			ts = ts.In(std.opts.TimeZone)
 		}
-		timestr = std.theme.Time.Render(ts.Format(std.opts.TimeFormat))
+		timestr = logtheme.Time.Render(ts.Format(std.opts.TimeFormat))
 	}
 
 	pattern := "%s |%s| %s\t %s"
@@ -234,6 +239,204 @@ func (std *Stdio) ReceiveWithPostProcess(ctx context.Context, ev *typesv1.LogEve
 	std.lastRaw = false
 	std.lastLevel = ev.Structured.Lvl
 	std.lastKVs = kvs
+	return nil
+}
+
+func (std *Stdio) ReceiveSpan(ctx context.Context, span *typesv1.Span) error {
+	spantheme := std.theme.Spans
+	buf := bytes.NewBuffer(nil)
+	spanOut := tabwriter.NewWriter(buf, 0, 1, 0, '|', 0)
+	resourcesOut := tabwriter.NewWriter(buf, 0, 1, 0, '\t', 0)
+	attributesOut := tabwriter.NewWriter(buf, 0, 1, 0, '\t', 0)
+	eventsOut := tabwriter.NewWriter(buf, 0, 1, 0, '\t', 0)
+	linksOut := tabwriter.NewWriter(buf, 0, 1, 0, '\t', 0)
+
+	var (
+		startTime     string
+		serviceName   = spantheme.ServiceName.Render(span.ServiceName)
+		kind          = spantheme.Kind.Render(typesv1.Span_SpanKind_name[int32(span.Kind)])
+		name          = spantheme.Name.Render(span.Name)
+		duration      = spantheme.Duration.Render(span.Timing.Duration.AsDuration().String())
+		statusCode    = spantheme.StatusCode.Render(typesv1.Span_Status_Code_name[int32(span.Status.Code)])
+		statusMessage = spantheme.StatusMessage.Render(span.Status.Message)
+		traceID       = spantheme.TraceId.Render(hex.EncodeToString(span.TraceId))
+		spanID        = spantheme.SpanId.Render(hex.EncodeToString(span.SpanId))
+		parentSpanID  string
+		traceState    = spantheme.TraceState.Render(span.TraceState)
+		scopeName     = spantheme.ScopeName.Render(span.Scope.Name)
+		scopeVersion  = spantheme.ScopeVersion.Render(span.Scope.Version)
+	)
+
+	if len(span.ParentSpanId) > 0 {
+		parentSpanID = spantheme.ParentSpanId.Render(hex.EncodeToString(span.SpanId))
+	} else {
+		parentSpanID = spantheme.ParentSpanIdAbsent.Render(std.opts.AbsentParentSpanContent)
+	}
+
+	ts := span.Timing.Start.AsTime()
+	if std.opts.TimeZone != nil {
+		ts = ts.In(std.opts.TimeZone)
+	}
+	startTime = spantheme.Time.Render(ts.Format(std.opts.TimeFormat))
+
+	pattern := "%s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s"
+	_, _ = fmt.Fprintf(spanOut, pattern,
+		startTime,
+		serviceName,
+		kind,
+		name,
+		duration,
+		statusCode,
+		statusMessage,
+		traceID,
+		spanID,
+		parentSpanID,
+		traceState,
+		scopeName,
+		scopeVersion,
+	)
+
+	if err := spanOut.Flush(); err != nil {
+		return err
+	}
+
+	buf.Write(eol[:])
+
+	if len(span.ResourceAttributes) > 0 {
+		resKVs := "\tresource:"
+		for _, ra := range span.ResourceAttributes {
+			resKVs += "\t"
+			key := spantheme.ResourceKey.Render(ra.Key)
+			val := spantheme.ResourceVal.Render(printer.FormatVal(ra.Value))
+			resKVs += key + "=" + val
+		}
+		_, _ = resourcesOut.Write([]byte(resKVs))
+		if err := resourcesOut.Flush(); err != nil {
+			return err
+		}
+		buf.Write(eol[:])
+	}
+
+	if len(span.SpanAttributes) > 0 {
+		spanKVs := "\tattributes:"
+		for _, sa := range span.SpanAttributes {
+			spanKVs += "\t"
+			key := spantheme.AttributeKey.Render(sa.Key)
+			val := spantheme.AttributeVal.Render(printer.FormatVal(sa.Value))
+			spanKVs += key + "=" + val
+		}
+		_, _ = attributesOut.Write([]byte(spanKVs))
+		if err := attributesOut.Flush(); err != nil {
+			return err
+		}
+		buf.Write(eol[:])
+	}
+
+	if len(span.Events) > 0 {
+		for _, event := range span.Events {
+			var (
+				time = spantheme.EventTime.Render(event.GetTimestamp().AsTime().Format(std.opts.TimeFormat))
+				name = spantheme.EventName.Render(event.Name)
+				kvs  string
+			)
+			for _, kv := range event.Kvs {
+				kvs += "\t"
+				key := spantheme.EventKey.Render(kv.Key)
+				val := spantheme.EventVal.Render(printer.FormatVal(kv.Value))
+				kvs += key + "=" + val
+			}
+			pattern := "\tevent: %s | %s %s"
+			_, _ = fmt.Fprintf(eventsOut, pattern,
+				time,
+				name,
+				kvs,
+			)
+		}
+		if err := eventsOut.Flush(); err != nil {
+			return err
+		}
+		buf.Write(eol[:])
+	}
+
+	if len(span.Links) > 0 {
+		for _, link := range span.Links {
+			var (
+				traceID    = spantheme.LinkTraceID.Render(hex.EncodeToString(link.TraceId))
+				spanID     = spantheme.LinkSpanID.Render(hex.EncodeToString(link.SpanId))
+				traceState = spantheme.LinkTraceState.Render(link.TraceState)
+				kvs        string
+			)
+
+			for _, kv := range link.Kvs {
+				kvs += "\t"
+				key := spantheme.EventKey.Render(kv.Key)
+				val := spantheme.EventVal.Render(printer.FormatVal(kv.Value))
+				kvs += key + "=" + val
+			}
+			pattern := "\tlink: %s | %s | %s | %s"
+			_, _ = fmt.Fprintf(linksOut, pattern,
+				traceID,
+				spanID,
+				traceState,
+				kvs,
+			)
+		}
+		if err := linksOut.Flush(); err != nil {
+			return err
+		}
+		buf.Write(eol[:])
+	}
+
+	if _, err := buf.WriteTo(std.w); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (std *Stdio) ReceiveTable(ctx context.Context, table *typesv1.Table) error {
+	tabletheme := std.theme.Table
+	buf := bytes.NewBuffer(nil)
+	out := tabwriter.NewWriter(buf, 0, 1, 0, '|', 0)
+
+	header := "| "
+	for i, col := range table.Type.Columns {
+		if i != 0 {
+			header += " | "
+		}
+		name := tabletheme.ColumnName.Render(col.Name)
+		typ := tabletheme.ColumnType.Render(col.Type.String())
+		header += name + ": " + typ
+	}
+	header += " |"
+
+	longestLine := len(header)
+
+	out.Write([]byte(header))
+	out.Write(eol[:])
+
+	for _, row := range table.Rows {
+		rowStr := "| "
+		for i, col := range row.Items {
+			if i != 0 {
+				rowStr += " | "
+			}
+			colstr := printer.FormatVal(col)
+			name := tabletheme.Value.Render(colstr)
+			rowStr += name
+		}
+		rowStr += " |"
+		longestLine = max(len(rowStr), longestLine)
+		out.Write([]byte(rowStr))
+		out.Write(eol[:])
+	}
+
+	if err := out.Flush(); err != nil {
+		return err
+	}
+
+	if _, err := buf.WriteTo(std.w); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -309,7 +512,7 @@ func (std *Stdio) joinKVs(data *typesv1.StructuredLogEvent, sep string) []string
 				continue
 			}
 		}
-		kstr := std.theme.Key.Render(k)
+		kstr := std.theme.Logs.Key.Render(k)
 
 		var vstr string
 		if std.opts.Truncates && len(w) > std.opts.TruncateLength {
@@ -317,7 +520,7 @@ func (std *Stdio) joinKVs(data *typesv1.StructuredLogEvent, sep string) []string
 		} else {
 			vstr = w
 		}
-		vstr = std.theme.Val.Render(vstr)
+		vstr = std.theme.Logs.Val.Render(vstr)
 		kv = append(kv, kstr+sep+vstr)
 	}
 
@@ -364,10 +567,3 @@ type byLongest []string
 func (s byLongest) Len() int           { return len(s) }
 func (s byLongest) Less(i, j int) bool { return len(s[i]) < len(s[j]) }
 func (s byLongest) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
-
-func imin(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}

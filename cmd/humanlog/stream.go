@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
 	"connectrpc.com/connect"
 	queryv1 "github.com/humanlogio/api/go/svc/query/v1"
@@ -21,6 +22,7 @@ import (
 	"github.com/pkg/browser"
 	"github.com/urfave/cli"
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/types/known/durationpb"
 )
 
 const (
@@ -168,20 +170,7 @@ func streamApiRunCmd(
 				if err != nil {
 					return fmt.Errorf("preparing stdio printer: %v", err)
 				}
-				printer = func(data *typesv1.Data) error {
-					var events []*typesv1.IngestedLogEvent
-					switch shape := data.Shape.(type) {
-					case *typesv1.Data_Tabular:
-						switch tshape := shape.Tabular.Shape.(type) {
-						case *typesv1.Tabular_LogEvents:
-							events = tshape.LogEvents.Events
-						default:
-							return fmt.Errorf("todo: handle data shape %T", tshape)
-						}
-					default:
-						return fmt.Errorf("todo: handle data shape %T", shape)
-					}
-
+				printLogEvents := func(events []*typesv1.IngestedLogEvent) error {
 					for _, ev := range events {
 						prefix := getPrefix(ev.MachineId, ev.SessionId)
 						postProcess := func(pattern string) string {
@@ -198,23 +187,62 @@ func streamApiRunCmd(
 					}
 					return nil
 				}
+				printSpans := func(spans []*typesv1.Span) error {
+					for _, sp := range spans {
+						if err := sink.ReceiveSpan(ctx, sp); err != nil {
+							return fmt.Errorf("printing span: %v", err)
+						}
+					}
+					return nil
+				}
+				printTable := func(table *typesv1.Table) error {
+					if err := sink.ReceiveTable(ctx, table); err != nil {
+						return fmt.Errorf("printing table: %v", err)
+					}
+					return nil
+				}
+				printer = func(data *typesv1.Data) error {
+					switch shape := data.Shape.(type) {
+					case *typesv1.Data_Tabular:
+						switch tshape := shape.Tabular.Shape.(type) {
+						case *typesv1.Tabular_LogEvents:
+							return printLogEvents(tshape.LogEvents.Events)
+						case *typesv1.Tabular_Spans:
+							return printSpans(tshape.Spans.Spans)
+						case *typesv1.Tabular_FreeForm:
+							return printTable(tshape.FreeForm)
+						default:
+							return fmt.Errorf("todo: handle data shape %T", tshape)
+						}
+					default:
+						return fmt.Errorf("todo: handle data shape %T", shape)
+					}
+				}
 			default:
 				return fmt.Errorf("unsupported format: %q", cctx.String(format.Name))
 			}
 
 			var (
 				req = &queryv1.StreamRequest{
-					EnvironmentId: environmentID,
-					Query:         lq,
+					EnvironmentId:  environmentID,
+					Query:          lq,
+					MaxBatchingFor: durationpb.New(100 * time.Millisecond),
 				}
 			)
 
-			res, err := queryClient.Stream(ctx, connect.NewRequest(req))
+			loginfo("starting to stream query=%q", query)
+			streamCtx, streamCancel := context.WithCancel(ctx)
+			res, err := queryClient.Stream(streamCtx, connect.NewRequest(req))
 			if err != nil {
 				return fmt.Errorf("calling Query: %v", err)
 			}
-			defer res.Close()
+			defer func() {
+				streamCancel()
+				res.Close()
 
+			}()
+
+			loginfo("waiting for data...")
 			for res.Receive() {
 				data := res.Msg().GetData()
 				if err := printer(data); err != nil {
