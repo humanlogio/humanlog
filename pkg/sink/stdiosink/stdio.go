@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"sort"
@@ -13,7 +14,6 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
-	"github.com/humanlogio/humanlog-pro/logql/printer"
 	"github.com/humanlogio/humanlog/internal/logqleval"
 	"github.com/humanlogio/humanlog/pkg/sink"
 	"github.com/ryanuber/go-glob"
@@ -307,7 +307,11 @@ func (std *Stdio) ReceiveSpan(ctx context.Context, span *typesv1.Span) error {
 		for _, ra := range span.ResourceAttributes {
 			resKVs += "\t"
 			key := spantheme.ResourceKey.Render(ra.Key)
-			val := spantheme.ResourceVal.Render(printer.FormatVal(ra.Value))
+			strVal, err := toString(ra.Value)
+			if err != nil {
+				return err
+			}
+			val := spantheme.ResourceVal.Render(strVal)
 			resKVs += key + "=" + val
 		}
 		_, _ = resourcesOut.Write([]byte(resKVs))
@@ -322,7 +326,11 @@ func (std *Stdio) ReceiveSpan(ctx context.Context, span *typesv1.Span) error {
 		for _, sa := range span.SpanAttributes {
 			spanKVs += "\t"
 			key := spantheme.AttributeKey.Render(sa.Key)
-			val := spantheme.AttributeVal.Render(printer.FormatVal(sa.Value))
+			strVal, err := toString(sa.Value)
+			if err != nil {
+				return err
+			}
+			val := spantheme.AttributeVal.Render(strVal)
 			spanKVs += key + "=" + val
 		}
 		_, _ = attributesOut.Write([]byte(spanKVs))
@@ -342,7 +350,11 @@ func (std *Stdio) ReceiveSpan(ctx context.Context, span *typesv1.Span) error {
 			for _, kv := range event.Kvs {
 				kvs += "\t"
 				key := spantheme.EventKey.Render(kv.Key)
-				val := spantheme.EventVal.Render(printer.FormatVal(kv.Value))
+				strVal, err := toString(kv.Value)
+				if err != nil {
+					return err
+				}
+				val := spantheme.EventVal.Render(strVal)
 				kvs += key + "=" + val
 			}
 			pattern := "\tevent: %s | %s %s"
@@ -370,7 +382,11 @@ func (std *Stdio) ReceiveSpan(ctx context.Context, span *typesv1.Span) error {
 			for _, kv := range link.Kvs {
 				kvs += "\t"
 				key := spantheme.EventKey.Render(kv.Key)
-				val := spantheme.EventVal.Render(printer.FormatVal(kv.Value))
+				strVal, err := toString(kv.Value)
+				if err != nil {
+					return err
+				}
+				val := spantheme.EventVal.Render(strVal)
 				kvs += key + "=" + val
 			}
 			pattern := "\tlink: %s | %s | %s | %s"
@@ -420,8 +436,11 @@ func (std *Stdio) ReceiveTable(ctx context.Context, table *typesv1.Table) error 
 			if i != 0 {
 				rowStr += " | "
 			}
-			colstr := printer.FormatVal(col)
-			name := tabletheme.Value.Render(colstr)
+			strVal, err := toString(col)
+			if err != nil {
+				return err
+			}
+			name := tabletheme.Value.Render(strVal)
 			rowStr += name
 		}
 		rowStr += " |"
@@ -441,7 +460,7 @@ func (std *Stdio) ReceiveTable(ctx context.Context, table *typesv1.Table) error 
 }
 
 func toString(value *typesv1.Val) (string, error) {
-	v, err := logqleval.ResolveVal(value, nil, nil)
+	v, err := logqleval.ResolveVal(value, logqleval.MakeFlatGoMap, logqleval.MakeFlatGoSlice)
 	if err != nil {
 		return "", err
 	}
@@ -458,6 +477,9 @@ func toString(value *typesv1.Val) (string, error) {
 		return t.Format(time.RFC3339Nano), nil
 	case time.Duration:
 		return t.String(), nil
+	case map[string]any:
+		v, err := json.Marshal(t)
+		return string(v), err
 	case nil:
 		return "null", nil
 	default:
