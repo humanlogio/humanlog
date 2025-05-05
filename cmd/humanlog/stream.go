@@ -239,7 +239,6 @@ func streamApiRunCmd(
 			defer func() {
 				streamCancel()
 				res.Close()
-
 			}()
 
 			loginfo("waiting for data...")
