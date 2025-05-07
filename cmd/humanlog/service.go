@@ -598,6 +598,7 @@ func (hdl *serviceHandler) runLocalhost(
 	mux.Handle(localhostv1connect.NewLocalhostServiceHandler(localhostsvc, connect.WithInterceptors(otelIctpr)))
 	mux.Handle(ingestv1connect.NewIngestServiceHandler(localhostsvc, connect.WithInterceptors(otelIctpr)))
 	mux.Handle(queryv1connect.NewQueryServiceHandler(localhostsvc, connect.WithInterceptors(otelIctpr)))
+	mux.Handle(queryv1connect.NewTraceServiceHandler(localhostsvc, connect.WithInterceptors(otelIctpr)))
 
 	httphdl := h2c.NewHandler(mux, &http2.Server{})
 	httphdl = otelhttp.NewHandler(httphdl, "humanlog localhost service")
