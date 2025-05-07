@@ -541,10 +541,10 @@ func (svc *Service) GetTrace(ctx context.Context, req *connect.Request[qrv1.GetT
 	switch by := req.Msg.By.(type) {
 	case *qrv1.GetTraceRequest_TraceId:
 		span.SetAttributes(attribute.String("by.trace_id", by.TraceId))
-		trace, err = svc.storage.GetTraceByID(ctx, []byte(by.TraceId))
+		trace, err = svc.storage.GetTraceByID(ctx, by.TraceId)
 	case *qrv1.GetTraceRequest_SpanId:
 		span.SetAttributes(attribute.String("by.span_id", by.SpanId))
-		trace, err = svc.storage.GetTraceBySpanID(ctx, []byte(by.SpanId))
+		trace, err = svc.storage.GetTraceBySpanID(ctx, by.SpanId)
 	}
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
@@ -567,7 +567,7 @@ func (svc *Service) GetSpan(ctx context.Context, req *connect.Request[qrv1.GetSp
 	))
 	defer span.End()
 
-	sp, err := svc.storage.GetSpanByID(ctx, []byte(req.Msg.SpanId))
+	sp, err := svc.storage.GetSpanByID(ctx, req.Msg.SpanId)
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		if cerr, ok := err.(*connect.Error); ok {

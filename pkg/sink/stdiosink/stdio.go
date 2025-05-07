@@ -3,7 +3,6 @@ package stdiosink
 import (
 	"bytes"
 	"context"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -259,8 +258,8 @@ func (std *Stdio) ReceiveSpan(ctx context.Context, span *typesv1.Span) error {
 		duration      = spantheme.Duration.Render(span.Timing.Duration.AsDuration().String())
 		statusCode    = spantheme.StatusCode.Render(typesv1.Span_Status_Code_name[int32(span.Status.Code)])
 		statusMessage = spantheme.StatusMessage.Render(span.Status.Message)
-		traceID       = spantheme.TraceId.Render(hex.EncodeToString(span.TraceId))
-		spanID        = spantheme.SpanId.Render(hex.EncodeToString(span.SpanId))
+		traceID       = spantheme.TraceId.Render(span.TraceId)
+		spanID        = spantheme.SpanId.Render(span.SpanId)
 		parentSpanID  string
 		traceState    = spantheme.TraceState.Render(span.TraceState)
 		scopeName     = spantheme.ScopeName.Render(span.Scope.Name)
@@ -268,7 +267,7 @@ func (std *Stdio) ReceiveSpan(ctx context.Context, span *typesv1.Span) error {
 	)
 
 	if len(span.ParentSpanId) > 0 {
-		parentSpanID = spantheme.ParentSpanId.Render(hex.EncodeToString(span.SpanId))
+		parentSpanID = spantheme.ParentSpanId.Render(span.SpanId)
 	} else {
 		parentSpanID = spantheme.ParentSpanIdAbsent.Render(std.opts.AbsentParentSpanContent)
 	}
@@ -373,8 +372,8 @@ func (std *Stdio) ReceiveSpan(ctx context.Context, span *typesv1.Span) error {
 	if len(span.Links) > 0 {
 		for _, link := range span.Links {
 			var (
-				traceID    = spantheme.LinkTraceID.Render(hex.EncodeToString(link.TraceId))
-				spanID     = spantheme.LinkSpanID.Render(hex.EncodeToString(link.SpanId))
+				traceID    = spantheme.LinkTraceID.Render(link.TraceId)
+				spanID     = spantheme.LinkSpanID.Render(link.SpanId)
 				traceState = spantheme.LinkTraceState.Render(link.TraceState)
 				kvs        string
 			)

@@ -88,9 +88,9 @@ type Queryable interface {
 
 	Stream(ctx context.Context, q *typesv1.Query, cb func(context.Context, *typesv1.Data) (bool, error), opts *StreamOption) error
 
-	GetTraceByID(ctx context.Context, traceID []byte) (*typesv1.Trace, error)
-	GetTraceBySpanID(ctx context.Context, spanID []byte) (*typesv1.Trace, error)
-	GetSpanByID(ctx context.Context, spanID []byte) (*typesv1.Span, error)
+	GetTraceByID(ctx context.Context, traceID string) (*typesv1.Trace, error)
+	GetTraceBySpanID(ctx context.Context, spanID string) (*typesv1.Trace, error)
+	GetSpanByID(ctx context.Context, spanID string) (*typesv1.Span, error)
 }
 
 type Symbol struct {
