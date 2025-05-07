@@ -19,12 +19,18 @@ import (
 	"github.com/humanlogio/humanlog/pkg/localstorage"
 	"github.com/humanlogio/humanlog/pkg/sink"
 	"github.com/humanlogio/humanlog/pkg/validate"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
+
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type Service struct {
 	ll         *slog.Logger
+	tracer     trace.Tracer
 	state      *state.State
 	ownVersion *typesv1.Version
 	storage    localstorage.Storage
@@ -52,6 +58,7 @@ func New(
 ) *Service {
 	return &Service{
 		ll:         ll,
+		tracer:     otel.GetTracerProvider().Tracer("humanlog-localhost"),
 		state:      state,
 		ownVersion: ownVersion,
 		storage:    storage,
@@ -69,6 +76,7 @@ var (
 	_ lhsvcpb.LocalhostServiceHandler = (*Service)(nil)
 	_ igsvcpb.IngestServiceHandler    = (*Service)(nil)
 	_ qrsvcpb.QueryServiceHandler     = (*Service)(nil)
+	_ qrsvcpb.TraceServiceHandler     = (*Service)(nil)
 )
 
 func (svc *Service) AsLoggingOTLP() *LoggingOTLP { return newLoggingOTLP(svc) }
@@ -521,6 +529,58 @@ func (svc *Service) Stream(ctx context.Context, req *connect.Request[qrv1.Stream
 		return connect.NewError(connect.CodeInternal, fmt.Errorf("streaming from local storage: %v", err))
 	}
 	return nil
+}
+
+func (svc *Service) GetTrace(ctx context.Context, req *connect.Request[qrv1.GetTraceRequest]) (*connect.Response[qrv1.GetTraceResponse], error) {
+	ctx, span := svc.tracer.Start(ctx, "localsvc.GetTrace")
+	defer span.End()
+	var (
+		trace *typesv1.Trace
+		err   error
+	)
+	switch by := req.Msg.By.(type) {
+	case *qrv1.GetTraceRequest_TraceId:
+		span.SetAttributes(attribute.String("by.trace_id", by.TraceId))
+		trace, err = svc.storage.GetTraceByID(ctx, []byte(by.TraceId))
+	case *qrv1.GetTraceRequest_SpanId:
+		span.SetAttributes(attribute.String("by.span_id", by.SpanId))
+		trace, err = svc.storage.GetTraceBySpanID(ctx, []byte(by.SpanId))
+	}
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		if cerr, ok := err.(*connect.Error); ok {
+			return nil, cerr
+		}
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("getting trace from localstorage: %v", err))
+	}
+	if trace == nil {
+		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("no such trace "))
+	}
+	span.SetStatus(codes.Ok, "trace found")
+	out := &qrv1.GetTraceResponse{Trace: trace}
+	return connect.NewResponse(out), nil
+}
+
+func (svc *Service) GetSpan(ctx context.Context, req *connect.Request[qrv1.GetSpanRequest]) (*connect.Response[qrv1.GetSpanResponse], error) {
+	ctx, span := svc.tracer.Start(ctx, "localsvc.GetSpan", trace.WithAttributes(
+		attribute.String("span_id", req.Msg.SpanId),
+	))
+	defer span.End()
+
+	sp, err := svc.storage.GetSpanByID(ctx, []byte(req.Msg.SpanId))
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		if cerr, ok := err.(*connect.Error); ok {
+			return nil, cerr
+		}
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("getting span from localstorage: %v", err))
+	}
+	if sp == nil {
+		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("no span with ID %x", req.Msg.SpanId))
+	}
+	span.SetStatus(codes.Ok, "span found")
+	out := &qrv1.GetSpanResponse{Span: sp}
+	return connect.NewResponse(out), nil
 }
 
 func (svc *Service) ListSymbols(ctx context.Context, req *connect.Request[qrv1.ListSymbolsRequest]) (*connect.Response[qrv1.ListSymbolsResponse], error) {
