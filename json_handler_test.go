@@ -243,3 +243,35 @@ func TestParseAsctimeFields(t *testing.T) {
 		})
 	}
 }
+
+func TestParseKvTime(t *testing.T) {
+	tests := []struct {
+		name string
+		raw  []byte
+		want *timestamppb.Timestamp
+	}{
+		{
+			name: "ts1",
+			raw:  []byte(`{"ts1": "2012-05-05T22:11:08.506248Z"}`),
+			want: timestamppb.New(time.Date(2012, 5, 5, 22, 11, 8, 506248000, time.UTC)),
+		},
+		{
+			name: "ts2",
+			raw:  []byte(`{"ts2": "2012-05-05 22:11:08,506248"}`),
+			want: timestamppb.New(time.Date(2012, 5, 5, 22, 11, 8, 506248000, time.UTC)),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			opts := DefaultOptions()
+			h := JSONHandler{Opts: opts}
+			ev := new(typesv1.StructuredLogEvent)
+			if !h.TryHandle(test.raw, ev) {
+				t.Fatalf("failed to handle log")
+			}
+			got := ev.Kvs[0].Value.GetTs()
+			require.Empty(t, cmp.Diff(test.want, got, protocmp.Transform()))
+		})
+	}
+}
