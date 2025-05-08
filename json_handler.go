@@ -284,7 +284,12 @@ func (h *JSONHandler) UnmarshalJSON(data []byte) bool {
 					return
 				}
 			}
-			h.Fields = append(h.Fields, typesv1.KeyVal(key, typesv1.ValStr(value)))
+			ts, ok := tryParseTimeString(value)
+			if ok {
+				h.Fields = append(h.Fields, typesv1.KeyVal(key, typesv1.ValTime(ts)))
+			} else {
+				h.Fields = append(h.Fields, typesv1.KeyVal(key, typesv1.ValStr(value)))
+			}
 		},
 		OnBoolean: func(prefixes flatjson.Prefixes, val flatjson.Bool) {
 			key := keyFor(data, prefixes, val.Name)
