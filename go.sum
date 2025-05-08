@@ -155,8 +155,8 @@ github.com/gsterjov/go-libsecret v0.0.0-20161001094733-a6f4afe4910c h1:6rhixN/i8
 github.com/gsterjov/go-libsecret v0.0.0-20161001094733-a6f4afe4910c/go.mod h1:NMPJylDgVpX0MLRlPy15sqSwOFv/U1GZ2m21JhFfek0=
 github.com/hexops/gotextdiff v1.0.3 h1:gitA9+qJrrTCsiCl7+kh75nPqQt1cx4ZkudSTLoUqJM=
 github.com/hexops/gotextdiff v1.0.3/go.mod h1:pSWU5MAI3yDq+fZBTazCSJysOMbxWL1BSow5/V2vxeg=
-github.com/humanlogio/api/go v0.0.0-20250507091237-991b63232c6e h1:ZcbEP2LBlFFE/IROVh+9Fz0gUt34CFX9fHDYPqFAhCA=
-github.com/humanlogio/api/go v0.0.0-20250507091237-991b63232c6e/go.mod h1:pFt3YKuAVJk5nziOiKXTKyq5fj4aA9azq6xOx/932KQ=
+github.com/humanlogio/api/go v0.0.0-20250508073518-bf4e05dc33b0 h1:Lwbrd4G9FncuMQpI9869znUl4UzArvIibQ5dbx7+ZyA=
+github.com/humanlogio/api/go v0.0.0-20250508073518-bf4e05dc33b0/go.mod h1:pFt3YKuAVJk5nziOiKXTKyq5fj4aA9azq6xOx/932KQ=
 github.com/humanlogio/humanlog-pro v0.0.0-20250508054751-dd21e6106b3c h1:EWjv59mekMPO9zjCGWcD5TBnBg5BGMVboOzRxQVRYdY=
 github.com/humanlogio/humanlog-pro v0.0.0-20250508054751-dd21e6106b3c/go.mod h1:EPvbdQ6KHXDXChI+zVBg/xBGZA85NqW3b7bCS2uIXZY=
 github.com/kardianos/service v1.2.2 h1:ZvePhAHfvo0A7Mftk/tEzqEZ7Q4lgnR8sGz4xu1YX60=
