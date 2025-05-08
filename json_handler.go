@@ -284,22 +284,22 @@ func (h *JSONHandler) UnmarshalJSON(data []byte) bool {
 					return
 				}
 			}
-			// TODO: add handler option 'detectTimestamp bool'
-			// we try to parse the string value as a timestamp only if the option is true
-			tryParseTime := func(value string) (time.Time, bool) {
-				for _, layout := range TimeFormats {
-					ts, err := time.Parse(layout, value)
-					if err != nil {
-						continue
+			if h.Opts.DetectTimestamp {
+				tryParseTime := func(value string) (time.Time, bool) {
+					for _, layout := range TimeFormats {
+						ts, err := time.Parse(layout, value)
+						if err != nil {
+							continue
+						}
+						return ts, true
 					}
-					return ts, true
+					return time.Time{}, false
 				}
-				return time.Time{}, false
-			}
-			ts, ok := tryParseTime(value)
-			if ok {
-				h.Fields = append(h.Fields, typesv1.KeyVal(key, typesv1.ValTime(ts)))
-				return
+				ts, ok := tryParseTime(value)
+				if ok {
+					h.Fields = append(h.Fields, typesv1.KeyVal(key, typesv1.ValTime(ts)))
+					return
+				}
 			}
 			h.Fields = append(h.Fields, typesv1.KeyVal(key, typesv1.ValStr(value)))
 		},

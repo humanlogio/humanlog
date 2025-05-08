@@ -28,9 +28,11 @@ var DefaultOptions = func() *HandlerOptions {
 }
 
 type HandlerOptions struct {
-	TimeFields    []string
-	MessageFields []string
-	LevelFields   []string
+	TimeFields      []string
+	MessageFields   []string
+	LevelFields     []string
+	DetectTimestamp bool
+	DetectDuration  bool
 
 	timeNow func() time.Time
 }
@@ -53,6 +55,10 @@ func HandlerOptionsFrom(cfg *typesv1.ParseConfig) *HandlerOptions {
 	}
 	if cfg.Level != nil {
 		opts.LevelFields = appendUnique(opts.LevelFields, cfg.Level.FieldNames)
+	}
+	if cfg.Kv != nil {
+		opts.DetectTimestamp = cfg.Kv.DetectTimestamp
+		opts.DetectDuration = cfg.Kv.DetectDuration
 	}
 	return opts
 }

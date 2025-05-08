@@ -265,6 +265,7 @@ func TestParseKvTime(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			opts := DefaultOptions()
+			opts.DetectTimestamp = true
 			h := JSONHandler{Opts: opts}
 			ev := new(typesv1.StructuredLogEvent)
 			if !h.TryHandle(test.raw, ev) {

@@ -228,6 +228,7 @@ func TestFlatteningNestedObjects_simple(t *testing.T) {
 
 	src := strings.NewReader(payload)
 	opts := DefaultOptions()
+	opts.DetectTimestamp = true
 	opts.timeNow = func() time.Time {
 		return now
 	}
