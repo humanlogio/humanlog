@@ -650,7 +650,19 @@ func (hdl *serviceHandler) runLocalhost(
 		})
 	}
 	if otlpHttpL != nil {
-		// TODO
+		mux := http.NewServeMux()
+		mux.HandleFunc("/v1/traces", localhostsvc.AsTracingOTLP().ExportHTTP)
+		mux.HandleFunc("/v1/metrics", localhostsvc.AsMetricsOTLP().ExportHTTP)
+		mux.HandleFunc("/v1/logs", localhostsvc.AsLoggingOTLP().ExportHTTP)
+		// mux.HandleFunc("/v1development/profiles", localhostsvc.AsProfileOTLP().ExportHTTP)
+		srv := http.Server{Handler: mux}
+		eg.Go(func() error {
+			if err := srv.Serve(otlpHttpL); err != nil {
+				ll.ErrorContext(ctx, "otlp HTTP server errored", slog.Any("err", err))
+				return err
+			}
+			return nil
+		})
 	}
 	eg.Go(func() error {
 		if err := srv.Serve(l); err != nil && !errors.Is(err, http.ErrServerClosed) {
