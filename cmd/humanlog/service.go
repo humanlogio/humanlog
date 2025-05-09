@@ -405,7 +405,7 @@ func (hdl *serviceHandler) run(ctx context.Context, cancel context.CancelFunc) e
 	cfg := hdl.config.GetRuntime()
 	hdl.cancel = cancel
 
-	hdl.ll.InfoContext(ctx, "service handler starting", slog.Any("runtime_config", cfg))
+	hdl.ll.InfoContext(ctx, "service hdl starting", slog.Any("runtime_config", cfg))
 
 	eg, ctx := errgroup.WithContext(ctx)
 
@@ -484,7 +484,7 @@ func (hdl *serviceHandler) shutdown(ctx context.Context) error {
 	}) // just die violently after 15s
 	defer dirtyExit.Stop()
 	if err := hdl.close(ctx); err != nil {
-		ll.ErrorContext(ctx, "error closing service handler", slog.Any("err", err))
+		ll.ErrorContext(ctx, "error closing service hdl", slog.Any("err", err))
 	}
 	ll.InfoContext(ctx, "service done")
 	return nil
@@ -636,7 +636,7 @@ func (hdl *serviceHandler) runLocalhost(
 			),
 		)
 
-		// otel gRPC receiver handlers
+		// otel gRPC receiver hdls
 		gsrv := grpc.NewServer(grpc.StatsHandler(stats))
 		otlplogssvcpb.RegisterLogsServiceServer(gsrv, localhostsvc.AsLoggingOTLP())
 		otlpmetricssvcpb.RegisterMetricsServiceServer(gsrv, localhostsvc.AsMetricsOTLP())
@@ -655,7 +655,8 @@ func (hdl *serviceHandler) runLocalhost(
 		mux.HandleFunc("/v1/metrics", localhostsvc.AsMetricsOTLP().ExportHTTP)
 		mux.HandleFunc("/v1/logs", localhostsvc.AsLoggingOTLP().ExportHTTP)
 		// mux.HandleFunc("/v1development/profiles", localhostsvc.AsProfileOTLP().ExportHTTP)
-		srv := http.Server{Handler: mux}
+
+		srv := http.Server{Handler: withCORS(mux)}
 		eg.Go(func() error {
 			if err := srv.Serve(otlpHttpL); err != nil {
 				ll.ErrorContext(ctx, "otlp HTTP server errored", slog.Any("err", err))
@@ -933,8 +934,7 @@ func (hdl *serviceHandler) notifyUpdateAvailable(ctx context.Context, oldV, newV
 	return hdl.client.NotifyUpdateAvailable(ctx, oldV, newV)
 }
 
-// withCORS adds CORS support to a Connect HTTP handler.
-func withCORS(connectHandler http.Handler) http.Handler {
+func withCORS(hdl http.Handler) http.Handler {
 	c := cors.New(cors.Options{
 		// Debug: true,
 		AllowedOrigins: []string{
@@ -951,7 +951,7 @@ func withCORS(connectHandler http.Handler) http.Handler {
 		ExposedHeaders: connectcors.ExposedHeaders(),
 		MaxAge:         7200, // 2 hours in seconds
 	})
-	return c.Handler(connectHandler)
+	return c.Handler(hdl)
 }
 
 func setupOtel(ctx context.Context, ll *slog.Logger) (done func(context.Context) error, _ error) {
