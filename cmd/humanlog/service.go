@@ -11,6 +11,7 @@ import (
 	"os/user"
 	"runtime"
 	"runtime/debug"
+	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -44,6 +45,8 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc/filters"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/contrib/propagators/b3"
+	"go.opentelemetry.io/contrib/propagators/ot"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
@@ -52,6 +55,7 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	"go.opentelemetry.io/otel/sdk/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 	otlplogssvcpb "go.opentelemetry.io/proto/otlp/collector/logs/v1"
 	otlpmetricssvcpb "go.opentelemetry.io/proto/otlp/collector/metrics/v1"
 	otlptracesvcpb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
@@ -405,7 +409,7 @@ func (hdl *serviceHandler) run(ctx context.Context, cancel context.CancelFunc) e
 	cfg := hdl.config.GetRuntime()
 	hdl.cancel = cancel
 
-	hdl.ll.InfoContext(ctx, "service hdl starting", slog.Any("runtime_config", cfg))
+	hdl.ll.InfoContext(ctx, "service handler starting", slog.Any("runtime_config", cfg))
 
 	eg, ctx := errgroup.WithContext(ctx)
 
@@ -484,7 +488,7 @@ func (hdl *serviceHandler) shutdown(ctx context.Context) error {
 	}) // just die violently after 15s
 	defer dirtyExit.Stop()
 	if err := hdl.close(ctx); err != nil {
-		ll.ErrorContext(ctx, "error closing service hdl", slog.Any("err", err))
+		ll.ErrorContext(ctx, "error closing service handler", slog.Any("err", err))
 	}
 	ll.InfoContext(ctx, "service done")
 	return nil
@@ -601,7 +605,7 @@ func (hdl *serviceHandler) runLocalhost(
 	mux.Handle(queryv1connect.NewTraceServiceHandler(localhostsvc, connect.WithInterceptors(otelIctpr)))
 
 	httphdl := h2c.NewHandler(mux, &http2.Server{})
-	httphdl = otelhttp.NewHandler(httphdl, "humanlog localhost service")
+	httphdl = otelhttp.NewHandler(httphdl, "humanlog.ConnectRPC")
 	httphdl = withCORS(httphdl)
 
 	srv := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -636,7 +640,7 @@ func (hdl *serviceHandler) runLocalhost(
 			),
 		)
 
-		// otel gRPC receiver hdls
+		// otel gRPC receiver handlers
 		gsrv := grpc.NewServer(grpc.StatsHandler(stats))
 		otlplogssvcpb.RegisterLogsServiceServer(gsrv, localhostsvc.AsLoggingOTLP())
 		otlpmetricssvcpb.RegisterMetricsServiceServer(gsrv, localhostsvc.AsMetricsOTLP())
@@ -947,9 +951,21 @@ func withCORS(hdl http.Handler) http.Handler {
 			"https://humanlog.test:3000",
 		},
 		AllowedMethods: connectcors.AllowedMethods(),
-		AllowedHeaders: connectcors.AllowedHeaders(),
-		ExposedHeaders: connectcors.ExposedHeaders(),
-		MaxAge:         7200, // 2 hours in seconds
+		AllowedHeaders: slices.Concat(
+			connectcors.AllowedHeaders(),
+			[]string{"Browser-Authorization", "Request-Id"},
+			ot.OT{}.Fields(),
+			b3.New(b3.WithInjectEncoding(b3.B3SingleHeader)).Fields(),
+			b3.New(b3.WithInjectEncoding(b3.B3MultipleHeader)).Fields(),
+		),
+		ExposedHeaders: slices.Concat(
+			connectcors.ExposedHeaders(),
+			[]string{"Browser-Authorization", "Request-Id"},
+			ot.OT{}.Fields(),
+			b3.New(b3.WithInjectEncoding(b3.B3SingleHeader)).Fields(),
+			b3.New(b3.WithInjectEncoding(b3.B3MultipleHeader)).Fields(),
+		),
+		MaxAge: 7200, // 2 hours in seconds
 	})
 	return c.Handler(hdl)
 }
@@ -967,7 +983,15 @@ func setupOtel(ctx context.Context, ll *slog.Logger) (done func(context.Context)
 	}
 
 	// trace and monitor yourself with... yourself in dev mode
-	res := resource.Default()
+	res, err := resource.Merge(resource.Default(), resource.NewWithAttributes(
+		semconv.SchemaURL,
+		semconv.ServiceName("humanlog.localhost"),
+		semconv.ServiceVersion(semverVersion.String()),
+	))
+	if err != nil {
+		return done, fmt.Errorf("merging otel resource: %v", err)
+	}
+
 	metricExp, err := otlpmetricgrpc.New(ctx, otlpmetricgrpc.WithInsecure())
 	if err != nil {
 		return done, fmt.Errorf("creating otel metrics exporter: %v", err)
@@ -1013,7 +1037,10 @@ func setupOtel(ctx context.Context, ll *slog.Logger) (done func(context.Context)
 		propagation.NewCompositeTextMapPropagator(
 			propagation.TraceContext{},
 			propagation.Baggage{},
+			b3.New(),
+			ot.OT{},
 		),
 	)
+
 	return done, nil
 }

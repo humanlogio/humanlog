@@ -99,7 +99,7 @@ func (otlp *MetricsOTLP) ExportHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	otlpResp, err := otlp.svc.storage.ExportMetrics(r.Context(), otlpReq)
+	otlpResp, err := otlp.svc.storage.ExportMetrics(ctx, otlpReq)
 	if err != nil {
 		writeError(w, enc, err, http.StatusInternalServerError)
 		return
@@ -147,7 +147,7 @@ func (otlp *TracingOTLP) ExportHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	otlpResp, err := otlp.svc.storage.ExportTraces(r.Context(), otlpReq)
+	otlpResp, err := otlp.svc.storage.ExportTraces(ctx, otlpReq)
 	if err != nil {
 		writeError(w, enc, err, http.StatusInternalServerError)
 		return
