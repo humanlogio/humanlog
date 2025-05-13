@@ -79,18 +79,18 @@ var defaultLightSpanTheme = &typesv1.FormatConfig_SpanTheme{
 	SpanId:             fgstyle("#1b645e"), // #1b645e
 	TraceState:         fgstyle("#1b645e"), // #1b645e
 	ParentSpanId:       fgstyle("#1b645e"), // #1b645e
-	AbsentParentSpanId: fgstyle("#888888"), // #888888
-	Name:               fgstyle("#1b645e"), // #1b645e
+	AbsentParentSpanId: fgstyle("#a9a9a9"), // #a9a9a9
+	Name:               fgstyle("#000000"), // #000000
 	Kind:               fgstyle("#1b645e"), // #1b645e
 	ServiceName:        fgstyle("#1b645e"), // #1b645e
 	ScopeName:          fgstyle("#1b645e"), // #1b645e
 	ScopeVersion:       fgstyle("#1b645e"), // #1b645e
-	Time:               fgstyle("#1b645e"), // #1b645e
+	Time:               fgstyle("#565454"), // #565454
 	Duration:           fgstyle("#1b645e"), // #1b645e
-	ResourceKey:        fgstyle("#1b645e"), // #1b645e
-	ResourceVal:        fgstyle("#1b645e"), // #1b645e
-	AttributeKey:       fgstyle("#1b645e"), // #1b645e
-	AttributeVal:       fgstyle("#1b645e"), // #1b645e
+	ResourceKey:        fgstyle("#146e23"), // #146e23
+	ResourceVal:        fgstyle("#878376"), // #878376
+	AttributeKey:       fgstyle("#146e23"), // #146e23
+	AttributeVal:       fgstyle("#878376"), // #878376
 	StatusMessage:      fgstyle("#1b645e"), // #1b645e
 	StatusCode:         fgstyle("#1b645e"), // #1b645e
 	EventTime:          fgstyle("#1b645e"), // #1b645e
