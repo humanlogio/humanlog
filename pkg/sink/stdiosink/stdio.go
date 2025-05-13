@@ -282,11 +282,11 @@ func (std *Stdio) ReceiveSpan(ctx context.Context, span *typesv1.Span) error {
 	_, _ = fmt.Fprintf(spanOut, pattern,
 		startTime,
 		serviceName,
-		kind,
 		name,
 		duration,
 		statusCode,
 		statusMessage,
+		kind,
 		traceID,
 		spanID,
 		parentSpanID,
@@ -302,9 +302,9 @@ func (std *Stdio) ReceiveSpan(ctx context.Context, span *typesv1.Span) error {
 	buf.Write(eol[:])
 
 	if len(span.ResourceAttributes) > 0 {
-		resKVs := "\tresource:"
+		resKVs := "    resource:"
 		for _, ra := range span.ResourceAttributes {
-			resKVs += "\t"
+			resKVs += "\t "
 			key := spantheme.ResourceKey.Render(ra.Key)
 			strVal, err := toString(ra.Value)
 			if err != nil {
@@ -321,9 +321,9 @@ func (std *Stdio) ReceiveSpan(ctx context.Context, span *typesv1.Span) error {
 	}
 
 	if len(span.SpanAttributes) > 0 {
-		spanKVs := "\tattributes:"
+		spanKVs := "    attributes:"
 		for _, sa := range span.SpanAttributes {
-			spanKVs += "\t"
+			spanKVs += "\t "
 			key := spantheme.AttributeKey.Render(sa.Key)
 			strVal, err := toString(sa.Value)
 			if err != nil {
@@ -347,7 +347,7 @@ func (std *Stdio) ReceiveSpan(ctx context.Context, span *typesv1.Span) error {
 				kvs  string
 			)
 			for _, kv := range event.Kvs {
-				kvs += "\t"
+				kvs += "\t "
 				key := spantheme.EventKey.Render(kv.Key)
 				strVal, err := toString(kv.Value)
 				if err != nil {
@@ -356,7 +356,7 @@ func (std *Stdio) ReceiveSpan(ctx context.Context, span *typesv1.Span) error {
 				val := spantheme.EventVal.Render(strVal)
 				kvs += key + "=" + val
 			}
-			pattern := "\tevent: %s | %s %s"
+			pattern := "    event: %s | %s %s"
 			_, _ = fmt.Fprintf(eventsOut, pattern,
 				time,
 				name,
@@ -379,7 +379,7 @@ func (std *Stdio) ReceiveSpan(ctx context.Context, span *typesv1.Span) error {
 			)
 
 			for _, kv := range link.Kvs {
-				kvs += "\t"
+				kvs += "\t "
 				key := spantheme.EventKey.Render(kv.Key)
 				strVal, err := toString(kv.Value)
 				if err != nil {
@@ -388,7 +388,7 @@ func (std *Stdio) ReceiveSpan(ctx context.Context, span *typesv1.Span) error {
 				val := spantheme.EventVal.Render(strVal)
 				kvs += key + "=" + val
 			}
-			pattern := "\tlink: %s | %s | %s | %s"
+			pattern := "    link: %s | %s | %s | %s"
 			_, _ = fmt.Fprintf(linksOut, pattern,
 				traceID,
 				spanID,
