@@ -258,7 +258,7 @@ func prepareServiceCmd(
 		shouldEmitOtel := expcfg.GetServeLocalhost().GetOtlp() != nil
 		isDevMode := expcfg.GetReleaseChannel() == "dev"
 		if shouldEmitOtel && isDevMode {
-			ll.InfoContext(ctx, "setting up self-monitoring with otel")
+			ll.DebugContext(ctx, "setting up self-monitoring with otel")
 			doneOtel, err = setupOtel(ctx, ll)
 			if err != nil {
 				ll.ErrorContext(ctx, "can't setup self-monitoring with otel", slog.Any("err", err))
@@ -1016,7 +1016,6 @@ func setupOtel(ctx context.Context, ll *slog.Logger) (done func(context.Context)
 		return done, fmt.Errorf("creating otel trace exporter: %v", err)
 	}
 
-	ll.InfoContext(ctx, "creating otel trace provider")
 	traceProvider := trace.NewTracerProvider(
 		trace.WithBatcher(traceExp),
 		trace.WithResource(res),
