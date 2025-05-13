@@ -1004,11 +1004,10 @@ func setupOtel(ctx context.Context, ll *slog.Logger) (done func(context.Context)
 	toClose = append(toClose, func(ctx context.Context) error {
 		ctx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
 		defer cancel()
-		var err error
-		if err = meterProvider.Shutdown(ctx); err != nil {
-			err = fmt.Errorf("creating otel metrics provider: %v", err)
+		if err := meterProvider.Shutdown(ctx); err != nil {
+			ll.DebugContext(ctx, "shutting down otel metrics provider", slog.Any("err", err))
 		}
-		return err
+		return nil
 	})
 	traceClient := otlptracegrpc.NewClient(otlptracegrpc.WithInsecure())
 	traceExp, err := otlptrace.New(ctx, traceClient)
@@ -1023,11 +1022,10 @@ func setupOtel(ctx context.Context, ll *slog.Logger) (done func(context.Context)
 	toClose = append(toClose, func(ctx context.Context) error {
 		ctx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
 		defer cancel()
-		var err error
-		if err = traceProvider.Shutdown(ctx); err != nil {
-			err = fmt.Errorf("shutting down otel trace provider: %v", err)
+		if err := traceProvider.Shutdown(ctx); err != nil {
+			ll.DebugContext(ctx, "shutting down otel traces provider", slog.Any("err", err))
 		}
-		return err
+		return nil
 	})
 
 	otel.SetTracerProvider(traceProvider)
