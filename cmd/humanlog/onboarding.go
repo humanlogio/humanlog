@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/exec"
+	"runtime"
 	"time"
 
 	"connectrpc.com/connect"
@@ -14,7 +16,6 @@ import (
 	"github.com/charmbracelet/huh"
 	"github.com/humanlogio/api/go/svc/auth/v1/authv1connect"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
-	"github.com/humanlogio/humanlog/internal/pkg/browser"
 	"github.com/humanlogio/humanlog/internal/pkg/config"
 	"github.com/humanlogio/humanlog/internal/pkg/state"
 	"github.com/humanlogio/humanlog/pkg/auth"
@@ -179,7 +180,7 @@ Bye! <3`
 				baseSiteURL := getBaseSiteURL(cctx)
 				onboardingURL := baseSiteURL + "/onboarding?new=true"
 				loginfo("Opening onboarding page in your browser...")
-				if err := browser.OpenURL(onboardingURL); err != nil {
+				if err := openURL(onboardingURL); err != nil {
 					logwarn("failed to open onboarding page: %v", err)
 				}
 				
@@ -291,4 +292,19 @@ func pjson(v any) string {
 		panic(err)
 	}
 	return string(out)
+}
+
+func openURL(url string) error {
+	var cmd *exec.Cmd
+	
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = exec.Command("open", url)
+	case "windows":
+		cmd = exec.Command("cmd", "/c", "start", url)
+	default: // linux, bsd, etc.
+		cmd = exec.Command("xdg-open", url)
+	}
+	
+	return cmd.Start()
 }
