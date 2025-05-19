@@ -14,6 +14,7 @@ import (
 	"github.com/charmbracelet/huh"
 	"github.com/humanlogio/api/go/svc/auth/v1/authv1connect"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
+	"github.com/humanlogio/humanlog/internal/pkg/browser"
 	"github.com/humanlogio/humanlog/internal/pkg/config"
 	"github.com/humanlogio/humanlog/internal/pkg/state"
 	"github.com/humanlogio/humanlog/pkg/auth"
@@ -110,12 +111,6 @@ func onboardingCmd(
 			// clOpts := connect.WithClientOptions(connect.WithInterceptors(auth.Interceptors(ll, tokenSource)...))
 			// userSvc := userv1connect.NewUserServiceClient(httpClient, apiURL, clOpts...)
 
-			logdebug("checking logged in status")
-			user, err := checkUserLoggedIn(ctx, ll, httpClient, apiURL, tokenSource, clOpts)
-			if err != nil {
-				logwarn("unable to check if you're logged in: %v", err)
-			}
-
 			defer func() {
 				logdebug("checking if should run humanlog as a service")
 				if !runsAsService(cfg) {
@@ -155,11 +150,58 @@ Bye! <3`
 				return nil
 			}
 
+			logdebug("checking logged in status")
+			user, err := checkUserLoggedIn(ctx, ll, httpClient, apiURL, tokenSource, clOpts)
+			if err != nil {
+				logwarn("unable to check if you're logged in: %v", err)
+			}
+
+			isNewUser := state.LastPromptedToSignupAt == nil && state.LastPromptedToEnableLocalhostAt == nil
+
 			expcfg := cfg.GetRuntime().GetExperimentalFeatures()
 
+			if isNewUser {
+				loginfo("Setting up Humanlog for first-time use...")
+				
+				if expcfg == nil {
+					expcfg = &typesv1.RuntimeConfig_ExperimentalFeatures{}
+				}
+				serveLocalhost, err := config.GetDefaultLocalhostConfig()
+				if err != nil {
+					logerror("getting default value for localhost log engine config: %v", err)
+				} else {
+					expcfg.ServeLocalhost = serveLocalhost
+					if err := cfg.WriteBack(); err != nil {
+						logerror("failed to update config file: %v", err)
+					}
+				}
+				
+				baseSiteURL := getBaseSiteURL(cctx)
+				onboardingURL := baseSiteURL + "/onboarding?new=true"
+				loginfo("Opening onboarding page in your browser...")
+				if err := browser.OpenURL(onboardingURL); err != nil {
+					logwarn("failed to open onboarding page: %v", err)
+				}
+				
+				authClient := authv1connect.NewAuthServiceClient(httpClient, apiURL)
+				_, err := performLoginFlow(ctx, state, authClient, tokenSource, "")
+				if err != nil {
+					logerror("failed to sign up or sign in: %v", err)
+					return err
+				}
+				
+				state.LastPromptedToSignupAt = ptr(time.Now())
+				state.LastPromptedToEnableLocalhostAt = ptr(time.Now())
+				if err := state.WriteBack(); err != nil {
+					logwarn("failed to record your answer: %v", err)
+				}
+				
+				loginfo("Humanlog is now set up with the query engine enabled!")
+				return nil
+			}
+			
 			promptSignup := state.LastPromptedToSignupAt == nil && (user == nil)
-
-			queryEngineIsExperimental := true
+			queryEngineIsExperimental := false // Changed to false to enable prompting
 			promptQueryEngine := !queryEngineIsExperimental && state.LastPromptedToEnableLocalhostAt == nil && (expcfg == nil || expcfg.ServeLocalhost == nil)
 
 			var (
