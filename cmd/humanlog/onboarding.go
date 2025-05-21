@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"time"
 
@@ -105,6 +106,11 @@ func onboardingCmd(
 			ll := getLogger(cctx)
 			tokenSource := getTokenSource(cctx)
 			apiURL := getAPIUrl(cctx)
+			baseURL, err := url.Parse(getBaseSiteURL(cctx))
+			if err != nil {
+				return fmt.Errorf("compilation error, invalid base site URL built into binary: %v", err)
+			}
+
 			httpClient := getHTTPClient(cctx, apiURL)
 			clOpts := getConnectOpts(cctx)
 			// clOpts := connect.WithClientOptions(connect.WithInterceptors(auth.Interceptors(ll, tokenSource)...))
@@ -259,7 +265,8 @@ Bye! <3`
 
 			if wantsSignup {
 				authClient := authv1connect.NewAuthServiceClient(httpClient, apiURL)
-				_, err := performLoginFlow(ctx, state, authClient, tokenSource, "")
+
+				_, err := performLoginFlow(ctx, state, authClient, tokenSource, baseURL.JoinPath("/onboarding").String())
 				if err != nil {
 					logerror("failed to sign up or sign in: %v", err)
 				}
