@@ -136,7 +136,7 @@ func performLoginFlow(
 	pollInterval := res.Msg.PollInterval.AsDuration()
 	if err := browser.OpenURL(url); err != nil {
 		logwarn("unable to detect browser on system, falling back to manual: %v", err)
-		logerror("please open this URL in your browser:\n\n\t%q\n\n", url)
+		loginfo("please open this URL in your browser:\n\n\t%q\n\n", url)
 	} else {
 		loginfo("opening signup link on your behalf")
 	}

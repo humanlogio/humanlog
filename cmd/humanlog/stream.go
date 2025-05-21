@@ -172,16 +172,12 @@ func streamApiRunCmd(
 				}
 				printLogEvents := func(events []*typesv1.IngestedLogEvent) error {
 					for _, ev := range events {
-						prefix := getPrefix(ev.MachineId, ev.SessionId)
-						postProcess := func(pattern string) string {
-							return prefix + pattern
-						}
 						ev := &typesv1.LogEvent{
 							ParsedAt:   ev.ParsedAt,
 							Raw:        ev.Raw,
 							Structured: ev.Structured,
 						}
-						if err := sink.ReceiveWithPostProcess(ctx, ev, postProcess); err != nil {
+						if err := sink.Receive(ctx, ev); err != nil {
 							return fmt.Errorf("printing log: %v", err)
 						}
 					}
