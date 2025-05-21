@@ -110,6 +110,10 @@ func onboardingCmd(
 			if err != nil {
 				return fmt.Errorf("compilation error, invalid base site URL built into binary: %v", err)
 			}
+			userToken, err := tokenSource.GetUserToken(ctx)
+			if err != nil {
+				return fmt.Errorf("looking up user credentials: %v", err)
+			}
 
 			httpClient := getHTTPClient(cctx, apiURL)
 			clOpts := getConnectOpts(cctx)
@@ -170,12 +174,14 @@ Bye! <3`
 			// - we always turn on the query engine
 			// - we always want the user to signup if they're not signed up and
 			var (
-				hasQueryEngine        = (expcfg != nil && expcfg.ServeLocalhost != nil)
-				isSignedUp            = (user != nil)
-				wantsQueryEngine      = !hasQueryEngine
-				wantsSignup           = !isSignedUp
-				askedAboutQueryEngine = state != nil && state.LastPromptedToEnableLocalhostAt != nil
-				askedAboutSignup      = state != nil && state.LastPromptedToSignupAt != nil
+				hasQueryEngine           = (expcfg != nil && expcfg.ServeLocalhost != nil)
+				isSignedUp               = (userToken != nil)
+				isLoggedIn               = (user != nil)
+				isSignedUpButNotLoggedIn = isSignedUp && !isLoggedIn
+				wantsQueryEngine         = !hasQueryEngine
+				wantsSignup              = !isSignedUp
+				askedAboutQueryEngine    = state != nil && state.LastPromptedToEnableLocalhostAt != nil
+				askedAboutSignup         = state != nil && state.LastPromptedToSignupAt != nil
 			)
 
 			// we only prompt about the query engine if a user previously refused it.
@@ -185,22 +191,25 @@ Bye! <3`
 				// we assume no until told otherwise
 				wantsQueryEngine = false
 				if wasMoreThanTimeAgo(now, state.LastPromptedToEnableLocalhostAt, askAgainAfter) {
+					logdebug("prompting for query-engine because it's been a while since asking")
 					promptQueryEngine = true
 				} else {
 					// we asked recently and they apparently refused, so wait later for another update
+					logdebug("not prompting for query-engine because we asked too recently and were denied")
 					promptQueryEngine = false
 				}
 			}
 			// we only prompt about signup if a user previously refused it.
 			// new installs sign up by default
-			promptSignup := state.LastPromptedToSignupAt != nil
+			promptSignup := false
 			if askedAboutSignup {
 				// we assume no until told otherwise
 				wantsSignup = false
 				if wasMoreThanTimeAgo(now, state.LastPromptedToSignupAt, askAgainAfter) {
+					logdebug("prompting for signup because it's been a while since asking")
 					promptSignup = true
 				} else {
-					// we asked recently and they apparently refused, so wait later for another update
+					logdebug("not prompting for signup because we asked too recently and were denied")
 					promptSignup = false
 				}
 			}
@@ -263,16 +272,23 @@ Bye! <3`
 				}
 			}
 
-			if wantsSignup {
+			if wantsSignup || isSignedUpButNotLoggedIn {
 				authClient := authv1connect.NewAuthServiceClient(httpClient, apiURL)
 
-				_, err := performLoginFlow(ctx, state, authClient, tokenSource, baseURL.JoinPath("/onboarding").String())
+				var redirectURL string
+				if isSignedUpButNotLoggedIn {
+					redirectURL = baseURL.JoinPath("/cli/login/success").String()
+				} else {
+					redirectURL = baseURL.JoinPath("/onboarding").String()
+				}
+
+				_, err := performLoginFlow(ctx, state, authClient, tokenSource, redirectURL)
 				if err != nil {
 					logerror("failed to sign up or sign in: %v", err)
 				}
 			}
 
-			loginfo("keep an eye on `https://humanlog.io` for more updates!")
+			loginfo("keep an eye on `%s` for more updates!", baseURL.String())
 
 			return nil
 		},
