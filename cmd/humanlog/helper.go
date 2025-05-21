@@ -134,9 +134,11 @@ func performLoginFlow(
 	userCode := res.Msg.UserCode
 	pollUntil := res.Msg.ExpiresAt
 	pollInterval := res.Msg.PollInterval.AsDuration()
-	loginfo("open your browser at URL %q", url)
 	if err := browser.OpenURL(url); err != nil {
-		return nil, fmt.Errorf("opening browser: %v", err)
+		logwarn("unable to detect browser on system, falling back to manual: %v", err)
+		logerror("please open this URL in your browser:\n\n\t%q\n\n", url)
+	} else {
+		loginfo("opening signup link on your behalf")
 	}
 
 	ctx, cancel := context.WithDeadline(ctx, pollUntil.AsTime())
