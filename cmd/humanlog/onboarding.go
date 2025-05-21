@@ -157,20 +157,51 @@ Bye! <3`
 
 			expcfg := cfg.GetRuntime().GetExperimentalFeatures()
 
-			promptSignup := state.LastPromptedToSignupAt == nil && (user == nil)
+			now := time.Now()
+			askAgainAfter := 24 * time.Hour
 
-			queryEngineIsExperimental := true
-			promptQueryEngine := !queryEngineIsExperimental && state.LastPromptedToEnableLocalhostAt == nil && (expcfg == nil || expcfg.ServeLocalhost == nil)
-
+			// by default:
+			// - we always turn on the query engine
+			// - we always want the user to signup if they're not signed up and
 			var (
-				wantsSignup      = promptSignup && true
-				wantsQueryEngine = promptQueryEngine && true
+				hasQueryEngine        = (expcfg != nil && expcfg.ServeLocalhost != nil)
+				isSignedUp            = (user != nil)
+				wantsQueryEngine      = !hasQueryEngine
+				wantsSignup           = !isSignedUp
+				askedAboutQueryEngine = state != nil && state.LastPromptedToEnableLocalhostAt != nil
+				askedAboutSignup      = state != nil && state.LastPromptedToSignupAt != nil
 			)
+
+			// we only prompt about the query engine if a user previously refused it.
+			// new installs get the query engine by default
+			promptQueryEngine := false
+			if askedAboutQueryEngine {
+				// we assume no until told otherwise
+				wantsQueryEngine = false
+				if wasMoreThanTimeAgo(now, state.LastPromptedToEnableLocalhostAt, askAgainAfter) {
+					promptQueryEngine = true
+				} else {
+					// we asked recently and they apparently refused, so wait later for another update
+					promptQueryEngine = false
+				}
+			}
+			// we only prompt about signup if a user previously refused it.
+			// new installs sign up by default
+			promptSignup := state.LastPromptedToSignupAt != nil
+			if askedAboutSignup {
+				// we assume no until told otherwise
+				wantsSignup = false
+				if wasMoreThanTimeAgo(now, state.LastPromptedToSignupAt, askAgainAfter) {
+					promptSignup = true
+				} else {
+					// we asked recently and they apparently refused, so wait later for another update
+					promptSignup = false
+				}
+			}
 
 			var fields []huh.Field
 			if promptQueryEngine {
 				logdebug("prompting about query engine")
-				wantsSignup = user == nil
 				var titleSignupExtra, titleDescriptionExtra string
 				if wantsSignup {
 					titleSignupExtra = "\nAnd since you are not logged in, this will also prompt you to log in.\n"
@@ -211,16 +242,6 @@ Bye! <3`
 				}
 			}
 
-			if wantsSignup || wantsQueryEngine {
-				loginfo("awesome, thanks for your interest!")
-
-				authClient := authv1connect.NewAuthServiceClient(httpClient, apiURL)
-				_, err := performLoginFlow(ctx, state, authClient, tokenSource, "")
-				if err != nil {
-					logerror("failed to sign up or sign in: %v", err)
-				}
-			}
-
 			if wantsQueryEngine {
 				if expcfg == nil {
 					expcfg = &typesv1.RuntimeConfig_ExperimentalFeatures{}
@@ -236,11 +257,27 @@ Bye! <3`
 				}
 			}
 
+			if wantsSignup {
+				authClient := authv1connect.NewAuthServiceClient(httpClient, apiURL)
+				_, err := performLoginFlow(ctx, state, authClient, tokenSource, "")
+				if err != nil {
+					logerror("failed to sign up or sign in: %v", err)
+				}
+			}
+
 			loginfo("keep an eye on `https://humanlog.io` for more updates!")
 
 			return nil
 		},
 	}
+}
+
+func wasMoreThanTimeAgo(now time.Time, t *time.Time, ago time.Duration) bool {
+	if t == nil {
+		return true
+	}
+	lastAgo := now.Sub(*t)
+	return lastAgo > ago
 }
 
 func pjson(v any) string {

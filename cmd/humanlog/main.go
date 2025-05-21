@@ -221,24 +221,49 @@ func newApp() *cli.App {
 
 	app := cli.NewApp()
 	app.Author = "humanlog.io"
-	app.Email = "support@webscale.lol"
+	app.Email = defaultBaseSiteAddr + `/support`
 	app.Name = "humanlog"
 	app.Version = semverVersion.String()
-	app.Usage = "reads structured logs from stdin, makes them pretty on stdout!"
-	app.Description = `humanlog parses logs and makes them easier to read and search.
+	app.Usage = "reads logs from stdin (and traces!), makes them pretty on stdout!"
+	app.Description = `humanlog is an observability tool on your machine.
+
+   It ingests logs and distributed tracing spans and makes them
+   searchable and readable.
 
    When invoked with no argument, it consumes stdin and parses it,
-   attempting to make detected logs prettier on stdout.`
-	if hideUnreleasedFeatures != "true" {
-		app.Description += `
-   It also allows searching the logs that were parsed. Run a query with:
+   attempting to make detected logs prettier on stdout.
+
+   You can search the logs that were parsed. Run a query with:
 
       humanlog query 'summarize count() by msg'
 
-   If registered to ingest logs via "humanlog machine register" logs
-   will be saved to humanlog.io for vizualization, searching and
-   analysis.
+   You can also watch streams of logs being ingested with streaming
+   queries.
+
+      humanlog stream 'filter lvl == "ERROR"'
+
+   And similarly for distributed tracing, point your application to
+
+     export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
+
+   Then query your spans and visualize them in traces:
+
+      humanlog query 'traces | where time > ago(30s) | summarize span_count=count() by trace_id | sort by span_count desc | take 1'
+
+   And like logs, you can watch your stream of spans:
+
+      humanlog stream 'traces | where service_name == "my_service"'
+
+   For more details, read our documentation at:
+
+     "` + defaultBaseSiteAddr + `/docs/get-started/introduction"
+
+   Or join our community at:
+
+     "` + defaultBaseSiteAddr + `/link/discord"
 `
+	if hideUnreleasedFeatures != "true" {
+		app.Description += ``
 	}
 
 	var (
