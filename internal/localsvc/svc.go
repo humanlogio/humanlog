@@ -15,7 +15,6 @@ import (
 	qrsvcpb "github.com/humanlogio/api/go/svc/query/v1/queryv1connect"
 	userv1 "github.com/humanlogio/api/go/svc/user/v1"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
-	"github.com/humanlogio/humanlog/internal/pkg/state"
 	"github.com/humanlogio/humanlog/pkg/localstorage"
 	"github.com/humanlogio/humanlog/pkg/sink"
 	"github.com/humanlogio/humanlog/pkg/validate"
@@ -31,7 +30,6 @@ import (
 type Service struct {
 	ll         *slog.Logger
 	tracer     trace.Tracer
-	state      *state.State
 	ownVersion *typesv1.Version
 	storage    localstorage.Storage
 	doLogin    func(ctx context.Context, returnToURL string) error
@@ -85,11 +83,6 @@ func (svc *Service) Ping(ctx context.Context, req *connect.Request[lhv1.PingRequ
 	res := &lhv1.PingResponse{
 		ClientVersion: svc.ownVersion,
 		Meta:          &typesv1.ResMeta{},
-	}
-	if svc.state.MachineID != nil {
-		res.Meta = &typesv1.ResMeta{
-			MachineId: *svc.state.MachineID,
-		}
 	}
 	whoami, err := svc.whoami(ctx)
 	if err != nil {
