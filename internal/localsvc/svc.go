@@ -45,7 +45,6 @@ type Service struct {
 
 func New(
 	ll *slog.Logger,
-	state *state.State,
 	ownVersion *typesv1.Version,
 	storage localstorage.Storage,
 	doLogin func(ctx context.Context, returnToURL string) error,
@@ -59,7 +58,6 @@ func New(
 	return &Service{
 		ll:         ll,
 		tracer:     otel.GetTracerProvider().Tracer("humanlog-localhost"),
-		state:      state,
 		ownVersion: ownVersion,
 		storage:    storage,
 		doLogin:    doLogin,
@@ -234,9 +232,6 @@ func (svc *Service) IngestStream(ctx context.Context, req *connect.ClientStream[
 	sessionID = int64(msg.SessionId)
 	if sessionID == 0 {
 		sessionID = time.Now().UnixNano()
-	}
-	if machineID == 0 && svc.state.MachineID != nil {
-		machineID = int64(*svc.state.MachineID)
 	}
 	ll = ll.With(
 		slog.Int64("machine_id", machineID),
