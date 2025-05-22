@@ -21,6 +21,7 @@ import (
 	"github.com/99designs/keyring"
 	"github.com/aybabtme/rgbterm"
 	"github.com/blang/semver"
+	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/huh"
 	"github.com/gen2brain/beeep"
 	types "github.com/humanlogio/api/go/types/v1"
@@ -225,46 +226,81 @@ func newApp() *cli.App {
 	app.Name = "humanlog"
 	app.Version = semverVersion.String()
 	app.Usage = "reads logs from stdin (and traces!), makes them pretty on stdout!"
-	app.Description = `humanlog is an observability tool on your machine.
+	app.Description = renderDescription(`
+# humanlog
+> an observability tool on your machine.
 
-   It ingests logs and distributed tracing spans and makes them
-   searchable and readable.
+Ingests logs and distributed tracing spans and makes them searchable and readable.
 
-   When invoked with no argument, it consumes stdin and parses it,
-   attempting to make detected logs prettier on stdout.
+When invoked with no argument, consumes stdin and parses it, attempting to make detected logs prettier on stdout.
 
-   You can search the logs that were parsed. Run a query with:
+## Logging
 
-      humanlog query 'summarize count() by msg'
+You can search the logs that were parsed. Run a query with:
 
-   You can also watch streams of logs being ingested with streaming
-   queries.
+` + "```" + `bash
+humanlog query 'summarize count() by msg'
+` + "```" + `
 
-      humanlog stream 'filter lvl == "ERROR"'
+You can also watch streams of logs being ingested with streaming
+queries.
 
-   And similarly for distributed tracing, point your application to
+` + "```" + `bash
+humanlog stream 'filter lvl == "ERROR"'
+` + "```" + `
 
-     export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
+## Tracing
 
-   Then query your spans and visualize them in traces:
+Similarly for distributed tracing, point your application to
 
-      humanlog query 'traces | where time > ago(30s) | summarize span_count=count() by trace_id | sort by span_count desc | take 1'
+` + "```" + `bash
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
+` + "```" + `
 
-   And like logs, you can watch your stream of spans:
+Then query your spans and visualize them in traces.
 
-      humanlog stream 'traces | where service_name == "my_service"'
+` + "```" + `bash
+humanlog query 'traces | where time > ago(30s) | take 1'
+` + "```" + `
 
-   For more details, read our documentation at:
+And like logs, you can watch your stream of spans:
 
-     "` + defaultBaseSiteAddr + `/docs/get-started/introduction"
+` + "```" + `bash
+humanlog stream 'traces | where service_name == "my_service"'
+` + "```" + `
 
-   Or join our community at:
+More complex queries are possible, same as for logs:
 
-     "` + defaultBaseSiteAddr + `/link/discord"
-`
-	if hideUnreleasedFeatures != "true" {
-		app.Description += ``
-	}
+` + "```" + `bash
+humanlog query 'traces | where time > ago(30s) | summarize span_count=count() by trace_id | sort by span_count desc | take 1'
+` + "```" + `
+
+
+## Ingesting data
+
+Ingestion of logs is typically done by invoking ` + "`" + `humanlog` + "`" + ` with no argument and feeding it via stdin.
+
+` + "```" + `bash
+# Feed it via stdin
+your_app | humanlog
+
+# Or replay log files
+humanlog < /var/log/yourlogfile
+
+# pull from elsewhere for quick debugging session
+kubectl logs -l app=yourapp -f | humanlog
+` + "```" + `
+
+If your application integrates twith **OpenTelemetry** you can point it to:
+- OTLP/gRPC: ` + "`" + `localhost:4317` + "`" + `
+- OTLP/json: ` + "`" + `localhost:4318` + "`" + `
+
+## Getting more help
+
+For more details:
+- read [our documentation](` + defaultBaseSiteAddr + `/docs/get-started/introduction).
+- join [our community](` + defaultBaseSiteAddr + `/link/discord).
+	`)
 
 	var (
 		ctx             context.Context
@@ -767,4 +803,19 @@ func mustatoi(a string) int {
 		panic(err)
 	}
 	return i
+}
+
+func renderDescription(in string) string {
+	r, err := glamour.NewTermRenderer(
+		glamour.WithAutoStyle(),
+		glamour.WithWordWrap(120),
+	)
+	if err != nil {
+		panic(err)
+	}
+	out, err := r.Render(in)
+	if err != nil {
+		panic(err)
+	}
+	return out
 }
