@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/user"
+	"path/filepath"
 	"runtime"
 	"slices"
 	"sync"
@@ -862,4 +863,16 @@ func setupOtel(ctx context.Context, ll *slog.Logger) (done func(context.Context)
 	)
 
 	return done, nil
+}
+
+func defaultLogDir(cfg *config.Config, st *state.State) (string, error) {
+	logdir := cfg.GetRuntime().GetExperimentalFeatures().GetServeLocalhost().GetLogDir()
+	if logdir == "" {
+		stateDir, err := state.GetDefaultStateDirpath()
+		if err != nil {
+			return "", fmt.Errorf("looking up default state dir: %v", err)
+		}
+		logdir = filepath.Join(stateDir, "logs")
+	}
+	return logdir, nil
 }

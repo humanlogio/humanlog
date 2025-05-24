@@ -142,8 +142,9 @@ func (snk *ConnectStreamSink) connectAndHandleBuffer(
 				ll.ErrorContext(ctx, "no active plan, can't ingest logs", slog.Any("err", err))
 				return
 			}
-
-			ll.ErrorContext(ctx, "closing and receiving response for log ingestor session", slog.Any("err", err))
+			if !errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				ll.ErrorContext(ctx, "closing and receiving response for log ingestor session", slog.Any("err", err))
+			}
 			return
 		}
 		if res.Msg == nil {
@@ -229,7 +230,7 @@ func (snk *ConnectStreamSink) Receive(ctx context.Context, ev *typesv1.LogEvent)
 		select {
 		case snk.eventsc <- send:
 		case <-ctx.Done():
-			return ctx.Err()
+			return nil
 		default:
 			snk.ll.WarnContext(ctx, "dropping log event, buffer full!")
 		}
@@ -237,14 +238,14 @@ func (snk *ConnectStreamSink) Receive(ctx context.Context, ev *typesv1.LogEvent)
 		select {
 		case snk.eventsc <- send:
 		case <-ctx.Done():
-			return ctx.Err()
+			return nil
 		default:
 			// would have blocked~
 			snk.ll.WarnContext(ctx, "blocking on log event, buffer full!")
 			select {
 			case snk.eventsc <- send:
 			case <-ctx.Done():
-				return ctx.Err()
+				return nil
 			}
 		}
 	}
