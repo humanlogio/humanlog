@@ -780,7 +780,7 @@ For more details:
 						defer cancel()
 						ll.DebugContext(ctx, "flushing localhost ingestion sink for up to 300ms")
 						if err := done(ctx); err != nil {
-							ll.ErrorContext(ctx, "couldn't flush buffered log (localhost)", slog.Any("err", err))
+							ll.DebugContext(ctx, "couldn't flush buffered log (localhost)", slog.Any("err", err))
 						} else {
 							ll.DebugContext(ctx, "done sending all logs")
 						}

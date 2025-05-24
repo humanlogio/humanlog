@@ -71,7 +71,7 @@ func StartBidiStreamSink(
 				return
 			}
 			if err != nil {
-				ll.ErrorContext(ctx, "failed to send logs", slog.Any("err", err))
+				ll.DebugContext(ctx, "failed to send logs", slog.Any("err", err))
 			}
 			if time.Since(startedAt) < time.Second {
 				select {
@@ -117,7 +117,7 @@ func (snk *ConnectBidiStreamSink) connectAndHandleBuffer(
 		}
 		return false, nil
 	}, retry.UseCapSleep(time.Second), retry.UseLog(func(attempt float64, err error) {
-		ll.WarnContext(ctx, "can't reach ingestion service", slog.Int("attempt", int(attempt)), slog.Any("err", err))
+		ll.DebugContext(ctx, "can't reach ingestion service", slog.Int("attempt", int(attempt)), slog.Any("err", err))
 	}))
 	if err != nil {
 		return buffered, resumeSessionID, fmt.Errorf("retry aborted: %w", err)
