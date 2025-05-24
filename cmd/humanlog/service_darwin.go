@@ -12,8 +12,6 @@ import (
 	"text/template"
 
 	"golang.org/x/sys/execabs"
-
-	"github.com/humanlogio/humanlog/internal/pkg/state"
 )
 
 func (hdl *serviceHandler) Stop(ctx context.Context) error {
@@ -67,15 +65,9 @@ func (hdl *serviceHandler) Install() error {
 		return fmt.Errorf("looking up own executable path: %v", err)
 	}
 
-	var logdir string
-	if hdl.localhostCfg.LogDir != nil {
-		logdir = *hdl.localhostCfg.LogDir
-	} else {
-		stateDir, err := state.GetDefaultStateDirpath()
-		if err != nil {
-			return fmt.Errorf("looking up default state dir")
-		}
-		logdir = filepath.Join(stateDir, "logs")
+	logdir, err := defaultLogDir(hdl.config, hdl.state)
+	if err != nil {
+		return fmt.Errorf("looking up log dir: %v", err)
 	}
 	if err := os.MkdirAll(logdir, 0700); err != nil {
 		return fmt.Errorf("ensuring log dir exists: %v", err)

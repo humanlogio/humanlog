@@ -197,7 +197,7 @@ func (snk *ConnectBidiStreamSink) Receive(ctx context.Context, ev *typesv1.LogEv
 		select {
 		case snk.eventsc <- send:
 		case <-ctx.Done():
-			return ctx.Err()
+			return nil
 		default:
 			snk.ll.WarnContext(ctx, "dropping log event, buffer full!")
 		}
@@ -205,14 +205,14 @@ func (snk *ConnectBidiStreamSink) Receive(ctx context.Context, ev *typesv1.LogEv
 		select {
 		case snk.eventsc <- send:
 		case <-ctx.Done():
-			return ctx.Err()
+			return nil
 		default:
 			// would have blocked~
 			snk.ll.WarnContext(ctx, "blocking on log event, buffer full!")
 			select {
 			case snk.eventsc <- send:
 			case <-ctx.Done():
-				return ctx.Err()
+				return nil
 			}
 		}
 	}

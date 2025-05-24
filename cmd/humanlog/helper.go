@@ -138,7 +138,7 @@ func performLoginFlow(
 		logwarn("unable to detect browser on system, falling back to manual: %v", err)
 		loginfo("please open this URL in your browser:\n\n\t%q\n\n", url)
 	} else {
-		loginfo("opening signup link on your behalf")
+		loginfo("opening signup link")
 	}
 
 	ctx, cancel := context.WithDeadline(ctx, pollUntil.AsTime())

@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -303,6 +304,8 @@ For more details:
 	`)
 
 	var (
+		closers []func()
+
 		ctx             context.Context
 		cancel          context.CancelFunc
 		cfg             *config.Config
@@ -334,15 +337,34 @@ For more details:
 		baseSiteURL      = ""
 		keyringName      = "humanlog"
 
-		getCtx    = func(*cli.Context) context.Context { return ctx }
-		getLogger = func(*cli.Context) *slog.Logger {
-			return slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
+		getCtx      = func(*cli.Context) context.Context { return ctx }
+		getCfg      = func(*cli.Context) *config.Config { return cfg }
+		getState    = func(*cli.Context) *state.State { return statefile }
+		logOutput   = os.Stderr
+		usesLogFile = false
+		getLogger   = func(cctx *cli.Context) *slog.Logger {
+			if cctx.Command.Name == app.Name && !usesLogFile {
+				usesLogFile = true
+				logdir, err := defaultLogDir(getCfg(cctx), getState(cctx))
+				if err != nil {
+					panic(fmt.Sprintf("looking up log dir: %v", err))
+				}
+				if err := os.MkdirAll(logdir, 0700); err != nil {
+					panic(fmt.Sprintf("ensuring log dir exists: %v", err))
+				}
+				logfile := filepath.Join(logdir, "logs.json")
+
+				logOutput, err = os.OpenFile(logfile, os.O_APPEND|os.O_CREATE|os.O_SYNC, 0640)
+				if err != nil {
+					panic(fmt.Sprintf("creating log file: %v", err))
+				}
+				closers = append(closers, func() { _ = logOutput.Close() })
+			}
+			return slog.New(slog.NewJSONHandler(logOutput, &slog.HandlerOptions{
 				AddSource: true,
 				Level:     slogLevel(),
 			}))
 		}
-		getCfg     = func(*cli.Context) *config.Config { return cfg }
-		getState   = func(*cli.Context) *state.State { return statefile }
 		getKeyring = func(*cli.Context) (keyring.Keyring, error) {
 			stateDir, err := state.GetDefaultStateDirpath()
 			if err != nil {
@@ -391,7 +413,6 @@ For more details:
 			return clOpts
 		}
 	)
-	var closers []func()
 	app.Before = func(c *cli.Context) error {
 		ctx, cancel = signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)
 
