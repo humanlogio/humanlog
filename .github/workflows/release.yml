@@ -19,6 +19,8 @@ on:
         options:
         - https://api.humanlog.io
         - https://api.humanlog.dev
+  schedule:
+    - cron: "14 5 * * mon"
   push:
     tags:
       - "*"
@@ -121,7 +123,17 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.S3_BINARIES_BUCKET_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_BINARIES_BUCKET_ACCESS_KEY }}
       - run: ./script/publish.sh
-        if: ${{ github.event_name != 'workflow_dispatch' }}
+        if: ${{ github.event_name == 'schedule' }}
+        env:
+          CHANNEL: 'weekly'
+          API_URL: 'https://api.humanlog.io'
+          HUMANLOG_IS_PROD_BUILD: 'true'
+          HMAC_KEY_ID: ${{ secrets.PROD_HMAC_KEY_ID }}
+          HMAC_PRIVATE_KEY: ${{ secrets.PROD_HMAC_PRIVATE_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.S3_BINARIES_BUCKET_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_BINARIES_BUCKET_ACCESS_KEY }}
+      - run: ./script/publish.sh
+        if: ${{ github.event_name == 'push' }}
         env:
           CHANNEL: 'main'
           API_URL: 'https://api.humanlog.io'
