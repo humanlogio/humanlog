@@ -1,9 +1,10 @@
 package main
 
 import (
-	"log"
 	"log/slog"
 	"os"
+
+	"github.com/charmbracelet/log"
 )
 
 type loglevel int
@@ -47,24 +48,24 @@ func slogLevel() slog.Level {
 
 func logdebug(format string, args ...interface{}) {
 	if logLevel <= debuglvl {
-		log.Printf("[debug] "+format, args...)
+		log.Debugf(format, args...)
 	}
 }
 
 func loginfo(format string, args ...interface{}) {
 	if logLevel <= infolvl {
-		log.Printf("[info] "+format, args...)
+		log.Infof(format, args...)
 	}
 }
 
 func logwarn(format string, args ...interface{}) {
 	if logLevel <= warnlvl {
-		log.Printf("[warn] "+format, args...)
+		log.Warnf(format, args...)
 	}
 }
 
 func logerror(format string, args ...interface{}) {
 	if logLevel <= errorlvl {
-		log.Printf("[error] "+format, args...)
+		log.Errorf(format, args...)
 	}
 }

@@ -709,7 +709,7 @@ For more details:
 					if err := beeep.Alert("humanlog has problems!", msg, ""); err != nil {
 						logerror("couldn't send desktop notification: %v", err)
 						if err := beeep.Beep(3000, 1); err != nil {
-							logerror("can't even beeep :'( -> %w", err)
+							logerror("can't even beeep :'( -> %v", err)
 						}
 						os.Exit(1)
 					}

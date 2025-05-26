@@ -16,6 +16,7 @@ require (
 	github.com/charmbracelet/glamour v0.10.0
 	github.com/charmbracelet/huh v0.6.0
 	github.com/charmbracelet/lipgloss v1.1.1-0.20250404203927-76690c660834
+	github.com/charmbracelet/log v0.4.2
 	github.com/charmbracelet/x/term v0.2.1
 	github.com/cli/safeexec v1.0.1
 	github.com/crazy3lf/colorconv v1.2.0
