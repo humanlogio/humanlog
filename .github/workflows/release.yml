@@ -20,7 +20,7 @@ on:
         - https://api.humanlog.io
         - https://api.humanlog.dev
   schedule:
-    - cron: "59 1 * * mon"
+    - cron: "05 2 * * mon"
   push:
     tags:
       - "*"
