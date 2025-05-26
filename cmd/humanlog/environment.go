@@ -109,7 +109,7 @@ func environmentCmd(
 						return err
 					}
 					if !ok {
-						logwarn("environment with id %d doesn't exist anymore, select another one")
+						logwarn("environment with id %d doesn't exist anymore, select another one", environmentID)
 						state.CurrentEnvironmentID = nil
 						return state.WriteBack()
 					}

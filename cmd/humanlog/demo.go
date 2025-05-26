@@ -2,18 +2,26 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
+	"os"
+	"time"
 
 	"connectrpc.com/connect"
+	"github.com/charmbracelet/log"
+	"github.com/humanlogio/api/go/svc/auth/v1/authv1connect"
 	userv1 "github.com/humanlogio/api/go/svc/user/v1"
+	"github.com/humanlogio/api/go/svc/user/v1/userv1connect"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
 	"github.com/humanlogio/humanlog/internal/localserver"
 	"github.com/humanlogio/humanlog/internal/pkg/config"
 	"github.com/humanlogio/humanlog/internal/pkg/state"
 	"github.com/humanlogio/humanlog/pkg/auth"
 	"github.com/humanlogio/humanlog/pkg/localstorage"
+	"github.com/pkg/browser"
 	"github.com/urfave/cli"
 	"google.golang.org/protobuf/types/known/structpb"
 
@@ -42,7 +50,12 @@ func demoCmd(
 		Usage: "Run humanlog in demo mode.",
 		Action: func(cctx *cli.Context) error {
 			ctx := getCtx(cctx)
-			ll := getLogger(cctx)
+			// ll := getLogger(cctx)
+
+			handler := log.New(os.Stderr)
+			handler.SetReportTimestamp(true)
+			ll := slog.New(handler)
+
 			cfg := getCfg(cctx)
 			state := getState(cctx)
 			ownVersion := version
@@ -68,7 +81,6 @@ func demoCmd(
 			localhostCfg.Port = port + 1000          // use a higher port
 			localhostCfg.EngineConfig = engineConfig // use the in-memory storage engine
 			localhostCfg.Otlp = nil                  // don't ingest OTLP
-			registerOnCloseServer := func(srv *http.Server) {}
 
 			openStorage := func(ctx context.Context) (localstorage.Storage, error) {
 				storage, err := localstorage.Open(
@@ -101,12 +113,49 @@ func demoCmd(
 				return storage, nil
 			}
 
+			tokenSource := getTokenSource(cctx)
+			apiURL := getAPIUrl(cctx)
+			httpClient := getHTTPClient(cctx, apiURL)
+
+			publicClOpts := connect.WithInterceptors(auth.NewRefreshedUserAuthInterceptor(ll, tokenSource))
+			authedClOpts := connect.WithInterceptors(auth.Interceptors(ll, tokenSource)...)
+
+			authSvc := authv1connect.NewAuthServiceClient(httpClient, apiURL, publicClOpts)
+			userSvc := userv1connect.NewUserServiceClient(httpClient, apiURL, authedClOpts)
+
+			baseSiteURL, _ := url.Parse(getBaseSiteURL(cctx))
+			demoURL := baseSiteURL.JoinPath("/localhost/query")
+			q := demoURL.Query()
+			q.Add("demo_port", fmt.Sprintf("%d", localhostCfg.Port))
+			demoURL.RawQuery = q.Encode()
+
+			registerOnCloseServer := func(srv *http.Server) {
+				// use this hook to open the browser
+				time.AfterFunc(time.Second, func() {
+					if err := browser.OpenURL(demoURL.String()); err != nil {
+						loginfo("open your browser to interact with the demo:\n\n\t%s\n\n", demoURL.String())
+					}
+				})
+
+				<-ctx.Done()
+				loginfo("requesting for demo to shutdown")
+				if err := srv.Close(); err != nil {
+					logerror("unclean shutdown for demo server: %v", err)
+				}
+			}
+
 			return localserver.ServeLocalhost(ctx, ll, localhostCfg, ownVersion, app, openStorage, registerOnCloseServer,
 				func(ctx context.Context, returnToURL string) error {
-					return fmt.Errorf("sign-in not enabled in demo mode")
+					if _, err := performLoginFlow(ctx, state, authSvc, tokenSource, returnToURL); err != nil {
+						return err
+					}
+					return nil
 				},
 				func(ctx context.Context, returnToURL string) error {
-					return fmt.Errorf("sign-out not enabled in demo mode")
+					if err := performLogoutFlow(ctx, userSvc, tokenSource, returnToURL); err != nil {
+						return err
+					}
+					return nil
 				},
 				func(ctx context.Context) error {
 					return fmt.Errorf("self-update not enabled in demo mode")
@@ -117,11 +166,21 @@ func demoCmd(
 				func(ctx context.Context) (*typesv1.LocalhostConfig, error) {
 					return cfg.CurrentConfig, nil
 				},
-				func(ctx context.Context, cfg *typesv1.LocalhostConfig) error {
-					return fmt.Errorf("set-config not enabled in demo mode")
+				func(ctx context.Context, newCfg *typesv1.LocalhostConfig) error {
+					cfg.CurrentConfig = newCfg
+					return cfg.WriteBack()
 				},
 				func(ctx context.Context) (*userv1.WhoamiResponse, error) {
-					return nil, fmt.Errorf("whoami not enabled in demo mode")
+					cerr := new(connect.Error)
+					res, err := userSvc.Whoami(ctx, connect.NewRequest(&userv1.WhoamiRequest{}))
+					if errors.As(err, &cerr) && cerr.Code() == connect.CodeUnauthenticated {
+						return &userv1.WhoamiResponse{
+							User: &typesv1.User{Username: "demouser"},
+						}, nil
+					} else if err != nil {
+						return nil, fmt.Errorf("looking up user authentication status: %v", err)
+					}
+					return res.Msg, nil
 				},
 			)
 		},

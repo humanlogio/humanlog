@@ -63,8 +63,9 @@ func ServeLocalhost(
 	// lock while failing to open the storage... this will cause the service to exit
 	localhostAddr := net.JoinHostPort("localhost", strconv.Itoa(port))
 	var (
-		l   net.Listener
-		err error
+		l           net.Listener
+		err         error
+		attemptLeft = 10
 	)
 	err = retry.Do(ctx, func(ctx context.Context) (bool, error) {
 		ll.InfoContext(ctx, "requesting listener for address", slog.String("addr", localhostAddr))
@@ -74,8 +75,9 @@ func ServeLocalhost(
 		}
 		if errutil.IsEADDRINUSE(err) {
 			// try again
-			ll.InfoContext(ctx, "address in use, retrying later")
-			return true, nil
+			ll.InfoContext(ctx, "address in use, retrying later", slog.Int("attempts", attemptLeft))
+			attemptLeft--
+			return attemptLeft > 0, nil
 		}
 		return false, nil
 	}, retry.UseBaseSleep(20*time.Millisecond), retry.UseCapSleep(time.Second))
@@ -194,6 +196,7 @@ func ServeLocalhost(
 		otlpmetricssvcpb.RegisterMetricsServiceServer(gsrv, localhostsvc.AsMetricsOTLP())
 		otlptracesvcpb.RegisterTraceServiceServer(gsrv, localhostsvc.AsTracingOTLP())
 		eg.Go(func() error {
+			ll.InfoContext(ctx, "OTLP gRPC server starting")
 			if err := gsrv.Serve(otlpGrpcL); err != nil {
 				ll.ErrorContext(ctx, "otlp gRPC server errored", slog.Any("err", err))
 				return err
@@ -210,6 +213,7 @@ func ServeLocalhost(
 
 		srv := http.Server{Handler: withCORS(mux)}
 		eg.Go(func() error {
+			ll.InfoContext(ctx, "OTLP HTTP server starting")
 			if err := srv.Serve(otlpHttpL); err != nil {
 				ll.ErrorContext(ctx, "otlp HTTP server errored", slog.Any("err", err))
 				return err
@@ -218,12 +222,14 @@ func ServeLocalhost(
 		})
 	}
 	eg.Go(func() error {
+		ll.InfoContext(ctx, "humanlog localhost server starting")
 		if err := srv.Serve(l); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			ll.ErrorContext(ctx, "query engine server errored", slog.Any("err", err))
 			return err
 		}
 		return nil
 	})
+
 	if err := eg.Wait(); err != nil {
 		return err
 	}
