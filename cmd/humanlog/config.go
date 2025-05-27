@@ -64,7 +64,7 @@ func configCmd(
 					if err != nil {
 						return fmt.Errorf("parsing base site URL: %v", err)
 					}
-					editConfigPath := baseSiteU.JoinPath("/localhost/edit").String()
+					editConfigPath := baseSiteU.JoinPath("/settings/localhost").String()
 					return browser.OpenURL(editConfigPath)
 				},
 			},
