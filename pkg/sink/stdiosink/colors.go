@@ -18,8 +18,8 @@ var defaultDarkLogTheme = &typesv1.FormatConfig_LogTheme{
 		Info:    fgstyle("#2aa198"),              // #2aa198
 		Warn:    fgstyle("#ff8800"),              // #ff8800
 		Error:   fgstyle("#ff6a6a"),              // #ff6a6a
-		Panic:   fgbdstyle("#ff6a6a", "#ffffff"), // #ff6a6a, #ffffff
-		Fatal:   fgbdstyle("#ff6a6a", "#ffff00"), // #ff6a6a, #ffff00
+		Panic:   fgbgstyle("#ff6a6a", "#ffffff"), // #ff6a6a, #ffffff
+		Fatal:   fgbgstyle("#ff6a6a", "#ffff00"), // #ff6a6a, #ffff00
 		Unknown: fgstyle("#a9a9a9"),              // #a9a9a9
 	},
 	AbsentMsg:  fgstyle("#a9a9a9"), // #a9a9a9
@@ -36,8 +36,8 @@ var defaultLightLogTheme = &typesv1.FormatConfig_LogTheme{
 		Info:    fgstyle("#2aa198"),              // #2aa198
 		Warn:    fgstyle("#ff8800"),              // #ff8800
 		Error:   fgstyle("#d82626"),              // #d82626
-		Panic:   fgbdstyle("#d82626", "#ffffff"), // #d82626, #323232
-		Fatal:   fgbdstyle("#d82626", "#ffff00"), // #d82626, #ffff00
+		Panic:   fgbgstyle("#d82626", "#ffffff"), // #d82626, #323232
+		Fatal:   fgbgstyle("#d82626", "#ffff00"), // #d82626, #ffff00
 		Unknown: fgstyle("#a9a9a9"),              // #a9a9a9
 	},
 	AbsentMsg:  fgstyle("#a9a9a9"), // #a9a9a9
@@ -143,6 +143,58 @@ var DefaultLightTheme = mustValidTheme(&typesv1.FormatConfig_Theme{
 	Spans:  defaultLightSpanTheme,
 	Tables: defaultLightTableTheme,
 })
+
+var noColorTheme = &Theme{
+	Logs: &ThemeLog{
+		Key:          noColorStyle(),
+		Val:          noColorStyle(),
+		Time:         noColorStyle(),
+		TimeAbsent:   noColorStyle(),
+		Msg:          noColorStyle(),
+		MsgAbsent:    noColorStyle(),
+		DebugLevel:   noColorStyle(),
+		InfoLevel:    noColorStyle(),
+		WarnLevel:    noColorStyle(),
+		ErrorLevel:   noColorStyle(),
+		PanicLevel:   noColorStyle(),
+		FatalLevel:   noColorStyle(),
+		UnknownLevel: noColorStyle(),
+	},
+	Spans: &ThemeSpan{
+		TraceId:            noColorStyle(),
+		SpanId:             noColorStyle(),
+		TraceState:         noColorStyle(),
+		ParentSpanId:       noColorStyle(),
+		ParentSpanIdAbsent: noColorStyle(),
+		Name:               noColorStyle(),
+		Kind:               noColorStyle(),
+		ServiceName:        noColorStyle(),
+		ScopeName:          noColorStyle(),
+		ScopeVersion:       noColorStyle(),
+		Time:               noColorStyle(),
+		Duration:           noColorStyle(),
+		ResourceKey:        noColorStyle(),
+		ResourceVal:        noColorStyle(),
+		AttributeKey:       noColorStyle(),
+		AttributeVal:       noColorStyle(),
+		StatusMessage:      noColorStyle(),
+		StatusCode:         noColorStyle(),
+		EventTime:          noColorStyle(),
+		EventName:          noColorStyle(),
+		EventKey:           noColorStyle(),
+		EventVal:           noColorStyle(),
+		LinkTraceID:        noColorStyle(),
+		LinkSpanID:         noColorStyle(),
+		LinkTraceState:     noColorStyle(),
+		LinkKey:            noColorStyle(),
+		LinkVal:            noColorStyle(),
+	},
+	Table: &ThemeTable{
+		ColumnName: noColorStyle(),
+		ColumnType: noColorStyle(),
+		Value:      noColorStyle(),
+	},
+}
 
 type Theme struct {
 	Logs  *ThemeLog
@@ -483,9 +535,16 @@ func fgstyle(hex string) *typesv1.FormatConfig_Style {
 	return &typesv1.FormatConfig_Style{Foreground: &typesv1.FormatConfig_Color{HtmlHexColor: hex}}
 }
 
-func fgbdstyle(fg, bg string) *typesv1.FormatConfig_Style {
+func fgbgstyle(fg, bg string) *typesv1.FormatConfig_Style {
 	return &typesv1.FormatConfig_Style{
 		Foreground: &typesv1.FormatConfig_Color{HtmlHexColor: fg},
 		Background: &typesv1.FormatConfig_Color{HtmlHexColor: bg},
 	}
+}
+
+func noColorStyle() lipgloss.Style {
+	st := lipgloss.NewStyle()
+	st.Foreground(lipgloss.NoColor{})
+	st.Background(lipgloss.NoColor{})
+	return st
 }

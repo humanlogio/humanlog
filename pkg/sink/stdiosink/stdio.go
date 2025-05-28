@@ -131,8 +131,6 @@ func StdioOptsFrom(cfg *typesv1.FormatConfig) (StdioOpts, []error) {
 
 	colorMode := cfg.GetTerminalColorMode()
 	switch colorMode {
-	// case typesv1.FormatConfig_COLORMODE_ENABLED:
-	// 	opts.ColorMode = Enable
 	case typesv1.FormatConfig_COLORMODE_DISABLED:
 		opts.ColorMode = Disable
 	case typesv1.FormatConfig_COLORMODE_FORCE_DARK:
@@ -157,7 +155,7 @@ func NewStdio(w io.Writer, opts StdioOpts) (*Stdio, error) {
 
 	switch opts.ColorMode {
 	case Disable:
-		theme = &Theme{}
+		theme = noColorTheme
 	case ForceDark:
 		theme, err = opts.DarkTheme(rd)
 	case ForceLight:
