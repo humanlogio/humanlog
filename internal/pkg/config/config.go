@@ -557,8 +557,12 @@ func ParseColorMode(colorMode string) (typesv1.FormatConfig_ColorMode, error) {
 		return typesv1.FormatConfig_COLORMODE_DISABLED, nil
 	case "auto", "tty", "maybe", "":
 		return typesv1.FormatConfig_COLORMODE_AUTO, nil
+	case "dark":
+		return typesv1.FormatConfig_COLORMODE_FORCE_DARK, nil
+	case "light":
+		return typesv1.FormatConfig_COLORMODE_FORCE_LIGHT, nil
 	default:
-		return typesv1.FormatConfig_COLORMODE_AUTO, fmt.Errorf("'%s' is not a color mode (try 'on', 'off' or 'auto')", colorMode)
+		return typesv1.FormatConfig_COLORMODE_AUTO, fmt.Errorf("'%s' is not a color mode (try one of ['on', 'off', 'auto', 'dark', 'light'])", colorMode)
 	}
 }
 

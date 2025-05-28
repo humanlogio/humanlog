@@ -33,6 +33,16 @@ type Stdio struct {
 	lastKVs   map[string]string
 }
 
+type ColorMode int
+
+const (
+	Auto ColorMode = iota
+	Enable
+	Disable
+	ForceDark
+	ForceLight
+)
+
 type StdioOpts struct {
 	Keep                    []string
 	Skip                    []string
@@ -45,6 +55,8 @@ type StdioOpts struct {
 	AbsentMsgContent        string
 	AbsentTimeContent       string
 	AbsentParentSpanContent string
+
+	ColorMode ColorMode
 
 	LightTheme func(r *lipgloss.Renderer) (*Theme, error)
 	DarkTheme  func(r *lipgloss.Renderer) (*Theme, error)
@@ -116,6 +128,21 @@ func StdioOptsFrom(cfg *typesv1.FormatConfig) (StdioOpts, []error) {
 			opts.LightTheme = func(r *lipgloss.Renderer) (*Theme, error) { return ThemeFrom(r, cfg.GetThemes().GetLight()) }
 		}
 	}
+
+	colorMode := cfg.GetTerminalColorMode()
+	switch colorMode {
+	// case typesv1.FormatConfig_COLORMODE_ENABLED:
+	// 	opts.ColorMode = Enable
+	case typesv1.FormatConfig_COLORMODE_DISABLED:
+		opts.ColorMode = Disable
+	case typesv1.FormatConfig_COLORMODE_FORCE_DARK:
+		opts.ColorMode = ForceDark
+	case typesv1.FormatConfig_COLORMODE_FORCE_LIGHT:
+		opts.ColorMode = ForceLight
+	default:
+		opts.ColorMode = Auto
+	}
+
 	return opts, errs
 }
 
@@ -127,10 +154,20 @@ func NewStdio(w io.Writer, opts StdioOpts) (*Stdio, error) {
 		theme *Theme
 		err   error
 	)
-	if rd.HasDarkBackground() {
+
+	switch opts.ColorMode {
+	case Disable:
+		theme = &Theme{}
+	case ForceDark:
 		theme, err = opts.DarkTheme(rd)
-	} else {
+	case ForceLight:
 		theme, err = opts.LightTheme(rd)
+	default:
+		if rd.HasDarkBackground() {
+			theme, err = opts.DarkTheme(rd)
+		} else {
+			theme, err = opts.LightTheme(rd)
+		}
 	}
 	if err != nil {
 		return nil, err
