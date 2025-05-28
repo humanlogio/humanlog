@@ -150,7 +150,7 @@ func newApp() *cli.App {
 
 	colorFlag := cli.StringFlag{
 		Name:  "color",
-		Usage: "specify color mode: auto, on/force, off",
+		Usage: "specify color mode: auto, on, off, dark, light",
 		Value: "auto",
 	}
 

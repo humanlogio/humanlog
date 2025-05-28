@@ -23,6 +23,16 @@
             "buildFlags": ["-tags=pro", "-ldflags=-X main.defaultApiAddr=https://api.humanlog.dev -X main.defaultBaseSiteAddr=https://humanlog.dev"],
             "args": ["service", "run"],
             "console": "integratedTerminal"
+        },
+        {
+            "name": "humanlog --color xx",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}/cmd/humanlog",
+            "cwd": "${workspaceFolder}",
+            "args": ["--color", "dark", "<","${workspaceFolder}/dist/log.err"],
+            "console": "integratedTerminal",
         }
     ]
 }
