@@ -1,6 +1,6 @@
 # humanlog
 
-Read logs from `stdin` and prints them back to `stdout`, but prettier.
+Read logs from `stdin` and prints them back to `stdout`, but prettier. It's also a localhost observability platform, supporting logs and distributed traces.
 
 # Using it
 
@@ -8,53 +8,60 @@ Read logs from `stdin` and prints them back to `stdout`, but prettier.
 curl -sSL "https://humanlog.io/install.sh" | bash
 ```
 
-# Example
+Read more at 👉 [how to install](https://humanlog.io/docs/get-started/installation) in our docs.
+
+# Getting started
+
+You can use `humanlog` in the CLI to make your logs prettier. You can also use it as a localhost observability platform to be able to explore the logs and traces that you ingested. Logs parsed by humanlog are persisted in a local database. Similary, traces are ingested and persisted in a local database when sent via OpenTelemetry/OTLP.
+
+Read more at 👉 [how to get started](https://humanlog.io/docs/get-started/basic-usage) in our docs.
+
+## Example - pretty-printing logs
 
 If you emit logs in JSON or in [`logfmt`](https://brandur.org/logfmt), you will enjoy pretty logs when those
 entries are encountered by `humanlog`. Unrecognized lines are left unchanged.
 
-```
+```bash
 $ humanlog < /var/log/logfile.log
 ```
 
-![2__fish___users_antoine_gocode_src_github_com_humanlogio_humanlog__fish_](https://cloud.githubusercontent.com/assets/1189716/4328545/f2330bb4-3f86-11e4-8242-4f49f6ae9efc.png)
+![example CLI usage](https://github.com/user-attachments/assets/d313b4df-30d4-423e-8ea4-f7a34e4e2c60)
 
-# Usage
+When the logs are parsed, they are persisted in a local database. You can then query and explore them via the web UI.
 
-```
-NAME:
-   humanlog - reads structured logs from stdin, makes them pretty on stdout!
+## Example - using it as a localhost observability platform
 
-USAGE:
-   humanlog [global options] command [command options] [arguments...]
+With the query engine turned on (this is the default on new installations), you can query the logs and traces that you ingested. Run a query with:
 
-VERSION:
-   0.7.2+48f11b1
-
-AUTHOR:
-   Antoine Grondin <antoinegrondin@gmail.com>
-
-COMMANDS:
-   version  Interact with humanlog versions
-   help, h  Shows a list of commands or help for one command
-
-GLOBAL OPTIONS:
-   --config value                    specify a config file to use, otherwise uses the default one
-   --skip value                      keys to skip when parsing a log entry
-   --keep value                      keys to keep when parsing a log entry
-   --sort-longest                    sort by longest key after having sorted lexicographically
-   --skip-unchanged                  skip keys that have the same value than the previous entry
-   --truncate                        truncates values that are longer than --truncate-length
-   --truncate-length value           truncate values that are longer than this length (default: 15)
-   --color value                     specify color mode: auto, on/force, off (default: "auto")
-   --light-bg                        use black as the base foreground color (for terminals with light backgrounds)
-   --time-format value               output time format, see https://golang.org/pkg/time/ for details (default: "Jan _2 15:04:05")
-   --ignore-interrupts, -i           ignore interrupts
-   --message-fields value, -m value  Custom JSON fields to search for the log message. (i.e. mssge, data.body.message) [$HUMANLOG_MESSAGE_FIELDS]
-   --time-fields value, -t value     Custom JSON fields to search for the log time. (i.e. logtime, data.body.datetime) [$HUMANLOG_TIME_FIELDS]
-   --level-fields value, -l value    Custom JSON fields to search for the log level. (i.e. somelevel, data.level) [$HUMANLOG_LEVEL_FIELDS]
-   --help, -h                        show help
-   --version, -v                     print the version
+```bash
+$ humanlog query "traces | where duration > 100ms"
 ```
 
-[l2met]: https://github.com/ryandotsmith/l2met
+![querying](https://github.com/user-attachments/assets/74530872-fa9e-4c31-8798-99fdb34c7280)
+
+Learn more at 👉 [how to query](https://humanlog.io/docs/features/query) in our docs.
+
+## Example - ingesting traces
+
+You can ingest traces via OpenTelemetry/OTLP. Using your language of choices' OpenTelemetry client will work out of the box using the default configuration. If not, point your exporter to `http://localhost:4317` or `http://localhost:4318` (these are the default values).
+
+Other valid values for `OTEL_EXPORTER_OTLP_ENDPOINT` are:
+
+| Situation                            | `OTEL_EXPORTER_OTLP_ENDPOINT`      |
+| ------------------------------------ | ---------------------------------- |
+| Default (same host, OTLP/HTTP)       | `http://localhost:4317`            |
+| Default (same host, OTLP/gRPC)       | `http://localhost:4318`            |
+| Docker, Orbstack, `kind` (OTLP/HTTP) | `http://host.docker.internal:4317` |
+| Docker, Orbstack, `kind` (OTLP/gRPC) | `http://host.docker.internal:4318` |
+
+Learn more at 👉 [ingesting OpenTelemetry/OTLP](https://humanlog.io/docs/integrations/opentelemetry) in our docs.
+
+# Support and help
+
+Open an issue on this repo or contribute a PR if you find a bug or want to add a feature in the CLI.
+
+Need more help or want to give feedback? Join our [community channels](https://humanlog.io/support).
+
+# License
+
+The core CLI is MIT licensed (everything in this repo). Official releases are available at [humanlog.io](https://humanlog.io) and include proprietary code that is inserted at build time (the query engine).
