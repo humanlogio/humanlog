@@ -112,8 +112,8 @@ func GetDefaultLocalhostConfig() (*typesv1.ServeLocalhostConfig, error) {
 		ShowInSystray: ptr(true),
 		LogDir:        ptr(logDir),
 		Otlp: &typesv1.ServeLocalhostConfig_OTLP{
-			GrpcPort: 4318,
-			HttpPort: 4317,
+			GrpcPort: 4317,
+			HttpPort: 4318,
 		},
 	}, nil
 }
