@@ -27,7 +27,7 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
 	github.com/humanlogio/api/go v0.0.0-20250528055319-0d07f0a4e40d
-	github.com/humanlogio/humanlog-pro v0.0.0-20250602083438-4b5a1a4417cd
+	github.com/humanlogio/humanlog-pro v0.0.0-20250607115622-fa01d10b51ee
 	github.com/kardianos/service v1.2.2
 	github.com/kr/logfmt v0.0.0-20210122060352-19f9bcb100e6
 	github.com/lucasb-eyer/go-colorful v1.2.0
