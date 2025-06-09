@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/url"
 	"sync"
+	"time"
 
 	"github.com/blang/semver"
 	"github.com/gen2brain/beeep"
@@ -51,7 +52,9 @@ type systrayController struct {
 
 	model *systrayModel
 
+	mTitle                     *systray.MenuItem
 	mQuery                     *systray.MenuItem
+	mStream                    *systray.MenuItem
 	mUserMenuItem              *systray.MenuItem
 	mUserMenuItem_Sub_Settings *systray.MenuItem
 	mUserMenuItem_Sub_Login    *systray.MenuItem
@@ -96,7 +99,10 @@ func newSystrayController(ctx context.Context, ll *slog.Logger, client serviceCl
 	// systray.SetIcon(embeds.HumanlogIcon512x512)
 	// systray.SetTemplateIcon(embeds.HumanlogIconset, embeds.HumanlogIcon512x512)
 	systray.SetTooltip("logs for humans to eat. miam miam")
-	systray.AddMenuItem("humanlog", "logs for humans to eat. miam miam")
+	mTitle := systray.AddMenuItem(
+		fmt.Sprintf("humanlog (%s)", currentSV.String()),
+		"logs for humans to eat. miam miam",
+	)
 	systray.AddSeparator()
 	mUserMenuItem := systray.AddMenuItem("Account", "log into humanlog.io")
 	mUserMenuItem_Sub_Settings := mUserMenuItem.AddSubMenuItem("Settings...", "edit your account settings")
@@ -104,6 +110,7 @@ func newSystrayController(ctx context.Context, ll *slog.Logger, client serviceCl
 	mUserMenuItem_Sub_Logout := mUserMenuItem.AddSubMenuItem("Logout", "log out of humanlog")
 
 	mQuery := systray.AddMenuItem("Query", "Query your logs")
+	mStream := systray.AddMenuItem("Stream", "Watch a stream of your logs")
 
 	systray.AddSeparator()
 
@@ -129,11 +136,13 @@ func newSystrayController(ctx context.Context, ll *slog.Logger, client serviceCl
 		client:                     client,
 		baseSiteURL:                baseSiteU,
 		model:                      mdl,
+		mTitle:                     mTitle,
 		mUserMenuItem:              mUserMenuItem,
 		mUserMenuItem_Sub_Settings: mUserMenuItem_Sub_Settings,
 		mUserMenuItem_Sub_Login:    mUserMenuItem_Sub_Login,
 		mUserMenuItem_Sub_Logout:   mUserMenuItem_Sub_Logout,
 		mQuery:                     mQuery,
+		mStream:                    mStream,
 		mSettings:                  mSettings,
 		mUpdate:                    mUpdate,
 		mRestart:                   mRestart,
@@ -142,6 +151,7 @@ func newSystrayController(ctx context.Context, ll *slog.Logger, client serviceCl
 	ctrl.registerClickUserLogin(ctx, mUserMenuItem_Sub_Login)
 	ctrl.registerClickUserLogout(ctx, mUserMenuItem_Sub_Logout)
 	ctrl.registerClickQuery(ctx, mQuery)
+	ctrl.registerClickStream(ctx, mStream)
 	ctrl.registerClickUpdate(ctx, mUpdate)
 	ctrl.registryClickRestart(ctx, mRestart)
 	ctrl.registerClickLocalhostSettings(ctx, mSettings)
@@ -282,10 +292,19 @@ func (ctrl *systrayController) renderUpdateMenuItem(ctx context.Context) error {
 	current := ctrl.model.currentVersionSV
 	mi := ctrl.mUpdate
 	if !hasUpdate {
-		mi.SetTitle(fmt.Sprintf("%s (latest, click to check)", current.String()))
+		lastUpdateCheckAt, err := ctrl.client.LastUpdateCheck(ctx)
+		if err != nil {
+			return err
+		}
+		if lastUpdateCheckAt == nil {
+			mi.SetTitle(fmt.Sprintf("%s", current.String()))
+		} else {
+			lastChecked := time.Since(lastUpdateCheckAt.AsTime())
+			mi.SetTitle(fmt.Sprintf("%s (as of %s ago)", current.String(), lastChecked.String()))
+		}
 	} else {
 		nextVersion := ctrl.model.nextVersionSV
-		mi.SetTitle(fmt.Sprintf("Click to update! A new version is available (%s)", nextVersion.String()))
+		mi.SetTitle(fmt.Sprintf("Update to %s", nextVersion.String()))
 		mi.SetTooltip("Click to update")
 		mi.Enable()
 	}
@@ -370,7 +389,7 @@ func (ctrl *systrayController) registryClickRestart(ctx context.Context, mi *sys
 }
 
 func (ctrl *systrayController) registerClickQuery(ctx context.Context, mi *systray.MenuItem) context.CancelFunc {
-	queryPath := ctrl.baseSiteURL.JoinPath("/localhost")
+	queryPath := ctrl.baseSiteURL.JoinPath("/localhost/query")
 	return onClick(ctx, mi, func(ctx context.Context) {
 		if mi.Disabled() {
 			ctrl.ll.DebugContext(ctx, "clicked query, but button disabled")
@@ -378,6 +397,18 @@ func (ctrl *systrayController) registerClickQuery(ctx context.Context, mi *systr
 		}
 		ctrl.ll.DebugContext(ctx, "clicked query")
 		browser.OpenURL(queryPath.String())
+	})
+}
+
+func (ctrl *systrayController) registerClickStream(ctx context.Context, mi *systray.MenuItem) context.CancelFunc {
+	streamPath := ctrl.baseSiteURL.JoinPath("/localhost/stream")
+	return onClick(ctx, mi, func(ctx context.Context) {
+		if mi.Disabled() {
+			ctrl.ll.DebugContext(ctx, "clicked stream, but button disabled")
+			return
+		}
+		ctrl.ll.DebugContext(ctx, "clicked stream")
+		browser.OpenURL(streamPath.String())
 	})
 }
 

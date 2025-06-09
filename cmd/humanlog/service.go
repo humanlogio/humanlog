@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	connectcors "connectrpc.com/cors"
 	otelconnect "connectrpc.com/otelconnect"
@@ -312,6 +313,9 @@ type serviceClient interface {
 	DoUpdate(ctx context.Context) error
 	DoRestart(ctx context.Context) error
 	CheckUpdate(ctx context.Context) error
+
+	LastUpdateCheck(ctx context.Context) (*timestamppb.Timestamp, error)
+	CurrentConfig(ctx context.Context) (*config.CurrentConfig, error)
 }
 
 var _ serviceClient = (*serviceHandler)(nil)
@@ -707,6 +711,18 @@ func (hdl *serviceHandler) CheckUpdate(ctx context.Context) error {
 	}
 	ll.InfoContext(ctx, "checking for update", slog.String("release_channel", *channelName))
 	return hdl.checkUpdate(ctx, channelName)
+}
+
+func (hdl *serviceHandler) LastUpdateCheck(ctx context.Context) (*timestamppb.Timestamp, error) {
+	updateCheckedAt := hdl.state.LastestKnownVersionUpdatedAt
+	if updateCheckedAt == nil {
+		return nil, nil
+	}
+	return timestamppb.New(*updateCheckedAt), nil
+}
+
+func (hdl *serviceHandler) CurrentConfig(ctx context.Context) (*config.CurrentConfig, error) {
+	return hdl.config.CurrentConfig, nil
 }
 
 func (hdl *serviceHandler) registerClient(client systrayClient) {
