@@ -96,7 +96,8 @@ func newSystrayController(ctx context.Context, ll *slog.Logger, client serviceCl
 	// systray.SetIcon(embeds.HumanlogIcon512x512)
 	// systray.SetTemplateIcon(embeds.HumanlogIconset, embeds.HumanlogIcon512x512)
 	systray.SetTooltip("logs for humans to eat. miam miam")
-
+	systray.AddMenuItem("humanlog", "logs for humans to eat. miam miam")
+	systray.AddSeparator()
 	mUserMenuItem := systray.AddMenuItem("Account", "log into humanlog.io")
 	mUserMenuItem_Sub_Settings := mUserMenuItem.AddSubMenuItem("Settings...", "edit your account settings")
 	mUserMenuItem_Sub_Login := mUserMenuItem.AddSubMenuItem("Login", "log in with humanlog")
