@@ -101,6 +101,15 @@ func versionCmd(
 	return cli.Command{
 		Name:  versionCmdName,
 		Usage: "Interact with humanlog versions",
+		Action: func(cctx *cli.Context) error {
+			cfg := getCfg(cctx)
+			releaseChannel := cfg.CurrentConfig.GetRuntime().GetExperimentalFeatures().GetReleaseChannel()
+			if releaseChannel == "" {
+				releaseChannel = defaultReleaseChannel
+			}
+			fmt.Fprintf(os.Stdout, "humanlog version %s (tracking %q release channel)\n", semverVersion.String(), releaseChannel)
+			return nil
+		},
 		Subcommands: cli.Commands{
 			{
 				Name:  "check",
