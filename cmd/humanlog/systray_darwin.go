@@ -91,10 +91,10 @@ func newSystrayController(ctx context.Context, ll *slog.Logger, client serviceCl
 	}
 	mdl.lastNotifiedVersion = currentSV
 
-	// systray.SetIcon(hlembed.IconDarkPNG)
-
 	ll.InfoContext(ctx, "creating systray menu")
-	systray.SetTitle("humanlog")
+	systray.SetTitle("log")
+	// systray.SetIcon(embeds.HumanlogIcon512x512)
+	// systray.SetTemplateIcon(embeds.HumanlogIconset, embeds.HumanlogIcon512x512)
 	systray.SetTooltip("logs for humans to eat. miam miam")
 
 	mUserMenuItem := systray.AddMenuItem("Account", "log into humanlog.io")
