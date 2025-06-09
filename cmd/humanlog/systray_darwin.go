@@ -303,9 +303,17 @@ func (ctrl *systrayController) renderUpdateMenuItem(ctx context.Context) error {
 			mi.SetTitle(fmt.Sprintf("%s (as of %s ago)", current.String(), lastChecked.String()))
 		}
 	} else {
+		cfg, err := ctrl.client.CurrentConfig(ctx)
+		if err != nil {
+			return err
+		}
+		releaseChannel := cfg.GetRuntime().GetExperimentalFeatures().GetReleaseChannel()
+		if releaseChannel == "" {
+			releaseChannel = defaultReleaseChannel
+		}
 		nextVersion := ctrl.model.nextVersionSV
 		mi.SetTitle(fmt.Sprintf("Update to %s", nextVersion.String()))
-		mi.SetTooltip("Click to update")
+		mi.SetTooltip(fmt.Sprintf("Click to update (tracking %q release channel)", releaseChannel))
 		mi.Enable()
 	}
 	return nil
