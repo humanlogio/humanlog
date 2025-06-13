@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"net/url"
 	"sync"
-	"time"
 
 	"github.com/blang/semver"
 	"github.com/gen2brain/beeep"
@@ -289,19 +288,9 @@ func (ctrl *systrayController) renderLoginMenuItem(ctx context.Context) error {
 
 func (ctrl *systrayController) renderUpdateMenuItem(ctx context.Context) error {
 	hasUpdate := ctrl.model.hasUpdate
-	current := ctrl.model.currentVersionSV
 	mi := ctrl.mUpdate
 	if !hasUpdate {
-		lastUpdateCheckAt, err := ctrl.client.LastUpdateCheck(ctx)
-		if err != nil {
-			return err
-		}
-		if lastUpdateCheckAt == nil {
-			mi.SetTitle(fmt.Sprintf("%s", current.String()))
-		} else {
-			lastChecked := time.Since(lastUpdateCheckAt.AsTime())
-			mi.SetTitle(fmt.Sprintf("%s (as of %s ago)", current.String(), lastChecked.String()))
-		}
+		mi.SetTitle("running latest version ✨")
 	} else {
 		cfg, err := ctrl.client.CurrentConfig(ctx)
 		if err != nil {
