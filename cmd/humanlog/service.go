@@ -158,7 +158,6 @@ func serviceCmd(
 					eg, ctx := errgroup.WithContext(ctx)
 
 					eg.Go(func() error {
-
 						err := svcHandler.run(ctx, cancel)
 						if err != nil {
 							ll.ErrorContext(ctx, "service stopped running with an error", slog.Any("err", err))

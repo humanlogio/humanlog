@@ -26,8 +26,8 @@ require (
 	github.com/go-logfmt/logfmt v0.6.0
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
-	github.com/humanlogio/api/go v0.0.0-20250528055319-0d07f0a4e40d
-	github.com/humanlogio/humanlog-pro v0.0.0-20250627082808-12b9b1ce1919
+	github.com/humanlogio/api/go v0.0.0-20250701093652-0070a49ece6c
+	github.com/humanlogio/humanlog-pro v0.0.0-20250701094225-d9a7ad82f68f
 	github.com/kardianos/service v1.2.2
 	github.com/kr/logfmt v0.0.0-20210122060352-19f9bcb100e6
 	github.com/lucasb-eyer/go-colorful v1.2.0
@@ -43,21 +43,21 @@ require (
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.60.0
 	go.opentelemetry.io/contrib/propagators/b3 v1.35.0
 	go.opentelemetry.io/contrib/propagators/ot v1.35.0
-	go.opentelemetry.io/otel v1.35.0
+	go.opentelemetry.io/otel v1.37.0
 	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc v1.35.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.35.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.35.0
 	go.opentelemetry.io/otel/sdk v1.35.0
 	go.opentelemetry.io/otel/sdk/metric v1.35.0
-	go.opentelemetry.io/otel/trace v1.35.0
-	go.opentelemetry.io/proto/otlp v1.6.0
+	go.opentelemetry.io/otel/trace v1.37.0
+	go.opentelemetry.io/proto/otlp v1.7.0
 	golang.org/x/exp v0.0.0-20250128182459-e0ece0dbea4c
-	golang.org/x/net v0.39.0
-	golang.org/x/sync v0.13.0
+	golang.org/x/net v0.40.0
+	golang.org/x/sync v0.14.0
 	golang.org/x/sys v0.33.0
 	gonum.org/v1/gonum v0.15.1
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250428153025-10db94c68c34
-	google.golang.org/grpc v1.72.0
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250528174236-200df99c418a
+	google.golang.org/grpc v1.72.2
 	google.golang.org/protobuf v1.36.6
 )
 
@@ -71,11 +71,12 @@ require (
 	github.com/aymerick/douceur v0.2.0 // indirect
 	github.com/catppuccin/go v0.2.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
+	github.com/cespare/xxhash v1.1.0 // indirect
 	github.com/charlievieth/strcase v0.0.5 // indirect
 	github.com/charmbracelet/bubbles v0.20.0 // indirect
 	github.com/charmbracelet/bubbletea v1.2.4 // indirect
 	github.com/charmbracelet/colorprofile v0.3.1 // indirect
-	github.com/charmbracelet/x/ansi v0.9.2 // indirect
+	github.com/charmbracelet/x/ansi v0.9.3 // indirect
 	github.com/charmbracelet/x/cellbuf v0.0.13 // indirect
 	github.com/charmbracelet/x/exp/slice v0.0.0-20250327172914-2fdc97757edf // indirect
 	github.com/charmbracelet/x/exp/strings v0.0.0-20240722160745-212f7b056ed0 // indirect
@@ -99,7 +100,7 @@ require (
 	github.com/getlantern/hex v0.0.0-20190417191902-c6586a6fe0b7 // indirect
 	github.com/getlantern/hidden v0.0.0-20190325191715-f02dbb02be55 // indirect
 	github.com/getlantern/ops v0.0.0-20190325191751-d70cb0d6f85f // indirect
-	github.com/go-logr/logr v1.4.2 // indirect
+	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-stack/stack v1.8.0 // indirect
 	github.com/go-toast/toast v0.0.0-20190211030409-01e6764cf0a4 // indirect
@@ -128,6 +129,7 @@ require (
 	github.com/muesli/reflow v0.3.0 // indirect
 	github.com/muesli/termenv v0.16.0 // indirect
 	github.com/nu7hatch/gouuid v0.0.0-20131221200532-179d4d0c4d8d // indirect
+	github.com/oklog/ulid/v2 v2.1.1 // indirect
 	github.com/oxtoacart/bpool v0.0.0-20190530202638-03653db5a59c // indirect
 	github.com/pierrec/lz4/v4 v4.1.22 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
@@ -141,14 +143,14 @@ require (
 	github.com/zeebo/xxh3 v1.0.2 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/collector/semconv v0.122.1 // indirect
-	go.opentelemetry.io/otel/metric v1.35.0 // indirect
+	go.opentelemetry.io/otel/metric v1.37.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/mod v0.22.0 // indirect
-	golang.org/x/term v0.31.0 // indirect
-	golang.org/x/text v0.24.0 // indirect
+	golang.org/x/term v0.32.0 // indirect
+	golang.org/x/text v0.25.0 // indirect
 	golang.org/x/tools v0.29.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20250428153025-10db94c68c34 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20250528174236-200df99c418a // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 

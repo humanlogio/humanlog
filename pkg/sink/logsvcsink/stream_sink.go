@@ -24,7 +24,7 @@ var (
 type ConnectStreamSink struct {
 	ll           *slog.Logger
 	name         string
-	eventsc      chan *typesv1.LogEvent
+	eventsc      chan *typesv1.Log
 	dropIfFull   bool
 	doneFlushing chan struct{}
 }
@@ -34,7 +34,8 @@ func StartStreamSink(
 	ll *slog.Logger,
 	client ingestv1connect.IngestServiceClient,
 	name string,
-	machineID uint64,
+	resource *typesv1.Resource,
+	scope *typesv1.Scope,
 	bufferSize int,
 	drainBufferFor time.Duration,
 	dropIfFull bool,
@@ -42,26 +43,21 @@ func StartStreamSink(
 ) *ConnectStreamSink {
 
 	snk := &ConnectStreamSink{
-		ll: ll.With(
-			slog.String("sink", name),
-			slog.Uint64("machine_id", machineID),
-		),
+		ll:           ll.With(slog.String("sink", name)),
 		name:         name,
-		eventsc:      make(chan *typesv1.LogEvent, bufferSize),
+		eventsc:      make(chan *typesv1.Log, bufferSize),
 		dropIfFull:   dropIfFull,
 		doneFlushing: make(chan struct{}),
 	}
 
 	go func() {
 		var (
-			buffered       []*typesv1.LogEvent
-			sessionID      = uint64(time.Now().UnixNano())
-			heartbeatEvery = 5 * time.Second
-			err            error
+			buffered []*typesv1.Log
+			err      error
 		)
 		for {
 			startedAt := time.Now()
-			buffered, sessionID, heartbeatEvery, err = snk.connectAndHandleBuffer(ctx, client, machineID, bufferSize, drainBufferFor, buffered, sessionID, heartbeatEvery)
+			buffered, err = snk.connectAndHandleBuffer(ctx, client, resource, scope, bufferSize, drainBufferFor, buffered)
 			if err == io.EOF {
 				close(snk.doneFlushing)
 				return
@@ -98,30 +94,19 @@ func StartStreamSink(
 func (snk *ConnectStreamSink) connectAndHandleBuffer(
 	ctx context.Context,
 	client ingestv1connect.IngestServiceClient,
-	machineID uint64,
+	resource *typesv1.Resource,
+	scope *typesv1.Scope,
 	bufferSize int,
 	drainBufferFor time.Duration,
-	buffered []*typesv1.LogEvent,
-	sessionID uint64,
-	heartbeatEvery time.Duration,
-) (lastBuffer []*typesv1.LogEvent, _ uint64, _ time.Duration, sendErr error) {
+	buffered []*typesv1.Log,
+) (lastBuffer []*typesv1.Log, sendErr error) {
 	ll := snk.ll
 	ll.DebugContext(ctx, "contacting log ingestor")
 	var stream *connect.ClientStreamForClient[v1.IngestStreamRequest, v1.IngestStreamResponse]
 	err := retry.Do(ctx, func(ctx context.Context) (bool, error) {
 
-		hbRes, err := client.GetHeartbeat(ctx, connect.NewRequest(&v1.GetHeartbeatRequest{MachineId: &machineID}))
-		if err != nil {
-			var cerr *connect.Error
-			if errors.As(err, &cerr) && cerr.Code() == connect.CodeResourceExhausted {
-				return false, cerr
-			}
-			return true, fmt.Errorf("requesting heartbeat config from ingestor: %v", err)
-		}
-		heartbeatEvery = hbRes.Msg.HeartbeatIn.AsDuration()
-
 		stream = client.IngestStream(ctx)
-		firstReq := &v1.IngestStreamRequest{Events: buffered, MachineId: machineID, SessionId: sessionID}
+		firstReq := &v1.IngestStreamRequest{Logs: buffered, Resource: resource, Scope: scope}
 		if err := stream.Send(firstReq); err != nil {
 			return true, fmt.Errorf("creating ingestion stream: %w", err)
 		}
@@ -130,7 +115,7 @@ func (snk *ConnectStreamSink) connectAndHandleBuffer(
 		ll.DebugContext(ctx, "can't reach ingestion service", slog.Int("attempt", int(attempt)), slog.Any("err", err))
 	}))
 	if err != nil {
-		return buffered, sessionID, heartbeatEvery, fmt.Errorf("retry aborted: %w", err)
+		return buffered, fmt.Errorf("retry aborted: %w", err)
 	}
 
 	defer func() {
@@ -150,22 +135,13 @@ func (snk *ConnectStreamSink) connectAndHandleBuffer(
 		if res.Msg == nil {
 			return
 		}
-		if res.Msg.SessionId != 0 {
-			sessionID = res.Msg.SessionId
-		}
-		if res.Msg.HeartbeatIn != nil {
-			heartbeatEvery = res.Msg.HeartbeatIn.AsDuration()
-		}
 	}()
 
 	ll.DebugContext(ctx, "ready to send logs")
-	heartbeater := time.NewTicker(heartbeatEvery)
-	defer heartbeater.Stop()
 	ticker := time.NewTicker(drainBufferFor)
 	ticker.Stop()
 	req := new(v1.IngestStreamRequest)
 	flushing := false
-	heartbeat := false
 	for !flushing {
 		// wait for any event to come
 		select {
@@ -174,37 +150,31 @@ func (snk *ConnectStreamSink) connectAndHandleBuffer(
 				flushing = true
 			}
 			if ev != nil {
-				req.Events = append(req.Events, ev)
+				req.Logs = append(req.Logs, ev)
 			}
-			heartbeat = false
-		case <-heartbeater.C:
-			heartbeat = true
 			// send whatever is there
 		case <-ctx.Done():
-			return req.Events, sessionID, heartbeatEvery, nil
+			return req.Logs, nil
 		}
 		ticker.Reset(drainBufferFor)
 
-		if !heartbeat {
-			// unless we're just heartbeating,
-			// try to drain the channel for 100ms
-		drain_buffered_events_loop:
-			for len(req.Events) < bufferSize {
-				select {
-				case ev, more := <-snk.eventsc:
-					if !more {
-						flushing = true
-					}
-					if ev != nil {
-						req.Events = append(req.Events, ev)
-					}
-				case <-ticker.C:
-					ticker.Stop()
-					break drain_buffered_events_loop
+		// try to drain the channel for 100ms
+	drain_buffered_events_loop:
+		for len(req.Logs) < bufferSize {
+			select {
+			case ev, more := <-snk.eventsc:
+				if !more {
+					flushing = true
 				}
+				if ev != nil {
+					req.Logs = append(req.Logs, ev)
+				}
+			case <-ticker.C:
+				ticker.Stop()
+				break drain_buffered_events_loop
 			}
-			// until it's empty, then send what we have
 		}
+		// until it's empty, then send what we have
 		start := time.Now()
 		sendErr = stream.Send(req)
 		dur := time.Since(start)
@@ -212,20 +182,20 @@ func (snk *ConnectStreamSink) connectAndHandleBuffer(
 			slog.String("sink", snk.name),
 			slog.Int64("send_ms", dur.Milliseconds()),
 			slog.Any("err", err),
-			slog.Int("ev_count", len(req.Events)),
+			slog.Int("ev_count", len(req.Logs)),
 			slog.Int("buffer_size", bufferSize),
 			slog.Int64("drain_for_ms", drainBufferFor.Milliseconds()),
 		)
 		if sendErr != nil {
-			return req.Events, sessionID, heartbeatEvery, sendErr
+			return req.Logs, sendErr
 		}
-		req.Events = req.Events[:0:len(req.Events)]
+		req.Logs = req.Logs[:0:len(req.Logs)]
 	}
-	return nil, sessionID, heartbeatEvery, io.EOF
+	return nil, io.EOF
 }
 
-func (snk *ConnectStreamSink) Receive(ctx context.Context, ev *typesv1.LogEvent) error {
-	send := proto.Clone(ev).(*typesv1.LogEvent)
+func (snk *ConnectStreamSink) Receive(ctx context.Context, ev *typesv1.Log) error {
+	send := proto.Clone(ev).(*typesv1.Log)
 	if snk.dropIfFull {
 		select {
 		case snk.eventsc <- send:

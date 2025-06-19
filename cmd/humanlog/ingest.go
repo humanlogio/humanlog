@@ -30,6 +30,8 @@ func ingest(
 	apiURL string,
 	getCfg func(*cli.Context) *config.Config,
 	getState func(*cli.Context) *state.State,
+	getResource func(*cli.Context) *typesv1.Resource,
+	getScope func(*cli.Context) *typesv1.Scope,
 	getTokenSource func(cctx *cli.Context) *auth.UserRefreshableTokenSource,
 	getHTTPClient func(*cli.Context, string) *http.Client,
 	getConnectOpts func(*cli.Context) []connect.ClientOption,
@@ -57,6 +59,9 @@ func ingest(
 		return nil, fmt.Errorf("It looks like this machine isn't associated with this environment. Try to login again, or register with humanlog.io.")
 	}
 
+	resource := getResource(cctx)
+	scope := getScope(cctx)
+
 	clOpts = append(clOpts,
 		connect.WithInterceptors(auth.NewEnvironmentAuthInterceptor(ll, state.IngestionToken)),
 		connect.WithGRPC(),
@@ -66,13 +71,11 @@ func ingest(
 	var snk sink.Sink
 	switch sinkType := os.Getenv("HUMANLOG_SINK_TYPE"); sinkType {
 	case "unary":
-		snk = logsvcsink.StartUnarySink(ctx, ll, client, "api", uint64(*state.MachineID), 1<<20, 100*time.Millisecond, true, notifyUnableToIngest)
-	case "bidi":
-		snk = logsvcsink.StartBidiStreamSink(ctx, ll, client, "api", uint64(*state.MachineID), 1<<20, 100*time.Millisecond, true, notifyUnableToIngest)
+		snk = logsvcsink.StartUnarySink(ctx, ll, client, "api", resource, scope, 1<<20, 100*time.Millisecond, true, notifyUnableToIngest)
 	case "stream":
 		fallthrough // use the stream sink as default, it's the best tradeoff for performance and compatibility
 	default:
-		snk = logsvcsink.StartStreamSink(ctx, ll, client, "api", uint64(*state.MachineID), 1<<20, 100*time.Millisecond, true, notifyUnableToIngest)
+		snk = logsvcsink.StartStreamSink(ctx, ll, client, "api", resource, scope, 1<<20, 100*time.Millisecond, true, notifyUnableToIngest)
 	}
 
 	return snk, nil
