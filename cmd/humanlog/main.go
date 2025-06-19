@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"log"
 	"log/slog"
-	"math/rand"
 	"net"
 	"net/http"
 	"net/url"
@@ -17,6 +16,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	otelresource "go.opentelemetry.io/otel/sdk/resource"
+	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
 
 	"connectrpc.com/connect"
 	"github.com/99designs/keyring"
@@ -337,9 +339,14 @@ For more details:
 		baseSiteURL      = ""
 		keyringName      = "humanlog"
 
+		resource = &types.Resource{}
+		scope    = &types.Scope{}
+
 		getCtx      = func(*cli.Context) context.Context { return ctx }
 		getCfg      = func(*cli.Context) *config.Config { return cfg }
 		getState    = func(*cli.Context) *state.State { return statefile }
+		getResource = func(cctx *cli.Context) *types.Resource { return resource }
+		getScope    = func(*cli.Context) *types.Scope { return scope }
 		logOutput   = os.Stderr
 		usesLogFile = false
 		getLogger   = func(cctx *cli.Context) *slog.Logger {
@@ -523,6 +530,31 @@ For more details:
 		if err != nil {
 			return fmt.Errorf("reading default config file: %v", err)
 		}
+
+		res, err := otelresource.New(ctx,
+			otelresource.WithAttributes(
+				semconv.ServiceName("humanlog"),
+			),
+			otelresource.WithHost(),
+			otelresource.WithFromEnv(),
+			otelresource.WithOS(),
+			otelresource.WithProcess(),
+			otelresource.WithContainer(),
+			otelresource.WithTelemetrySDK(),
+		)
+		if err != nil {
+			return fmt.Errorf("detecting resource: %v", err)
+		}
+		resource = types.NewResource(
+			"",
+			types.FromOTELAttributes(res.Attributes()),
+		)
+		scope = types.NewScope(
+			"",
+			"humanlog",
+			semverVersion.String(),
+			nil,
+		)
 
 		if shouldCheckForUpdate(c, cfg, statefile) {
 			if statefile.LatestKnownVersion != nil && statefile.LatestKnownVersion.GT(semverVersion) {
@@ -722,7 +754,7 @@ For more details:
 					time.Sleep(2 * flushTimeout) // give it 2x timeout to flush before nipping the ctx entirely
 					ingestcancel()
 				}()
-				remotesink, err := ingest(ingestctx, ll, cctx, apiURL, getCfg, getState, getTokenSource, getHTTPClient, getConnectOpts, notifyUnableToIngest)
+				remotesink, err := ingest(ingestctx, ll, cctx, apiURL, getCfg, getState, getResource, getScope, getTokenSource, getHTTPClient, getConnectOpts, notifyUnableToIngest)
 				if err != nil {
 					return fmt.Errorf("can't send logs: %v", err)
 				}
@@ -742,30 +774,12 @@ For more details:
 
 			if expcfg != nil && expcfg.ServeLocalhost != nil {
 				localhostCfg := expcfg.ServeLocalhost
-				state := getState(cctx)
 				// TODO(antoine): all logs to a single location, right now there's code logging
 				// randomly everywhere
 				ll := getLogger(cctx)
-				var machineID uint64
-				for state.MachineID == nil {
-					// TODO(antoine): if an environment token exists, auto-onboard the machine.
-					if isTerminal(os.Stdout) {
-						// no machine ID assigned, ensure machine gets onboarded via the login flow
-						_, err := ensureLoggedIn(ctx, cctx, state, getTokenSource(cctx), apiURL, getHTTPClient(cctx, apiURL), getConnectOpts(cctx))
-						if err != nil {
-							return fmt.Errorf("this feature requires a valid machine ID, which requires an environment. failed to login: %v", err)
-						}
-					} else {
-						// pick a random ID. machines are unique within environments so the odds of
-						// collision are near 0
-						r := rand.New(rand.NewSource(time.Now().UnixNano()))
-						state.MachineID = ptr(r.Int63())
-					}
-				}
 
-				machineID = uint64(*state.MachineID)
 				localhostSink, done, err := dialLocalhostServer(
-					ctx, ll, machineID, int(localhostCfg.Port),
+					ctx, ll, resource, scope, int(localhostCfg.Port),
 					getLocalhostHTTPClient(cctx),
 					func(err error) {
 						logerror("unable to ingest logs with localhost: %v", err)

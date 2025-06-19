@@ -198,7 +198,7 @@ func Test_tryZapDevPrefix(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			ev := new(typesv1.StructuredLogEvent)
+			ev := new(typesv1.Log)
 			m := tryZapDevPrefix(test.logLine, ev, &JSONHandler{Opts: DefaultOptions()})
 
 			if m != test.wantMatch {
@@ -212,11 +212,11 @@ func Test_tryZapDevPrefix(t *testing.T) {
 			if !test.wantTime.Equal(ev.Timestamp.AsTime()) {
 				t.Errorf("want %v, got %v; want != got", test.wantTime, ev.Timestamp.AsTime())
 			}
-			if ev.Lvl != test.wantLevel {
-				t.Errorf("want %q, got %q; want != got", test.wantLevel, ev.Lvl)
+			if ev.SeverityText != test.wantLevel {
+				t.Errorf("want %q, got %q; want != got", test.wantLevel, ev.SeverityText)
 			}
-			if ev.Msg != test.wantMessage {
-				t.Errorf("want %q, got %q; want != got", test.wantMessage, ev.Msg)
+			if ev.Body != test.wantMessage {
+				t.Errorf("want %q, got %q; want != got", test.wantMessage, ev.Body)
 			}
 
 			if findFieldValue(ev, "caller") != test.wantLocation {
@@ -226,8 +226,8 @@ func Test_tryZapDevPrefix(t *testing.T) {
 	}
 }
 
-func findFieldValue(ev *typesv1.StructuredLogEvent, field string) string {
-	for _, kv := range ev.Kvs {
+func findFieldValue(ev *typesv1.Log, field string) string {
+	for _, kv := range ev.Attributes {
 		if kv.Key == field {
 			return kv.Value.GetStr()
 		}
@@ -428,7 +428,7 @@ func Test_tryZapDevDCPrefix(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			ev := new(typesv1.StructuredLogEvent)
+			ev := new(typesv1.Log)
 			m := tryZapDevDCPrefix(test.logLine, ev, &JSONHandler{Opts: DefaultOptions()})
 
 			if m != test.wantMatch {
@@ -442,11 +442,11 @@ func Test_tryZapDevDCPrefix(t *testing.T) {
 			if !test.wantTime.Equal(ev.Timestamp.AsTime()) {
 				t.Errorf("want %v, got %v; want != got", test.wantTime, ev.Timestamp.AsTime())
 			}
-			if ev.Lvl != test.wantLevel {
-				t.Errorf("want %q, got %q; want != got", test.wantLevel, ev.Lvl)
+			if ev.SeverityText != test.wantLevel {
+				t.Errorf("want %q, got %q; want != got", test.wantLevel, ev.SeverityText)
 			}
-			if ev.Msg != test.wantMessage {
-				t.Errorf("want %q, got %q; want != got", test.wantMessage, ev.Msg)
+			if ev.Body != test.wantMessage {
+				t.Errorf("want %q, got %q; want != got", test.wantMessage, ev.Body)
 			}
 
 			if findFieldValue(ev, "caller") != test.wantLocation {

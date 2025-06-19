@@ -16,18 +16,18 @@ type LogfmtHandler struct {
 	Level   string
 	Time    time.Time
 	Message string
-	Fields  map[string]*typesv1.Val
+	Fields  []*typesv1.KV
 }
 
 func (h *LogfmtHandler) clear() {
 	h.Level = ""
 	h.Time = time.Time{}
 	h.Message = ""
-	h.Fields = make(map[string]*typesv1.Val)
+	h.Fields = nil
 }
 
 // CanHandle tells if this line can be handled by this handler.
-func (h *LogfmtHandler) TryHandle(d []byte, out *typesv1.StructuredLogEvent) bool {
+func (h *LogfmtHandler) TryHandle(d []byte, out *typesv1.Log) bool {
 	if !bytes.ContainsRune(d, '=') {
 		return false
 	}
@@ -35,20 +35,18 @@ func (h *LogfmtHandler) TryHandle(d []byte, out *typesv1.StructuredLogEvent) boo
 	if !h.UnmarshalLogfmt(d) {
 		return false
 	}
-	out.Timestamp = timestamppb.New(h.Time)
-	out.Msg = h.Message
-	out.Lvl = h.Level
-	for k, v := range h.Fields {
-		out.Kvs = append(out.Kvs, &typesv1.KV{Key: k, Value: v})
+	if !h.Time.IsZero() {
+		out.Timestamp = timestamppb.New(h.Time)
 	}
+	out.Body = h.Message
+	out.SeverityText = h.Level
+	out.Attributes = h.Fields
+
 	return true
 }
 
 // HandleLogfmt sets the fields of the handler.
 func (h *LogfmtHandler) UnmarshalLogfmt(data []byte) bool {
-	if h.Fields == nil {
-		h.Fields = make(map[string]*typesv1.Val)
-	}
 	dec := logfmt.NewDecoder(bytes.NewReader(data))
 	for dec.ScanRecord() {
 	next_kv:
@@ -96,8 +94,7 @@ func (h *LogfmtHandler) UnmarshalLogfmt(data []byte) bool {
 					continue next_kv
 				}
 			}
-
-			h.Fields[key] = typesv1.ValStr(val)
+			h.Fields = append(h.Fields, typesv1.KeyVal(key, typesv1.ValStr(val)))
 		}
 	}
 	return dec.Err() == nil

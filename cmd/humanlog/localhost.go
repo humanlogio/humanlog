@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/humanlogio/api/go/svc/ingest/v1/ingestv1connect"
+	typesv1 "github.com/humanlogio/api/go/types/v1"
 	"github.com/humanlogio/humanlog/pkg/sink"
 	"github.com/humanlogio/humanlog/pkg/sink/logsvcsink"
 )
@@ -17,7 +18,8 @@ import (
 func dialLocalhostServer(
 	ctx context.Context,
 	ll *slog.Logger,
-	machineID uint64,
+	resource *typesv1.Resource,
+	scope *typesv1.Scope,
 	port int,
 	localhostHttpClient *http.Client,
 	notifyUnableToIngest func(err error),
@@ -29,7 +31,7 @@ func dialLocalhostServer(
 	}
 	logdebug("sending logs to localhost forwarder")
 	client := ingestv1connect.NewIngestServiceClient(localhostHttpClient, addr.String())
-	localhostSink := logsvcsink.StartStreamSink(ctx, ll, client, "local", machineID, 1<<20, 100*time.Millisecond, true, notifyUnableToIngest)
+	localhostSink := logsvcsink.StartStreamSink(ctx, ll, client, "local", resource, scope, 1<<20, 100*time.Millisecond, true, notifyUnableToIngest)
 	return localhostSink, func(ctx context.Context) error {
 		logdebug("flushing localhost sink")
 		return localhostSink.Close(ctx)

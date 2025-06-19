@@ -28,26 +28,25 @@ func Scan(ctx context.Context, src io.Reader, sink sink.Sink, opts *HandlerOptio
 	logfmtEntry := LogfmtHandler{Opts: opts}
 	jsonEntry := JSONHandler{Opts: opts}
 
-	ev := new(typesv1.LogEvent)
-	data := new(typesv1.StructuredLogEvent)
-	ev.Structured = data
+	ev := new(typesv1.Log)
 
-	handlers := []func([]byte, *typesv1.StructuredLogEvent) bool{
+	handlers := []func([]byte, *typesv1.Log) bool{
 		jsonEntry.TryHandle,
 		logfmtEntry.TryHandle,
-		func(lineData []byte, data *typesv1.StructuredLogEvent) bool {
+		func(lineData []byte, data *typesv1.Log) bool {
 			return tryDockerComposePrefix(lineData, data, &jsonEntry)
 		},
-		func(lineData []byte, data *typesv1.StructuredLogEvent) bool {
+		func(lineData []byte, data *typesv1.Log) bool {
 			return tryDockerComposePrefix(lineData, data, &logfmtEntry)
 		},
-		func(lineData []byte, data *typesv1.StructuredLogEvent) bool {
+		func(lineData []byte, data *typesv1.Log) bool {
 			return tryZapDevPrefix(lineData, data, &jsonEntry)
 		},
 	}
 
 	skipNextScan := false
 	for {
+
 		if !in.Scan() {
 			err := in.Err()
 			if err == nil || errors.Is(err, io.EOF) {
@@ -70,45 +69,23 @@ func Scan(ctx context.Context, src io.Reader, sink sink.Sink, opts *HandlerOptio
 		line++
 		lineData := in.Bytes()
 
-		if ev.Structured == nil {
-			ev.Structured = data
-		}
-		data.Reset()
+		ev.Reset()
 		ev.Raw = lineData
-		ev.ParsedAt = timestamppb.New(opts.timeNow())
+		ev.ObservedTimestamp = timestamppb.New(opts.timeNow())
 
 		// remove that pesky syslog crap
 		lineData = bytes.TrimPrefix(lineData, []byte("@cee: "))
 
-		handled := false
 	handled_line:
 		for i, tryHandler := range handlers {
-			if tryHandler(lineData, data) {
-				if dynamicReordering {
+			if tryHandler(lineData, ev) {
+				if dynamicReordering && i != 0 {
 					handlers = moveToFront(i, handlers)
 				}
-				handled = true
 				break handled_line
 			}
 		}
-		if !handled {
-			ev.Structured = nil
-		}
-		// switch {
 
-		// case jsonEntry.TryHandle(lineData, data):
-
-		// case logfmtEntry.TryHandle(lineData, data):
-
-		// case tryDockerComposePrefix(lineData, data, &jsonEntry):
-
-		// case tryDockerComposePrefix(lineData, data, &logfmtEntry):
-
-		// case tryZapDevPrefix(lineData, data, &jsonEntry):
-
-		// default:
-
-		// }
 		if err := sink.Receive(ctx, ev); err != nil {
 			return err
 		}

@@ -64,38 +64,18 @@ func (h *JSONHandler) clear() {
 }
 
 // TryHandle tells if this line was handled by this handler.
-func (h *JSONHandler) TryHandle(d []byte, out *typesv1.StructuredLogEvent) bool {
+func (h *JSONHandler) TryHandle(d []byte, out *typesv1.Log) bool {
 	h.clear()
 	if !h.UnmarshalJSON(d) {
 		return false
 	}
-	out.Timestamp = timestamppb.New(h.Time)
-	out.Msg = h.Message
-	out.Lvl = h.Level
-	out.Kvs = h.Fields
+	if !h.Time.IsZero() {
+		out.Timestamp = timestamppb.New(h.Time)
+	}
+	out.Body = h.Message
+	out.SeverityText = h.Level
+	out.Attributes = h.Fields
 	return true
-}
-
-func deleteJSONKey(key string, jsonData map[string]interface{}) {
-	if _, ok := jsonData[key]; ok {
-		// found the key at the root
-		delete(jsonData, key)
-		return
-	}
-
-	splits := strings.SplitN(key, ".", 2)
-	if len(splits) < 2 {
-		// invalid selector
-		return
-	}
-	k, v := splits[0], splits[1]
-	ifce, ok := jsonData[k]
-	if !ok {
-		return // the key doesn't exist
-	}
-	if m, ok := ifce.(map[string]interface{}); ok {
-		deleteJSONKey(v, m)
-	}
 }
 
 func getFlattenedFields(v map[string]interface{}) map[string]*typesv1.Val {

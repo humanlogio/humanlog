@@ -35,7 +35,7 @@ type Tee struct {
 	sinks []sink.Sink
 }
 
-func (sn *Tee) Receive(ctx context.Context, ev *typesv1.LogEvent) error {
+func (sn *Tee) Receive(ctx context.Context, ev *typesv1.Log) error {
 	for i, sinks := range sn.sinks {
 		if err := sinks.Receive(ctx, ev); err != nil {
 			return fmt.Errorf("tee sink %d: %w", i, err)
@@ -58,21 +58,21 @@ type MixedBatchingTee struct {
 	batchers    []sink.BatchSink
 }
 
-func (sn *MixedBatchingTee) Receive(ctx context.Context, ev *typesv1.LogEvent) error {
+func (sn *MixedBatchingTee) Receive(ctx context.Context, ev *typesv1.Log) error {
 	for i, sinks := range sn.nonbatchers {
 		if err := sinks.Receive(ctx, ev); err != nil {
 			return fmt.Errorf("tee sink %d: %w", i, err)
 		}
 	}
 	for i, sinks := range sn.batchers {
-		if err := sinks.ReceiveBatch(ctx, []*typesv1.LogEvent{ev}); err != nil {
+		if err := sinks.ReceiveBatch(ctx, []*typesv1.Log{ev}); err != nil {
 			return fmt.Errorf("tee sink %d: %w", i, err)
 		}
 	}
 	return nil
 }
 
-func (sn *MixedBatchingTee) ReceiveBatch(ctx context.Context, evs []*typesv1.LogEvent) error {
+func (sn *MixedBatchingTee) ReceiveBatch(ctx context.Context, evs []*typesv1.Log) error {
 	for i, sinks := range sn.nonbatchers {
 		for _, ev := range evs {
 			if err := sinks.Receive(ctx, ev); err != nil {
@@ -106,16 +106,16 @@ type BatchingTee struct {
 	batchers []sink.BatchSink
 }
 
-func (sn *BatchingTee) Receive(ctx context.Context, ev *typesv1.LogEvent) error {
+func (sn *BatchingTee) Receive(ctx context.Context, ev *typesv1.Log) error {
 	for i, sinks := range sn.batchers {
-		if err := sinks.ReceiveBatch(ctx, []*typesv1.LogEvent{ev}); err != nil {
+		if err := sinks.ReceiveBatch(ctx, []*typesv1.Log{ev}); err != nil {
 			return fmt.Errorf("tee sink %d: %w", i, err)
 		}
 	}
 	return nil
 }
 
-func (sn *BatchingTee) ReceiveBatch(ctx context.Context, evs []*typesv1.LogEvent) error {
+func (sn *BatchingTee) ReceiveBatch(ctx context.Context, evs []*typesv1.Log) error {
 	for i, sinks := range sn.batchers {
 		if err := sinks.ReceiveBatch(ctx, evs); err != nil {
 			return fmt.Errorf("tee sink %d: %w", i, err)

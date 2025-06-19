@@ -366,30 +366,16 @@ func queryApiRunCmd(
 					return fmt.Errorf("preparing stdio printer: %v", err)
 				}
 				printer = func(data *typesv1.Data) error {
-					var events []*typesv1.IngestedLogEvent
+					var events []*typesv1.Log
 					switch shape := data.Shape.(type) {
-					case *typesv1.Data_Tabular:
-						switch tshape := shape.Tabular.Shape.(type) {
-						case *typesv1.Tabular_LogEvents:
-							events = tshape.LogEvents.Events
-						default:
-							return fmt.Errorf("todo: handle data shape %T", tshape)
-						}
+					case *typesv1.Data_Logs:
+						events = shape.Logs.Logs
 					default:
 						return fmt.Errorf("todo: handle data shape %T", shape)
 					}
 
 					for _, ev := range events {
-						prefix := getPrefix(ev.MachineId, ev.SessionId)
-						postProcess := func(pattern string) string {
-							return prefix + pattern
-						}
-						ev := &typesv1.LogEvent{
-							ParsedAt:   ev.ParsedAt,
-							Raw:        ev.Raw,
-							Structured: ev.Structured,
-						}
-						if err := sink.ReceiveWithPostProcess(ctx, ev, postProcess); err != nil {
+						if err := sink.Receive(ctx, ev); err != nil {
 							return fmt.Errorf("printing log: %v", err)
 						}
 					}
