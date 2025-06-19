@@ -182,13 +182,14 @@ func (std *Stdio) Close(ctx context.Context) error {
 	return nil
 }
 
-func (std *Stdio) Receive(ctx context.Context, ev *typesv1.LogEvent) error {
+func (std *Stdio) Receive(ctx context.Context, ev *typesv1.Log) error {
 	return std.ReceiveWithPostProcess(ctx, ev, nil)
 }
 
-func (std *Stdio) ReceiveWithPostProcess(ctx context.Context, ev *typesv1.LogEvent, postProcess func(string) string) error {
+func (std *Stdio) ReceiveWithPostProcess(ctx context.Context, ev *typesv1.Log, postProcess func(string) string) error {
 	logtheme := std.theme.Logs
-	if ev.Structured == nil {
+
+	if !ev.IsStructured() {
 		std.lastRaw = true
 		std.lastLevel = ""
 		std.lastKVs = nil
@@ -200,21 +201,20 @@ func (std *Stdio) ReceiveWithPostProcess(ctx context.Context, ev *typesv1.LogEve
 		}
 		return nil
 	}
-	data := ev.Structured
 
 	buf := bytes.NewBuffer(nil)
 	out := tabwriter.NewWriter(buf, 0, 1, 0, '\t', 0)
 
 	var msg string
-	if data.Msg == "" {
+	if ev.Body == "" {
 		msg = logtheme.MsgAbsent.Render(std.opts.AbsentMsgContent)
 	} else {
-		msg = logtheme.Msg.Render(data.Msg)
+		msg = logtheme.Msg.Render(ev.Body)
 	}
 
-	lvl := strings.ToUpper(data.Lvl)[:min(4, len(data.Lvl))]
+	lvl := strings.ToUpper(ev.SeverityText)[:min(4, len(ev.SeverityText))]
 	var level string
-	switch strings.ToLower(data.Lvl) {
+	switch strings.ToLower(ev.SeverityText) {
 	case "debug":
 		level = logtheme.DebugLevel.Render(lvl)
 	case "info":
@@ -230,7 +230,7 @@ func (std *Stdio) ReceiveWithPostProcess(ctx context.Context, ev *typesv1.LogEve
 	}
 
 	var timestr string
-	ts := data.Timestamp.AsTime()
+	ts := ev.Timestamp.AsTime()
 	if ts.IsZero() {
 		timestr = logtheme.TimeAbsent.Render(std.opts.AbsentTimeContent)
 	} else {
@@ -248,7 +248,7 @@ func (std *Stdio) ReceiveWithPostProcess(ctx context.Context, ev *typesv1.LogEve
 		timestr,
 		level,
 		msg,
-		strings.Join(std.joinKVs(data, "="), "\t "),
+		strings.Join(std.joinKVs(ev, "="), "\t "),
 	)
 
 	if err := out.Flush(); err != nil {
@@ -261,8 +261,35 @@ func (std *Stdio) ReceiveWithPostProcess(ctx context.Context, ev *typesv1.LogEve
 		return err
 	}
 
-	kvs := make(map[string]string, len(data.Kvs))
-	for _, kv := range data.Kvs {
+	n := len(ev.Attributes)
+	if ev.Resource != nil {
+		n += len(ev.Resource.Attributes)
+	}
+	if ev.Scope != nil {
+		n += len(ev.Scope.Attributes)
+	}
+	kvs := make(map[string]string, n)
+	if ev.Resource != nil {
+		for _, kv := range ev.Resource.Attributes {
+			key := kv.Key
+			value, err := logqleval.ResolveVal(kv.Value, logqleval.MakeFlatGoMap, logqleval.MakeFlatMapGoSlice)
+			if err != nil {
+				return err
+			}
+			put(&kvs, key, value)
+		}
+	}
+	if ev.Scope != nil {
+		for _, kv := range ev.Scope.Attributes {
+			key := kv.Key
+			value, err := logqleval.ResolveVal(kv.Value, logqleval.MakeFlatGoMap, logqleval.MakeFlatMapGoSlice)
+			if err != nil {
+				return err
+			}
+			put(&kvs, key, value)
+		}
+	}
+	for _, kv := range ev.Attributes {
 		key := kv.Key
 		value, err := logqleval.ResolveVal(kv.Value, logqleval.MakeFlatGoMap, logqleval.MakeFlatMapGoSlice)
 		if err != nil {
@@ -271,7 +298,7 @@ func (std *Stdio) ReceiveWithPostProcess(ctx context.Context, ev *typesv1.LogEve
 		put(&kvs, key, value)
 	}
 	std.lastRaw = false
-	std.lastLevel = ev.Structured.Lvl
+	std.lastLevel = ev.SeverityText
 	std.lastKVs = kvs
 	return nil
 }
@@ -548,24 +575,32 @@ func put(ref *map[string]string, key string, value any) {
 	}
 }
 
-func (std *Stdio) joinKVs(data *typesv1.StructuredLogEvent, sep string) []string {
-	wasSameLevel := std.lastLevel == data.Lvl
+func (std *Stdio) joinKVs(ev *typesv1.Log, sep string) []string {
+	wasSameLevel := std.lastLevel == ev.SeverityText
 	skipUnchanged := !std.lastRaw && std.opts.SkipUnchanged && wasSameLevel
 
-	kv := make([]string, 0, len(data.Kvs))
-	for _, pair := range data.Kvs {
+	n := len(ev.Attributes)
+	if ev.Resource != nil {
+		n += len(ev.Resource.Attributes)
+	}
+	if ev.Scope != nil {
+		n += len(ev.Scope.Attributes)
+	}
+
+	kv := make([]string, 0, n)
+	appendAttr := func(pair *typesv1.KV) {
 		k, v := pair.Key, pair.Value
 		if !std.opts.shouldShowKey(k) {
-			continue
+			return
 		}
 		w, err := toString(v)
 		if err != nil {
-			continue
+			return
 		}
 
 		if skipUnchanged {
 			if lastV, ok := std.lastKVs[k]; ok && lastV == w && !std.opts.shouldShowUnchanged(k) {
-				continue
+				return
 			}
 		}
 		kstr := std.theme.Logs.Key.Render(k)
@@ -578,6 +613,9 @@ func (std *Stdio) joinKVs(data *typesv1.StructuredLogEvent, sep string) []string
 		}
 		vstr = std.theme.Logs.Val.Render(vstr)
 		kv = append(kv, kstr+sep+vstr)
+	}
+	for _, pair := range ev.Attributes {
+		appendAttr(pair)
 	}
 
 	sort.Strings(kv)

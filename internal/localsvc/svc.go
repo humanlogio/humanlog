@@ -23,7 +23,6 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
-	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -164,45 +163,24 @@ func (svc *Service) GetStats(ctx context.Context, req *connect.Request[lhv1.GetS
 	return connect.NewResponse(out), nil
 }
 
-func (svc *Service) GetHeartbeat(ctx context.Context, req *connect.Request[igv1.GetHeartbeatRequest]) (*connect.Response[igv1.GetHeartbeatResponse], error) {
-	msg := req.Msg
-	if msg.MachineId == nil {
-		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("no machine ID present, ensure you're logged in (or authorized) to obtain a machine ID"))
-	}
-	sessionID := int64(0)
-	if msg.SessionId != nil {
-		sessionID = int64(*msg.SessionId)
-	}
-	heartbeat, err := svc.storage.Heartbeat(ctx, int64(*msg.MachineId), sessionID)
-	if err != nil {
-		if cerr, ok := err.(*connect.Error); ok {
-			return nil, cerr
-		}
-		return nil, connect.NewError(connect.CodeInternal, err)
-	}
-	return connect.NewResponse(&igv1.GetHeartbeatResponse{
-		HeartbeatIn: durationpb.New(heartbeat),
-	}), nil
-}
-
 func (svc *Service) Ingest(ctx context.Context, req *connect.Request[igv1.IngestRequest]) (*connect.Response[igv1.IngestResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, fmt.Errorf("not available on localhost"))
 }
 
-func fixEventsTimestamps(ctx context.Context, ll *slog.Logger, evs []*typesv1.LogEvent) []*typesv1.LogEvent {
+func fixEventsTimestamps(ctx context.Context, ll *slog.Logger, evs []*typesv1.Log) []*typesv1.Log {
 	for i, ev := range evs {
 		evs[i] = fixEventTimestamps(ctx, ll, ev)
 	}
 	return evs
 }
 
-func fixEventTimestamps(ctx context.Context, ll *slog.Logger, ev *typesv1.LogEvent) *typesv1.LogEvent {
-	if ev.ParsedAt != nil && ev.ParsedAt.Seconds < 0 {
-		ev.ParsedAt = timestamppb.Now()
+func fixEventTimestamps(ctx context.Context, ll *slog.Logger, ev *typesv1.Log) *typesv1.Log {
+	if ev.ObservedTimestamp != nil && ev.ObservedTimestamp.Seconds < 0 {
+		ev.ObservedTimestamp = timestamppb.Now()
 		ll.ErrorContext(ctx, "client is sending invalid parsedat")
 	}
-	if ev.Structured != nil && ev.Structured.Timestamp != nil && ev.Structured.Timestamp.Seconds < 0 {
-		ev.Structured.Timestamp = ev.ParsedAt
+	if ev.Timestamp != nil && ev.Timestamp.Seconds < 0 {
+		ev.Timestamp = ev.ObservedTimestamp
 		ll.ErrorContext(ctx, "client is sending invalid timestamp")
 	}
 	return ev
@@ -212,8 +190,8 @@ func (svc *Service) IngestStream(ctx context.Context, req *connect.ClientStream[
 	ll := svc.ll
 
 	var (
-		machineID int64
-		sessionID int64
+		resource *typesv1.Resource
+		scope    *typesv1.Scope
 	)
 
 	// get the first message which has the metadata to start ingesting
@@ -221,17 +199,10 @@ func (svc *Service) IngestStream(ctx context.Context, req *connect.ClientStream[
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("must contain at least a first request"))
 	}
 	msg := req.Msg()
-	machineID = int64(msg.MachineId)
-	sessionID = int64(msg.SessionId)
-	if sessionID == 0 {
-		sessionID = time.Now().UnixNano()
-	}
-	ll = ll.With(
-		slog.Int64("machine_id", machineID),
-		slog.Int64("session_id", sessionID),
-	)
+	resource = msg.Resource
+	scope = msg.Scope
 	ll.DebugContext(ctx, "receiving data from stream")
-	snk, heartbeatIn, err := svc.storage.SinkFor(ctx, machineID, sessionID)
+	snk, err := svc.storage.SinkFor(ctx, resource, scope)
 	if err != nil {
 		ll.ErrorContext(ctx, "obtaining sink for stream", slog.Any("err", err))
 		if cerr, ok := err.(*connect.Error); ok {
@@ -251,8 +222,8 @@ func (svc *Service) IngestStream(ctx context.Context, req *connect.ClientStream[
 
 	if bsnk, ok := snk.(sink.BatchSink); ok {
 		// ingest the first message
-		msg.Events = fixEventsTimestamps(ctx, ll, msg.Events)
-		if err := bsnk.ReceiveBatch(ctx, msg.Events); err != nil {
+		msg.Logs = fixEventsTimestamps(ctx, ll, msg.Logs)
+		if err := bsnk.ReceiveBatch(ctx, msg.Logs); err != nil {
 			ll.ErrorContext(ctx, "ingesting event batch", slog.Any("err", err))
 			if cerr, ok := err.(*connect.Error); ok {
 				return nil, cerr
@@ -262,8 +233,8 @@ func (svc *Service) IngestStream(ctx context.Context, req *connect.ClientStream[
 		// then wait for more
 		for req.Receive() {
 			msg := req.Msg()
-			msg.Events = fixEventsTimestamps(ctx, ll, msg.Events)
-			if err := bsnk.ReceiveBatch(ctx, msg.Events); err != nil {
+			msg.Logs = fixEventsTimestamps(ctx, ll, msg.Logs)
+			if err := bsnk.ReceiveBatch(ctx, msg.Logs); err != nil {
 				ll.ErrorContext(ctx, "ingesting event batch", slog.Any("err", err))
 				if cerr, ok := err.(*connect.Error); ok {
 					return nil, cerr
@@ -273,8 +244,8 @@ func (svc *Service) IngestStream(ctx context.Context, req *connect.ClientStream[
 		}
 	} else {
 		// ingest the first message
-		msg.Events = fixEventsTimestamps(ctx, ll, msg.Events)
-		for _, ev := range msg.Events {
+		msg.Logs = fixEventsTimestamps(ctx, ll, msg.Logs)
+		for _, ev := range msg.Logs {
 			if err := snk.Receive(ctx, ev); err != nil {
 				ll.ErrorContext(ctx, "ingesting event", slog.Any("err", err))
 				if cerr, ok := err.(*connect.Error); ok {
@@ -286,14 +257,14 @@ func (svc *Service) IngestStream(ctx context.Context, req *connect.ClientStream[
 		// then wait for more
 		for req.Receive() {
 			msg := req.Msg()
-			msg.Events = fixEventsTimestamps(ctx, ll, msg.Events)
-			for _, ev := range msg.Events {
-				if ev.ParsedAt != nil && ev.ParsedAt.Seconds < 0 {
-					ev.ParsedAt = timestamppb.Now()
+			msg.Logs = fixEventsTimestamps(ctx, ll, msg.Logs)
+			for _, ev := range msg.Logs {
+				if ev.ObservedTimestamp != nil && ev.ObservedTimestamp.Seconds < 0 {
+					ev.ObservedTimestamp = timestamppb.Now()
 					ll.ErrorContext(ctx, "client is sending invalid parsedat", slog.Any("err", err))
 				}
-				if ev.Structured != nil && ev.Structured.Timestamp != nil && ev.Structured.Timestamp.Seconds < 0 {
-					ev.Structured.Timestamp = ev.ParsedAt
+				if ev != nil && ev.Timestamp != nil && ev.Timestamp.Seconds < 0 {
+					ev.Timestamp = ev.ObservedTimestamp
 					ll.ErrorContext(ctx, "client is sending invalid timestamp", slog.Any("err", err))
 				}
 				if err := snk.Receive(ctx, ev); err != nil {
@@ -313,15 +284,8 @@ func (svc *Service) IngestStream(ctx context.Context, req *connect.ClientStream[
 		}
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("ingesting localhost stream: %v", err))
 	}
-	res := &igv1.IngestStreamResponse{
-		SessionId:   uint64(sessionID),
-		HeartbeatIn: durationpb.New(heartbeatIn),
-	}
+	res := &igv1.IngestStreamResponse{}
 	return connect.NewResponse(res), nil
-}
-
-func (svc *Service) IngestBidiStream(ctx context.Context, req *connect.BidiStream[igv1.IngestBidiStreamRequest, igv1.IngestBidiStreamResponse]) error {
-	return connect.NewError(connect.CodeUnimplemented, fmt.Errorf("not available on localhost"))
 }
 
 func (svc *Service) SummarizeEvents(ctx context.Context, req *connect.Request[qrv1.SummarizeEventsRequest]) (*connect.Response[qrv1.SummarizeEventsResponse], error) {
@@ -383,13 +347,9 @@ func (svc *Service) SummarizeEvents(ctx context.Context, req *connect.Request[qr
 	}
 	ll.DebugContext(ctx, "queried")
 
-	shape, ok := data.Shape.(*typesv1.Data_Tabular)
+	freeform, ok := data.Shape.(*typesv1.Data_FreeForm)
 	if !ok {
-		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("expected tabular data, got %T", data.Shape))
-	}
-	freeform, ok := shape.Tabular.Shape.(*typesv1.Tabular_FreeForm)
-	if !ok {
-		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("expected a freeform's table, got %T", shape.Tabular.Shape))
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("expected table data, got %T", data.Shape))
 	}
 	table := freeform.FreeForm
 	header := table.Type

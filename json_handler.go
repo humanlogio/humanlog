@@ -64,15 +64,15 @@ func (h *JSONHandler) clear() {
 }
 
 // TryHandle tells if this line was handled by this handler.
-func (h *JSONHandler) TryHandle(d []byte, out *typesv1.StructuredLogEvent) bool {
+func (h *JSONHandler) TryHandle(d []byte, out *typesv1.Log) bool {
 	h.clear()
 	if !h.UnmarshalJSON(d) {
 		return false
 	}
 	out.Timestamp = timestamppb.New(h.Time)
-	out.Msg = h.Message
-	out.Lvl = h.Level
-	out.Kvs = h.Fields
+	out.Body = h.Message
+	out.SeverityText = h.Level
+	out.Attributes = h.Fields
 	return true
 }
 

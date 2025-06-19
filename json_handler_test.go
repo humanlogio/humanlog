@@ -26,7 +26,7 @@ func TestJSONHandler_UnmarshalJSON_ParsesFields(t *testing.T) {
 	opts := DefaultOptions()
 
 	h := JSONHandler{Opts: opts}
-	ev := new(typesv1.StructuredLogEvent)
+	ev := new(typesv1.Log)
 	if !h.TryHandle(raw, ev) {
 		t.Fatalf("failed to parse log level")
 	}
@@ -62,7 +62,7 @@ func TestJSONHandler_UnmarshalJSON_ParsesCustomFields(t *testing.T) {
 
 	h := JSONHandler{Opts: opts}
 
-	ev := new(typesv1.StructuredLogEvent)
+	ev := new(typesv1.Log)
 	if !h.TryHandle(raw, ev) {
 		t.Fatalf("failed to parse log level")
 	}
@@ -96,7 +96,7 @@ func TestJSONHandler_UnmarshalJSON_ParsesCustomNestedFields(t *testing.T) {
 	opts.TimeFields = []string{"data.time"}
 
 	h := JSONHandler{Opts: opts}
-	ev := new(typesv1.StructuredLogEvent)
+	ev := new(typesv1.Log)
 	if !h.TryHandle(raw, ev) {
 		t.Fatalf("failed to handle log")
 	}
@@ -139,7 +139,7 @@ func TestJSONHandler_UnmarshalJSON_ParsesCustomMultiNestedFields(t *testing.T) {
 	opts.TimeFields = []string{"data.l2.time"}
 
 	h := JSONHandler{Opts: opts}
-	ev := new(typesv1.StructuredLogEvent)
+	ev := new(typesv1.Log)
 	if !h.TryHandle(raw, ev) {
 		t.Fatalf("failed to handle log")
 	}
@@ -159,7 +159,7 @@ func TestJSONHandler_UnmarshalJSON_ParsesCustomMultiNestedFields(t *testing.T) {
 
 func TestJsonHandler_TryHandle_LargeNumbers(t *testing.T) {
 	h := JSONHandler{Opts: DefaultOptions()}
-	ev := new(typesv1.StructuredLogEvent)
+	ev := new(typesv1.Log)
 	raw := []byte(`{"storage":{"session.id":1730187806608637000, "some": {"float": 1.2345}}}`)
 	if !h.TryHandle(raw, ev) {
 		t.Fatalf("failed to handle log")
@@ -170,7 +170,7 @@ func TestJsonHandler_TryHandle_LargeNumbers(t *testing.T) {
 
 func TestJsonHandler_TryHandle_FlattendArrayFields(t *testing.T) {
 	handler := JSONHandler{Opts: DefaultOptions()}
-	ev := new(typesv1.StructuredLogEvent)
+	ev := new(typesv1.Log)
 	raw := []byte(`{"peers":[{"ID":"10.244.0.126:8083","URI":"10.244.0.126:8083"},{"ID":"10.244.0.206:8083","URI":"10.244.0.206:8083"},{"ID":"10.244.1.150:8083","URI":"10.244.1.150:8083"}],"storage":{"session.id":1730187806608637000, "some": {"float": 1.2345}}}`)
 	if !handler.TryHandle(raw, ev) {
 		t.Fatalf("failed to handle log")
@@ -185,7 +185,7 @@ func TestJsonHandler_TryHandle_FlattendArrayFields(t *testing.T) {
 
 func TestJsonHandler_TryHandle_FlattenedArrayFields_NestedArray(t *testing.T) {
 	handler := JSONHandler{Opts: DefaultOptions()}
-	ev := new(typesv1.StructuredLogEvent)
+	ev := new(typesv1.Log)
 	raw := []byte(`{"peers":[[1,2,3.14],[4,50.55,[6,7]],["hello","world"],{"foo":"bar"}]}`)
 	if !handler.TryHandle(raw, ev) {
 		t.Fatalf("failed to handle log")
@@ -233,7 +233,7 @@ func TestParseAsctimeFields(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			opts := DefaultOptions()
 			h := JSONHandler{Opts: opts}
-			ev := new(typesv1.StructuredLogEvent)
+			ev := new(typesv1.Log)
 			if !h.TryHandle(test.raw, ev) {
 				t.Fatalf("failed to handle log")
 			}
@@ -267,11 +267,11 @@ func TestParseKvTime(t *testing.T) {
 			opts := DefaultOptions()
 			opts.DetectTimestamp = true
 			h := JSONHandler{Opts: opts}
-			ev := new(typesv1.StructuredLogEvent)
+			ev := new(typesv1.Log)
 			if !h.TryHandle(test.raw, ev) {
 				t.Fatalf("failed to handle log")
 			}
-			got := ev.Kvs[0].Value.GetTs()
+			got := ev.Attributes[0].Value.GetTs()
 			require.Empty(t, cmp.Diff(test.want, got, protocmp.Transform()))
 		})
 	}

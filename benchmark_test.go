@@ -16,7 +16,7 @@ import (
 
 type NopSink struct{}
 
-func (*NopSink) Receive(ctx context.Context, ev *typesv1.LogEvent) error {
+func (*NopSink) Receive(ctx context.Context, ev *typesv1.Log) error {
 	return nil
 }
 

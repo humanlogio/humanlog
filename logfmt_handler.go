@@ -27,7 +27,7 @@ func (h *LogfmtHandler) clear() {
 }
 
 // CanHandle tells if this line can be handled by this handler.
-func (h *LogfmtHandler) TryHandle(d []byte, out *typesv1.StructuredLogEvent) bool {
+func (h *LogfmtHandler) TryHandle(d []byte, out *typesv1.Log) bool {
 	if !bytes.ContainsRune(d, '=') {
 		return false
 	}
@@ -36,10 +36,10 @@ func (h *LogfmtHandler) TryHandle(d []byte, out *typesv1.StructuredLogEvent) boo
 		return false
 	}
 	out.Timestamp = timestamppb.New(h.Time)
-	out.Msg = h.Message
-	out.Lvl = h.Level
+	out.Body = h.Message
+	out.SeverityText = h.Level
 	for k, v := range h.Fields {
-		out.Kvs = append(out.Kvs, &typesv1.KV{Key: k, Value: v})
+		out.Attributes = append(out.Attributes, &typesv1.KV{Key: k, Value: v})
 	}
 	return true
 }

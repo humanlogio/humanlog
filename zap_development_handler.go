@@ -29,7 +29,7 @@ var zapDevDCLogsPrefixRe = regexp.MustCompile(`^(?P<timestamp>\d{4}-\d{2}-\d{2}T
 // time package which is worrisome but this pattern does work.
 const someRFC = "2006-01-02T15:04:05.000-0700"
 
-func tryZapDevPrefix(d []byte, ev *typesv1.StructuredLogEvent, handler *JSONHandler) bool {
+func tryZapDevPrefix(d []byte, ev *typesv1.Log, handler *JSONHandler) bool {
 	if matches := zapDevLogsPrefixRe.FindSubmatch(d); matches != nil {
 		if handler.TryHandle(matches[5], ev) {
 			t, err := time.Parse(someRFC, string(matches[1]))
@@ -37,9 +37,9 @@ func tryZapDevPrefix(d []byte, ev *typesv1.StructuredLogEvent, handler *JSONHand
 				return false
 			}
 			ev.Timestamp = timestamppb.New(t)
-			ev.Lvl = strings.ToLower(string(matches[2]))
-			ev.Msg = string(matches[4])
-			ev.Kvs = append(ev.Kvs, &typesv1.KV{
+			ev.SeverityText = strings.ToLower(string(matches[2]))
+			ev.Body = string(matches[4])
+			ev.Attributes = append(ev.Attributes, &typesv1.KV{
 				Key: "caller", Value: typesv1.ValStr(string(matches[3])),
 			})
 			return true
@@ -52,7 +52,7 @@ func tryZapDevPrefix(d []byte, ev *typesv1.StructuredLogEvent, handler *JSONHand
 // time package which is worrisome but this pattern does work.
 const someOtherRFC = "2006-01-02T15:04:05.000Z"
 
-func tryZapDevDCPrefix(d []byte, ev *typesv1.StructuredLogEvent, handler *JSONHandler) bool {
+func tryZapDevDCPrefix(d []byte, ev *typesv1.Log, handler *JSONHandler) bool {
 	if matches := zapDevDCLogsPrefixRe.FindSubmatch(d); matches != nil {
 		if handler.TryHandle(matches[5], ev) {
 			t, err := time.Parse(someOtherRFC, string(matches[1]))
@@ -60,10 +60,10 @@ func tryZapDevDCPrefix(d []byte, ev *typesv1.StructuredLogEvent, handler *JSONHa
 				return false
 			}
 			ev.Timestamp = timestamppb.New(t)
-			ev.Lvl = strings.ToLower(string(matches[2]))
-			ev.Msg = string(matches[4])
-			ev.Kvs = append(
-				ev.Kvs,
+			ev.SeverityText = strings.ToLower(string(matches[2]))
+			ev.Body = string(matches[4])
+			ev.Attributes = append(
+				ev.Attributes,
 				&typesv1.KV{Key: "caller", Value: typesv1.ValStr(string(matches[3]))},
 			)
 			return true

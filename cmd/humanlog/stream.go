@@ -170,13 +170,8 @@ func streamApiRunCmd(
 				if err != nil {
 					return fmt.Errorf("preparing stdio printer: %v", err)
 				}
-				printLogEvents := func(events []*typesv1.IngestedLogEvent) error {
-					for _, ev := range events {
-						ev := &typesv1.LogEvent{
-							ParsedAt:   ev.ParsedAt,
-							Raw:        ev.Raw,
-							Structured: ev.Structured,
-						}
+				printLogEvents := func(logs []*typesv1.Log) error {
+					for _, ev := range logs {
 						if err := sink.Receive(ctx, ev); err != nil {
 							return fmt.Errorf("printing log: %v", err)
 						}
@@ -199,17 +194,13 @@ func streamApiRunCmd(
 				}
 				printer = func(data *typesv1.Data) error {
 					switch shape := data.Shape.(type) {
-					case *typesv1.Data_Tabular:
-						switch tshape := shape.Tabular.Shape.(type) {
-						case *typesv1.Tabular_LogEvents:
-							return printLogEvents(tshape.LogEvents.Events)
-						case *typesv1.Tabular_Spans:
-							return printSpans(tshape.Spans.Spans)
-						case *typesv1.Tabular_FreeForm:
-							return printTable(tshape.FreeForm)
-						default:
-							return fmt.Errorf("todo: handle data shape %T", tshape)
-						}
+
+					case *typesv1.Data_Logs:
+						return printLogEvents(shape.Logs.Logs)
+					case *typesv1.Data_Spans:
+						return printSpans(shape.Spans.Spans)
+					case *typesv1.Data_FreeForm:
+						return printTable(shape.FreeForm)
 					default:
 						return fmt.Errorf("todo: handle data shape %T", shape)
 					}

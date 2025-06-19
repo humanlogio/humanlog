@@ -16,14 +16,14 @@ import (
 var dcLogsPrefixRe = regexp.MustCompile("^(?:\x1b\\[\\d+m)?(?P<service_name>[a-zA-Z0-9._-]+)\\s+\\|(?:\x1b\\[0m)? (?P<rest_of_line>.*)$")
 
 type handler interface {
-	TryHandle([]byte, *typesv1.StructuredLogEvent) bool
+	TryHandle([]byte, *typesv1.Log) bool
 }
 
-func tryDockerComposePrefix(d []byte, ev *typesv1.StructuredLogEvent, nextHandler handler) bool {
+func tryDockerComposePrefix(d []byte, ev *typesv1.Log, nextHandler handler) bool {
 	matches := dcLogsPrefixRe.FindSubmatch(d)
 	if matches != nil {
 		if nextHandler.TryHandle(matches[2], ev) {
-			ev.Kvs = append(ev.Kvs, &typesv1.KV{
+			ev.Attributes = append(ev.Attributes, &typesv1.KV{
 				Key: "service", Value: typesv1.ValStr(string(matches[1])),
 			})
 			return true
@@ -33,7 +33,7 @@ func tryDockerComposePrefix(d []byte, ev *typesv1.StructuredLogEvent, nextHandle
 		switch h := nextHandler.(type) {
 		case *JSONHandler:
 			if tryZapDevDCPrefix(matches[2], ev, h) {
-				ev.Kvs = append(ev.Kvs, &typesv1.KV{
+				ev.Attributes = append(ev.Attributes, &typesv1.KV{
 					Key: "service", Value: typesv1.ValStr(string(matches[1])),
 				})
 				return true
