@@ -92,6 +92,10 @@ func serviceCmd(
 			ctx := getCtx(cctx)
 			ctx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
 			defer cancel()
+
+			if svcHandler == nil {
+				return nil // service was never started
+			}
 			return svcHandler.close(ctx)
 		},
 		Subcommands: []cli.Command{
