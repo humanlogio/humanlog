@@ -169,6 +169,8 @@ github.com/humanlogio/humanlog-pro v0.0.0-20250609071956-e688d7db7df2 h1:0WL/VeP
 github.com/humanlogio/humanlog-pro v0.0.0-20250609071956-e688d7db7df2/go.mod h1:cUdyWfR9Iuf1z3Wx2O/x0RB8g9pNnBLjQEmMxACze2c=
 github.com/humanlogio/humanlog-pro v0.0.0-20250624081437-a35c1dd4c921 h1:R0W2CBerpDQJ1tOJUUmBa8u7hQHLaoQnsv8okyyczv4=
 github.com/humanlogio/humanlog-pro v0.0.0-20250624081437-a35c1dd4c921/go.mod h1:cUdyWfR9Iuf1z3Wx2O/x0RB8g9pNnBLjQEmMxACze2c=
+github.com/humanlogio/humanlog-pro v0.0.0-20250627082808-12b9b1ce1919 h1:/0tnsFAG1Btqi/fFydYSMHPRr7IB3ZAMYrld+iLlh7Q=
+github.com/humanlogio/humanlog-pro v0.0.0-20250627082808-12b9b1ce1919/go.mod h1:cUdyWfR9Iuf1z3Wx2O/x0RB8g9pNnBLjQEmMxACze2c=
 github.com/kardianos/service v1.2.2 h1:ZvePhAHfvo0A7Mftk/tEzqEZ7Q4lgnR8sGz4xu1YX60=
 github.com/kardianos/service v1.2.2/go.mod h1:CIMRFEJVL+0DS1a3Nx06NaMn4Dz63Ng6O7dl0qH0zVM=
 github.com/klauspost/asmfmt v1.3.2 h1:4Ri7ox3EwapiOjCki+hw14RyKk201CN4rzyCJRFLpK4=
