@@ -186,7 +186,54 @@ func (svc *Service) GetHeartbeat(ctx context.Context, req *connect.Request[igv1.
 }
 
 func (svc *Service) Ingest(ctx context.Context, req *connect.Request[igv1.IngestRequest]) (*connect.Response[igv1.IngestResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, fmt.Errorf("not available on localhost"))
+	ll := svc.ll
+	msg := req.Msg
+	machineID := msg.MachineId
+	sessionID := msg.SessionId
+	if sessionID == 0 {
+		sessionID = uint64(time.Now().UnixNano())
+	}
+	msg.Events = fixEventsTimestamps(ctx, ll, msg.Events)
+
+	snk, _, err := svc.storage.SinkFor(ctx, int64(machineID), int64(sessionID))
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	success := false
+	defer func() {
+		if success {
+			return
+		}
+		err = snk.Close(ctx)
+		if err != nil {
+			ll.ErrorContext(ctx, "closing sink", slog.Any("err", err))
+		}
+	}()
+
+	if bsnk, ok := snk.(sink.BatchSink); ok {
+		if err := bsnk.ReceiveBatch(ctx, msg.Events); err != nil {
+			ll.ErrorContext(ctx, "ingesting event batch", slog.Any("err", err))
+			if cerr, ok := err.(*connect.Error); ok {
+				return nil, cerr
+			}
+			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("ingesting event batch: %v", err))
+		}
+	} else {
+		for _, ev := range msg.Events {
+			if err := snk.Receive(ctx, ev); err != nil {
+				ll.ErrorContext(ctx, "ingesting event", slog.Any("err", err))
+				if cerr, ok := err.(*connect.Error); ok {
+					return nil, cerr
+				}
+				return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("ingesting event: %v", err))
+			}
+		}
+	}
+	if err = snk.Close(ctx); err != nil {
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("closing sink event: %v", err))
+	}
+	out := &igv1.IngestResponse{SessionId: sessionID}
+	return connect.NewResponse(out), nil
 }
 
 func fixEventsTimestamps(ctx context.Context, ll *slog.Logger, evs []*typesv1.LogEvent) []*typesv1.LogEvent {
