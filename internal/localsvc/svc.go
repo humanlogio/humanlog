@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"runtime"
 	"time"
 
 	"connectrpc.com/connect"
@@ -81,8 +82,10 @@ func (svc *Service) AsMetricsOTLP() *MetricsOTLP { return newMetricsOTLP(svc) }
 
 func (svc *Service) Ping(ctx context.Context, req *connect.Request[lhv1.PingRequest]) (*connect.Response[lhv1.PingResponse], error) {
 	res := &lhv1.PingResponse{
-		ClientVersion: svc.ownVersion,
-		Meta:          &typesv1.ResMeta{},
+		ClientVersion:   svc.ownVersion,
+		Architecture:    runtime.GOARCH,
+		OperatingSystem: runtime.GOOS,
+		Meta:            &typesv1.ResMeta{},
 	}
 	whoami, err := svc.whoami(ctx)
 	if err != nil {
