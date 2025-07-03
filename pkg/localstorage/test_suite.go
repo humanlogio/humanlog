@@ -2,6 +2,7 @@ package localstorage
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -14,7 +15,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func RunTest(t *testing.T, constructor func(t *testing.T) Storage) {
+func RunTest(t *testing.T, constructor func(t *testing.T, timeNow func() time.Time, newUlid func() string) Storage) {
 	tests := []struct {
 		name       string
 		q          string
@@ -303,7 +304,17 @@ func RunTest(t *testing.T, constructor func(t *testing.T) Storage) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
-			db := constructor(t)
+			now := time.Date(2025, 3, 10, 20, 55, 20, 0, time.UTC)
+			timeNow := func() time.Time {
+				return now
+			}
+			i := 0
+			newUlid := func() string {
+				i++
+				return fmt.Sprintf("ulid-%d", i)
+			}
+
+			db := constructor(t, timeNow, newUlid)
 			defer db.Close()
 
 			var snk sink.Sink
