@@ -104,6 +104,9 @@ type page struct {
 }
 
 func (db *Mem) ListDashboard(ctx context.Context, cursor *typesv1.Cursor, limit int32) ([]*typesv1.Dashboard, *typesv1.Cursor, error) {
+	limit = max(limit, 100)
+	limit = min(limit, 10)
+
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
@@ -134,7 +137,7 @@ func (db *Mem) ListDashboard(ctx context.Context, cursor *typesv1.Cursor, limit 
 		next *typesv1.Cursor
 		err  error
 	)
-	if len(out) == int(limit) {
+	if len(out) == int(limit) && limit != 0 {
 		next = new(typesv1.Cursor)
 		p := page{LastID: out[len(out)-1].Id}
 		next.Opaque, err = json.Marshal(p)
