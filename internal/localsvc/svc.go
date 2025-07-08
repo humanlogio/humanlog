@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	dashbrdv1 "github.com/humanlogio/api/go/svc/dashboard/v1"
+	dashbrdpb "github.com/humanlogio/api/go/svc/dashboard/v1/dashboardv1connect"
 	igv1 "github.com/humanlogio/api/go/svc/ingest/v1"
 	igsvcpb "github.com/humanlogio/api/go/svc/ingest/v1/ingestv1connect"
 	lhv1 "github.com/humanlogio/api/go/svc/localhost/v1"
@@ -16,6 +18,7 @@ import (
 	qrsvcpb "github.com/humanlogio/api/go/svc/query/v1/queryv1connect"
 	userv1 "github.com/humanlogio/api/go/svc/user/v1"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
+	"github.com/humanlogio/humanlog/internal/localstate"
 	"github.com/humanlogio/humanlog/pkg/localstorage"
 	"github.com/humanlogio/humanlog/pkg/sink"
 	"github.com/humanlogio/humanlog/pkg/validate"
@@ -39,6 +42,8 @@ type Service struct {
 	getConfig  func(ctx context.Context) (*typesv1.LocalhostConfig, error)
 	setConfig  func(ctx context.Context, cfg *typesv1.LocalhostConfig) error
 	whoami     func(ctx context.Context) (*userv1.WhoamiResponse, error)
+
+	db localstate.DB
 }
 
 func New(
@@ -65,14 +70,17 @@ func New(
 		getConfig:  getConfig,
 		setConfig:  setConfig,
 		whoami:     whoami,
+		db:         localstate.NewMemory(),
 	}
 }
 
 var (
-	_ lhsvcpb.LocalhostServiceHandler = (*Service)(nil)
-	_ igsvcpb.IngestServiceHandler    = (*Service)(nil)
-	_ qrsvcpb.QueryServiceHandler     = (*Service)(nil)
-	_ qrsvcpb.TraceServiceHandler     = (*Service)(nil)
+	_ lhsvcpb.LocalhostServiceHandler   = (*Service)(nil)
+	_ igsvcpb.IngestServiceHandler      = (*Service)(nil)
+	_ qrsvcpb.QueryServiceHandler       = (*Service)(nil)
+	_ qrsvcpb.TraceServiceHandler       = (*Service)(nil)
+	_ qrsvcpb.TraceServiceHandler       = (*Service)(nil)
+	_ dashbrdpb.DashboardServiceHandler = (*Service)(nil)
 )
 
 func (svc *Service) AsLoggingOTLP() *LoggingOTLP { return newLoggingOTLP(svc) }
@@ -594,6 +602,59 @@ func (svc *Service) ListSymbols(ctx context.Context, req *connect.Request[qrv1.L
 		out.Items = append(out.Items, &qrv1.ListSymbolsResponse_ListItem{
 			Symbol: sym,
 		})
+	}
+	return connect.NewResponse(out), nil
+}
+
+func (svc *Service) CreateDashboard(ctx context.Context, req *connect.Request[dashbrdv1.CreateDashboardRequest]) (*connect.Response[dashbrdv1.CreateDashboardResponse], error) {
+	msg := req.Msg
+	dsh, err := svc.db.CreateDashboard(ctx, msg)
+	if err != nil {
+		return nil, err
+	}
+	out := &dashbrdv1.CreateDashboardResponse{Dashboard: dsh}
+	return connect.NewResponse(out), nil
+}
+
+func (svc *Service) GetDashboard(ctx context.Context, req *connect.Request[dashbrdv1.GetDashboardRequest]) (*connect.Response[dashbrdv1.GetDashboardResponse], error) {
+	dsh, err := svc.db.GetDashboard(ctx, req.Msg.Id)
+	if err != nil {
+		return nil, err
+	}
+	out := &dashbrdv1.GetDashboardResponse{Dashboard: dsh}
+	return connect.NewResponse(out), nil
+}
+
+func (svc *Service) UpdateDashboard(ctx context.Context, req *connect.Request[dashbrdv1.UpdateDashboardRequest]) (*connect.Response[dashbrdv1.UpdateDashboardResponse], error) {
+	dsh, err := svc.db.UpdateDashboard(ctx, req.Msg.Id, req.Msg.Mutations)
+	if err != nil {
+		return nil, err
+	}
+	out := &dashbrdv1.UpdateDashboardResponse{Dashboard: dsh}
+	return connect.NewResponse(out), nil
+}
+
+func (svc *Service) DeleteDashboard(ctx context.Context, req *connect.Request[dashbrdv1.DeleteDashboardRequest]) (*connect.Response[dashbrdv1.DeleteDashboardResponse], error) {
+	err := svc.db.DeleteDashboard(ctx, req.Msg.Id)
+	if err != nil {
+		return nil, err
+	}
+	out := &dashbrdv1.DeleteDashboardResponse{}
+	return connect.NewResponse(out), nil
+}
+
+func (svc *Service) ListDashboard(ctx context.Context, req *connect.Request[dashbrdv1.ListDashboardRequest]) (*connect.Response[dashbrdv1.ListDashboardResponse], error) {
+	arr, next, err := svc.db.ListDashboard(ctx, req.Msg.Cursor, req.Msg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	list := make([]*dashbrdv1.ListDashboardResponse_ListItem, 0, len(arr))
+	for _, el := range arr {
+		list = append(list, &dashbrdv1.ListDashboardResponse_ListItem{Dashboard: el})
+	}
+	out := &dashbrdv1.ListDashboardResponse{
+		Next:  next,
+		Items: list,
 	}
 	return connect.NewResponse(out), nil
 }
