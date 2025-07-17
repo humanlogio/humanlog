@@ -483,6 +483,12 @@ func (svc *Service) Format(ctx context.Context, req *connect.Request[qrv1.Format
 }
 
 func (svc *Service) Query(ctx context.Context, req *connect.Request[qrv1.QueryRequest]) (*connect.Response[qrv1.QueryResponse], error) {
+	if req.Msg.Limit < 1 {
+		req.Msg.Limit = 1000 // default is 1000
+	}
+	if req.Msg.Limit < 10 {
+		req.Msg.Limit = 10 // minimum is 10
+	}
 	query := req.Msg.GetQuery()
 	if query == nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("required: `query`"))
