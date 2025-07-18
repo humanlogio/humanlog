@@ -167,6 +167,10 @@ Bye! <3`
 
 			expcfg := cfg.GetRuntime().GetExperimentalFeatures()
 
+			if err := setReleaseChannel(cfg); err != nil {
+				logdebug("can't write back config to set release channel: %v", err)
+			}
+
 			now := time.Now()
 			askAgainAfter := 24 * time.Hour
 
@@ -293,6 +297,25 @@ Bye! <3`
 			return nil
 		},
 	}
+}
+func setReleaseChannel(cfg *config.Config) error {
+	expcfg := cfg.GetRuntime().GetExperimentalFeatures()
+	if expcfg == nil {
+		return nil
+	}
+	releaseChannel := os.Getenv("HUMANLOG_CHANNEL")
+	if releaseChannel == "" {
+		return nil
+	}
+	if releaseChannel == defaultReleaseChannel {
+		return nil
+	}
+
+	if expcfg.ReleaseChannel != nil && *expcfg.ReleaseChannel == releaseChannel {
+		return nil
+	}
+	expcfg.ReleaseChannel = ptr(releaseChannel)
+	return cfg.WriteBack()
 }
 
 func wasMoreThanTimeAgo(now time.Time, t *time.Time, ago time.Duration) bool {
