@@ -24,6 +24,8 @@ import (
 	userv1 "github.com/humanlogio/api/go/svc/user/v1"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
 	"github.com/humanlogio/humanlog/internal/errutil"
+	"github.com/humanlogio/humanlog/internal/localalert"
+	"github.com/humanlogio/humanlog/internal/localstate"
 	"github.com/humanlogio/humanlog/internal/localsvc"
 	"github.com/humanlogio/humanlog/pkg/localstorage"
 	"github.com/humanlogio/humanlog/pkg/retry"
@@ -49,6 +51,7 @@ func ServeLocalhost(
 	ownVersion *typesv1.Version,
 	app *localstorage.AppCtx,
 	openStorage func(ctx context.Context) (localstorage.Storage, error),
+	openState func(ctx context.Context) (localstate.DB, error),
 	registerOnCloseServer func(srv *http.Server),
 	doLogin func(ctx context.Context, returnToURL string) error,
 	doLogout func(ctx context.Context, returnToURL string) error,
@@ -57,6 +60,7 @@ func ServeLocalhost(
 	getConfig func(ctx context.Context) (*typesv1.LocalhostConfig, error),
 	setConfig func(ctx context.Context, cfg *typesv1.LocalhostConfig) error,
 	whoami func(ctx context.Context) (*userv1.WhoamiResponse, error),
+	notifyAlert func(ctx context.Context, ar *typesv1.AlertRule, as localalert.AlertStatus, o *typesv1.Obj) error,
 ) error {
 	port := int(localhostCfg.Port)
 
@@ -118,6 +122,11 @@ func ServeLocalhost(
 		ll.InfoContext(ctx, "obtained OTLP HTTP listener")
 	}
 
+	ll.InfoContext(ctx, "opening state engine")
+	state, err := openState(ctx)
+	if err != nil {
+		return fmt.Errorf("opening localstorage %q: %v", localhostCfg.Engine, err)
+	}
 	ll.InfoContext(ctx, "opening storage engine")
 	storage, err := openStorage(ctx)
 	if err != nil {
@@ -136,7 +145,7 @@ func ServeLocalhost(
 
 	mux := http.NewServeMux()
 
-	localhostsvc := localsvc.New(ll, ownVersion, storage,
+	localhostsvc := localsvc.New(ll, ownVersion, storage, state,
 		doLogin,
 		doLogout,
 		doUpdate,
@@ -232,6 +241,25 @@ func ServeLocalhost(
 			return err
 		}
 		return nil
+	})
+
+	eg.Go(func() error {
+		// handle alerts
+		evaluator := localalert.NewEvaluator(state, storage, time.Now)
+		ticker := time.NewTicker(time.Second)
+		defer ticker.Stop()
+
+		ll.InfoContext(ctx, "humanlog localhost alert monitor starting")
+		for {
+			select {
+			case <-ctx.Done():
+				return nil
+			case <-ticker.C:
+				if err := evaluator.EvaluateRules(ctx, notifyAlert); err != nil {
+					ll.ErrorContext(ctx, "failed to evaluate alerting rules", slog.Any("err", err))
+				}
+			}
+		}
 	})
 
 	if err := eg.Wait(); err != nil {

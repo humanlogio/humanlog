@@ -7,6 +7,7 @@ import (
 	"log/slog"
 
 	typesv1 "github.com/humanlogio/api/go/types/v1"
+	"github.com/humanlogio/humanlog/internal/localalert"
 )
 
 func runSystray(ctx context.Context, ll *slog.Logger, svcHandler *serviceHandler, version *typesv1.Version, baseSiteURL string) error {
@@ -22,6 +23,10 @@ func newSystrayController(ctx context.Context, ll *slog.Logger, client serviceCl
 	return &systrayController{ll: ll}, nil
 }
 
+func (ctrl *systrayController) NotifyAlert(ctx context.Context, ar *typesv1.AlertRule, as localalert.AlertStatus, o *typesv1.Obj) error {
+	ctrl.ll.WarnContext(ctx, "systray: not implemented on this platform: NotifyError")
+	return nil
+}
 func (ctrl *systrayController) NotifyError(ctx context.Context, err error) error {
 	ctrl.ll.WarnContext(ctx, "systray: not implemented on this platform: NotifyError")
 	return nil
