@@ -28,7 +28,7 @@ func init() {
 }
 
 const (
-	runLocalhostByDefault    = true
+	runLocalhostByDefault    = false
 	sendLogsToCloudByDefault = false
 )
 
