@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	alertv1 "github.com/humanlogio/api/go/svc/alert/v1"
 	dashbrdv1 "github.com/humanlogio/api/go/svc/dashboard/v1"
 	dashbrdpb "github.com/humanlogio/api/go/svc/dashboard/v1/dashboardv1connect"
 	igv1 "github.com/humanlogio/api/go/svc/ingest/v1"
@@ -661,6 +662,46 @@ func (svc *Service) ListDashboard(ctx context.Context, req *connect.Request[dash
 	out := &dashbrdv1.ListDashboardResponse{
 		Next:  next,
 		Items: list,
+	}
+	return connect.NewResponse(out), nil
+}
+
+func (svc *Service) CreateAlertRule(ctx context.Context, req *connect.Request[alertv1.CreateAlertRuleRequest]) (*connect.Response[alertv1.CreateAlertRuleResponse], error) {
+	out, err := svc.db.CreateAlertRule(ctx, req.Msg)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(out), nil
+}
+
+func (svc *Service) GetAlertRule(ctx context.Context, req *connect.Request[alertv1.GetAlertRuleRequest]) (*connect.Response[alertv1.GetAlertRuleResponse], error) {
+	out, err := svc.db.GetAlertRule(ctx, req.Msg)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(out), nil
+}
+
+func (svc *Service) UpdateAlertRule(ctx context.Context, req *connect.Request[alertv1.UpdateAlertRuleRequest]) (*connect.Response[alertv1.UpdateAlertRuleResponse], error) {
+	out, err := svc.db.UpdateAlertRule(ctx, req.Msg)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(out), nil
+}
+
+func (svc *Service) DeleteAlertRule(ctx context.Context, req *connect.Request[alertv1.DeleteAlertRuleRequest]) (*connect.Response[alertv1.DeleteAlertRuleResponse], error) {
+	out, err := svc.db.DeleteAlertRule(ctx, req.Msg)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(out), nil
+}
+
+func (svc *Service) ListAlertRule(ctx context.Context, req *connect.Request[alertv1.ListAlertRuleRequest]) (*connect.Response[alertv1.ListAlertRuleResponse], error) {
+	out, err := svc.db.ListAlertRule(ctx, req.Msg)
+	if err != nil {
+		return nil, err
 	}
 	return connect.NewResponse(out), nil
 }

@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"connectrpc.com/connect"
+	alertv1 "github.com/humanlogio/api/go/svc/alert/v1"
 	dashboardv1 "github.com/humanlogio/api/go/svc/dashboard/v1"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
 	"github.com/oklog/ulid/v2"
@@ -18,13 +19,19 @@ import (
 var _ DB = (*Mem)(nil)
 
 type Mem struct {
-	mu   sync.Mutex
-	list []string
-	data map[string]*typesv1.Dashboard
+	mu            sync.Mutex
+	dashboardlist []string
+	dashboards    map[string]*typesv1.Dashboard
+
+	alertrulelist []int64
+	alertrules    map[int64]*typesv1.AlertRule
 }
 
 func NewMemory() *Mem {
-	db := &Mem{data: make(map[string]*typesv1.Dashboard)}
+	db := &Mem{
+		dashboards: make(map[string]*typesv1.Dashboard),
+		alertrules: make(map[int64]*typesv1.AlertRule),
+	}
 	_, err := db.CreateDashboard(context.Background(), &dashboardv1.CreateDashboardRequest{
 		Name:        defaultDashboard.Name,
 		Description: defaultDashboard.Description,
@@ -50,15 +57,15 @@ func (db *Mem) CreateDashboard(ctx context.Context, req *dashboardv1.CreateDashb
 	}
 	db.mu.Lock()
 	defer db.mu.Unlock()
-	db.data[d.Id] = d
-	db.list = append(db.list, d.Id)
+	db.dashboards[d.Id] = d
+	db.dashboardlist = append(db.dashboardlist, d.Id)
 	return d, nil
 }
 
 func (db *Mem) GetDashboard(ctx context.Context, id string) (*typesv1.Dashboard, error) {
 	db.mu.Lock()
 	defer db.mu.Unlock()
-	dd, ok := db.data[id]
+	dd, ok := db.dashboards[id]
 	if !ok {
 		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("no such dashboard"))
 	}
@@ -69,7 +76,7 @@ func (db *Mem) GetDashboard(ctx context.Context, id string) (*typesv1.Dashboard,
 func (db *Mem) UpdateDashboard(ctx context.Context, id string, mutations []*dashboardv1.UpdateDashboardRequest_Mutation) (*typesv1.Dashboard, error) {
 	db.mu.Lock()
 	defer db.mu.Unlock()
-	dd, ok := db.data[id]
+	dd, ok := db.dashboards[id]
 	if !ok {
 		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("no such dashboard"))
 	}
@@ -87,19 +94,19 @@ func (db *Mem) UpdateDashboard(ctx context.Context, id string, mutations []*dash
 			dd.PersesJson = do.SetPersesJson
 		}
 	}
-	db.data[dd.Id] = dd
+	db.dashboards[dd.Id] = dd
 	return dd, nil
 }
 
 func (db *Mem) DeleteDashboard(ctx context.Context, id string) error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
-	delete(db.data, id)
-	db.list = slices.DeleteFunc(db.list, func(e string) bool { return e == id })
+	delete(db.dashboards, id)
+	db.dashboardlist = slices.DeleteFunc(db.dashboardlist, func(e string) bool { return e == id })
 	return nil
 }
 
-type page struct {
+type stringPage struct {
 	LastID string `json:"lastID"`
 }
 
@@ -112,7 +119,7 @@ func (db *Mem) ListDashboard(ctx context.Context, cursor *typesv1.Cursor, limit 
 
 	var fromID string
 	if cursor != nil {
-		var p page
+		var p stringPage
 		if err := json.Unmarshal(cursor.Opaque, &p); err != nil {
 			return nil, nil, err
 		}
@@ -120,17 +127,17 @@ func (db *Mem) ListDashboard(ctx context.Context, cursor *typesv1.Cursor, limit 
 	}
 	var i int
 	if fromID != "" {
-		i = slices.IndexFunc(db.list, func(e string) bool { return e == fromID }) + 1
+		i = slices.IndexFunc(db.dashboardlist, func(e string) bool { return e == fromID }) + 1
 	}
-	if i > len(db.list) {
+	if i > len(db.dashboardlist) {
 		return nil, nil, nil
 	}
 	from := i
-	to := min(i+int(limit), len(db.list))
+	to := min(i+int(limit), len(db.dashboardlist))
 
 	var out []*typesv1.Dashboard
-	for _, id := range db.list[from:to] {
-		d := db.data[id]
+	for _, id := range db.dashboardlist[from:to] {
+		d := db.dashboards[id]
 		out = append(out, d)
 	}
 	var (
@@ -139,7 +146,7 @@ func (db *Mem) ListDashboard(ctx context.Context, cursor *typesv1.Cursor, limit 
 	)
 	if len(out) == int(limit) && limit != 0 {
 		next = new(typesv1.Cursor)
-		p := page{LastID: out[len(out)-1].Id}
+		p := stringPage{LastID: out[len(out)-1].Id}
 		next.Opaque, err = json.Marshal(p)
 		if err != nil {
 			return out, next, err
@@ -147,6 +154,133 @@ func (db *Mem) ListDashboard(ctx context.Context, cursor *typesv1.Cursor, limit 
 	}
 
 	return out, next, nil
+}
+
+func (db *Mem) CreateAlertRule(ctx context.Context, req *alertv1.CreateAlertRuleRequest) (*alertv1.CreateAlertRuleResponse, error) {
+	item := &typesv1.AlertRule{
+		Id:            int64(len(db.alertrulelist) + 1),
+		Name:          req.Name,
+		Expr:          req.Expr,
+		Labels:        req.Labels,
+		Annotations:   req.Annotations,
+		For:           req.For,
+		KeepFiringFor: req.KeepFiringFor,
+	}
+	db.mu.Lock()
+	defer db.mu.Unlock()
+	db.alertrules[item.Id] = item
+	db.alertrulelist = append(db.alertrulelist, item.Id)
+	return &alertv1.CreateAlertRuleResponse{AlertRule: item}, nil
+}
+
+func (db *Mem) GetAlertRule(ctx context.Context, req *alertv1.GetAlertRuleRequest) (*alertv1.GetAlertRuleResponse, error) {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+	item, ok := db.alertrules[req.Id]
+	if !ok {
+		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("no such alert rule"))
+	}
+
+	return &alertv1.GetAlertRuleResponse{AlertRule: item}, nil
+}
+
+func (db *Mem) UpdateAlertRule(ctx context.Context, req *alertv1.UpdateAlertRuleRequest) (*alertv1.UpdateAlertRuleResponse, error) {
+	var (
+		id        = req.Id
+		mutations = req.Mutations
+	)
+	db.mu.Lock()
+	defer db.mu.Unlock()
+	item, ok := db.alertrules[id]
+	if !ok {
+		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("no such dashboard"))
+	}
+	for _, mutation := range mutations {
+		switch do := mutation.Do.(type) {
+		case *alertv1.UpdateAlertRuleRequest_Mutation_SetName:
+			item.Name = do.SetName
+		case *alertv1.UpdateAlertRuleRequest_Mutation_SetExpr:
+			item.Expr = do.SetExpr
+		case *alertv1.UpdateAlertRuleRequest_Mutation_SetLabels:
+			item.Labels = do.SetLabels
+		case *alertv1.UpdateAlertRuleRequest_Mutation_SetAnnotations:
+			item.Annotations = do.SetAnnotations
+		case *alertv1.UpdateAlertRuleRequest_Mutation_SetFor:
+			item.For = do.SetFor
+		case *alertv1.UpdateAlertRuleRequest_Mutation_SetKeepFiringFor:
+			item.KeepFiringFor = do.SetKeepFiringFor
+		}
+	}
+	db.alertrules[item.Id] = item
+	return &alertv1.UpdateAlertRuleResponse{AlertRule: item}, nil
+}
+
+func (db *Mem) DeleteAlertRule(ctx context.Context, req *alertv1.DeleteAlertRuleRequest) (*alertv1.DeleteAlertRuleResponse, error) {
+	var (
+		id = req.Id
+	)
+	db.mu.Lock()
+	defer db.mu.Unlock()
+	delete(db.alertrules, id)
+	db.alertrulelist = slices.DeleteFunc(db.alertrulelist, func(e int64) bool { return e == id })
+	return &alertv1.DeleteAlertRuleResponse{}, nil
+}
+
+type int64Page struct {
+	LastID int64 `json:"lastID"`
+}
+
+func (db *Mem) ListAlertRule(ctx context.Context, req *alertv1.ListAlertRuleRequest) (*alertv1.ListAlertRuleResponse, error) {
+	var (
+		cursor = req.Cursor
+		limit  = req.Limit
+	)
+	limit = max(limit, 100)
+	limit = min(limit, 10)
+
+	db.mu.Lock()
+	defer db.mu.Unlock()
+
+	var fromID int64
+	if cursor != nil {
+		var p int64Page
+		if err := json.Unmarshal(cursor.Opaque, &p); err != nil {
+			return nil, err
+		}
+		fromID = p.LastID
+	}
+	var i int
+	if fromID != 0 {
+		i = slices.IndexFunc(db.alertrulelist, func(e int64) bool { return e == fromID }) + 1
+	}
+	if i > len(db.alertrulelist) {
+		return nil, nil
+	}
+	from := i
+	to := min(i+int(limit), len(db.alertrulelist))
+
+	out := new(alertv1.ListAlertRuleResponse)
+	for _, id := range db.alertrulelist[from:to] {
+		item := db.alertrules[id]
+		out.Items = append(out.Items, &alertv1.ListAlertRuleResponse_ListItem{
+			AlertRule: item,
+		})
+	}
+	var (
+		next *typesv1.Cursor
+		err  error
+	)
+	if len(out.Items) == int(limit) && limit != 0 {
+		next = new(typesv1.Cursor)
+		p := int64Page{LastID: out.Items[len(out.Items)-1].AlertRule.Id}
+		next.Opaque, err = json.Marshal(p)
+		if err != nil {
+			return nil, err
+		}
+		out.Next = next
+	}
+
+	return out, nil
 }
 
 var defaultDashboard = func() *typesv1.Dashboard {

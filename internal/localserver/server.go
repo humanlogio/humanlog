@@ -16,6 +16,7 @@ import (
 
 	connectcors "connectrpc.com/cors"
 	"connectrpc.com/otelconnect"
+	"github.com/humanlogio/api/go/svc/alert/v1/alertv1connect"
 	"github.com/humanlogio/api/go/svc/dashboard/v1/dashboardv1connect"
 	"github.com/humanlogio/api/go/svc/ingest/v1/ingestv1connect"
 	"github.com/humanlogio/api/go/svc/localhost/v1/localhostv1connect"
@@ -155,6 +156,7 @@ func ServeLocalhost(
 	mux.Handle(queryv1connect.NewQueryServiceHandler(localhostsvc, connect.WithInterceptors(otelIctpr)))
 	mux.Handle(queryv1connect.NewTraceServiceHandler(localhostsvc, connect.WithInterceptors(otelIctpr)))
 	mux.Handle(dashboardv1connect.NewDashboardServiceHandler(localhostsvc, connect.WithInterceptors(otelIctpr)))
+	mux.Handle(alertv1connect.NewAlertServiceHandler(localhostsvc, connect.WithInterceptors(otelIctpr)))
 
 	httphdl := h2c.NewHandler(mux, &http2.Server{})
 	httphdl = otelhttp.NewHandler(httphdl, "humanlog.ConnectRPC")
