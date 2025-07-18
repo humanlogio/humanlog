@@ -34,7 +34,7 @@ When the logs are parsed, they are persisted in a local database. You can then q
 With the query engine turned on (this is the default on new installations), you can query the logs and traces that you ingested. Run a query with:
 
 ```bash
-$ humanlog query "traces | where duration > 100ms"
+$ humanlog query "spans | where duration > 100ms"
 ```
 
 ![querying](https://github.com/user-attachments/assets/74530872-fa9e-4c31-8798-99fdb34c7280)
