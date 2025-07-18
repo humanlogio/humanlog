@@ -27,7 +27,9 @@ import (
 	userv1 "github.com/humanlogio/api/go/svc/user/v1"
 	"github.com/humanlogio/api/go/svc/user/v1/userv1connect"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
+	"github.com/humanlogio/humanlog/internal/localalert"
 	"github.com/humanlogio/humanlog/internal/localserver"
+	"github.com/humanlogio/humanlog/internal/localstate"
 	"github.com/humanlogio/humanlog/internal/pkg/config"
 	"github.com/humanlogio/humanlog/internal/pkg/selfupdate"
 	"github.com/humanlogio/humanlog/internal/pkg/state"
@@ -308,6 +310,7 @@ type systrayClient interface {
 	NotifyUnauthenticated(ctx context.Context) error
 	NotifyAuthenticated(ctx context.Context, user *typesv1.User, defaultOrg, currentOrg *typesv1.Organization) error
 	NotifyUpdateAvailable(ctx context.Context, oldV, newV *typesv1.Version) error
+	NotifyAlert(ctx context.Context, ar *typesv1.AlertRule, as localalert.AlertStatus, o *typesv1.Obj) error
 }
 
 type serviceClient interface {
@@ -493,6 +496,9 @@ func (hdl *serviceHandler) runLocalhost(
 	app *localstorage.AppCtx,
 	registerOnCloseServer func(srv *http.Server),
 ) error {
+	openState := func(ctx context.Context) (localstate.DB, error) {
+		return localstate.NewMemory(), nil
+	}
 	openStorage := func(ctx context.Context) (localstorage.Storage, error) {
 		return localstorage.Open(
 			ctx,
@@ -503,7 +509,7 @@ func (hdl *serviceHandler) runLocalhost(
 		)
 	}
 
-	return localserver.ServeLocalhost(ctx, ll, localhostCfg, ownVersion, app, openStorage, registerOnCloseServer,
+	return localserver.ServeLocalhost(ctx, ll, localhostCfg, ownVersion, app, openStorage, openState, registerOnCloseServer,
 		hdl.DoLogin,
 		hdl.DoLogout,
 		hdl.DoUpdate,
@@ -511,6 +517,7 @@ func (hdl *serviceHandler) runLocalhost(
 		hdl.GetConfig,
 		hdl.SetConfig,
 		hdl.whoami,
+		hdl.notifyAlert,
 	)
 }
 
@@ -738,6 +745,16 @@ func (hdl *serviceHandler) registerClient(client systrayClient) {
 	ll.InfoContext(ctx, "systray client set, priming it")
 	hdl.primeState(ctx)
 	ll.InfoContext(ctx, "systray client primed")
+}
+
+func (hdl *serviceHandler) notifyAlert(ctx context.Context, ar *typesv1.AlertRule, as localalert.AlertStatus, o *typesv1.Obj) error {
+	hdl.ll.InfoContext(ctx, "calling notifyAlert")
+	hdl.clientMu.Lock()
+	defer hdl.clientMu.Unlock()
+	if hdl.client == nil {
+		return nil
+	}
+	return hdl.client.NotifyAlert(ctx, ar, as, o)
 }
 
 func (hdl *serviceHandler) notifyError(ctx context.Context, err error) error {

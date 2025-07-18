@@ -51,6 +51,7 @@ func New(
 	ll *slog.Logger,
 	ownVersion *typesv1.Version,
 	storage localstorage.Storage,
+	state localstate.DB,
 	doLogin func(ctx context.Context, returnToURL string) error,
 	doLogout func(ctx context.Context, returnToURL string) error,
 	doUpdate func(ctx context.Context) error,
@@ -71,7 +72,7 @@ func New(
 		getConfig:  getConfig,
 		setConfig:  setConfig,
 		whoami:     whoami,
-		db:         localstate.NewMemory(),
+		db:         state,
 	}
 }
 

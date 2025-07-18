@@ -16,7 +16,10 @@ import (
 	userv1 "github.com/humanlogio/api/go/svc/user/v1"
 	"github.com/humanlogio/api/go/svc/user/v1/userv1connect"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
+	"github.com/humanlogio/humanlog/internal/localalert"
 	"github.com/humanlogio/humanlog/internal/localserver"
+	"github.com/humanlogio/humanlog/internal/localstate"
+	"github.com/humanlogio/humanlog/internal/logqleval"
 	"github.com/humanlogio/humanlog/internal/pkg/config"
 	"github.com/humanlogio/humanlog/internal/pkg/state"
 	"github.com/humanlogio/humanlog/pkg/auth"
@@ -112,6 +115,9 @@ func demoCmd(
 
 				return storage, nil
 			}
+			openState := func(ctx context.Context) (localstate.DB, error) {
+				return localstate.NewMemory(), nil
+			}
 
 			tokenSource := getTokenSource(cctx)
 			apiURL := getAPIUrl(cctx)
@@ -144,7 +150,7 @@ func demoCmd(
 				}
 			}
 
-			return localserver.ServeLocalhost(ctx, ll, localhostCfg, ownVersion, app, openStorage, registerOnCloseServer,
+			return localserver.ServeLocalhost(ctx, ll, localhostCfg, ownVersion, app, openStorage, openState, registerOnCloseServer,
 				func(ctx context.Context, returnToURL string) error {
 					if _, err := performLoginFlow(ctx, state, authSvc, tokenSource, returnToURL); err != nil {
 						return err
@@ -181,6 +187,31 @@ func demoCmd(
 						return nil, fmt.Errorf("looking up user authentication status: %v", err)
 					}
 					return res.Msg, nil
+				},
+				func(ctx context.Context, ar *typesv1.AlertRule, as localalert.AlertStatus, o *typesv1.Obj) error {
+					args := []any{slog.String("name", ar.Name)}
+					if o != nil {
+						for _, kv := range o.Kvs {
+							v, err := logqleval.ResolveVal(kv.Value, logqleval.MakeFlatGoMap, logqleval.MakeFlatGoSlice)
+							if err != nil {
+								panic(err)
+							}
+							args = append(args, slog.Any(kv.Key, v))
+						}
+					}
+					switch as {
+					case localalert.AlertStatusUnknown:
+						ll.InfoContext(ctx, "alert in unknown status", args...)
+					case localalert.AlertStatusOK:
+						ll.InfoContext(ctx, "alert in ok status", args...)
+					case localalert.AlertStatusPending:
+						ll.WarnContext(ctx, "alert in pending status", args...)
+					case localalert.AlertStatusFiring:
+						ll.ErrorContext(ctx, "alert is firing!", args...)
+					case localalert.AlertStatusDeleted:
+						ll.ErrorContext(ctx, "alert is deleted!", args...)
+					}
+					return nil
 				},
 			)
 		},
