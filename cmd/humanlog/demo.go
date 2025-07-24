@@ -208,8 +208,6 @@ func demoCmd(
 						ll.WarnContext(ctx, "alert in pending status", args...)
 					case localalert.AlertStatusFiring:
 						ll.ErrorContext(ctx, "alert is firing!", args...)
-					case localalert.AlertStatusDeleted:
-						ll.ErrorContext(ctx, "alert is deleted!", args...)
 					}
 					return nil
 				},

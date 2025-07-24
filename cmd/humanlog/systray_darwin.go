@@ -195,8 +195,6 @@ func (ctrl *systrayController) NotifyAlert(ctx context.Context, ar *typesv1.Aler
 			fmt.Sprintf("alert pending: %q", ar.Name),
 			"",
 		)
-	case localalert.AlertStatusDeleted:
-		ll.ErrorContext(ctx, "alert is deleted!", args...)
 	}
 	return nil
 }
