@@ -9,14 +9,17 @@ import (
 
 	"connectrpc.com/connect"
 	alertv1 "github.com/humanlogio/api/go/svc/alert/v1"
-	dashbrdv1 "github.com/humanlogio/api/go/svc/dashboard/v1"
-	dashbrdpb "github.com/humanlogio/api/go/svc/dashboard/v1/dashboardv1connect"
+	alertpb "github.com/humanlogio/api/go/svc/alert/v1/alertv1connect"
+	dashboardv1 "github.com/humanlogio/api/go/svc/dashboard/v1"
+	dashboardpb "github.com/humanlogio/api/go/svc/dashboard/v1/dashboardv1connect"
 	igv1 "github.com/humanlogio/api/go/svc/ingest/v1"
 	igsvcpb "github.com/humanlogio/api/go/svc/ingest/v1/ingestv1connect"
 	lhv1 "github.com/humanlogio/api/go/svc/localhost/v1"
 	lhsvcpb "github.com/humanlogio/api/go/svc/localhost/v1/localhostv1connect"
 	qrv1 "github.com/humanlogio/api/go/svc/query/v1"
 	qrsvcpb "github.com/humanlogio/api/go/svc/query/v1/queryv1connect"
+	stackv1 "github.com/humanlogio/api/go/svc/stack/v1"
+	stackpb "github.com/humanlogio/api/go/svc/stack/v1/stackv1connect"
 	userv1 "github.com/humanlogio/api/go/svc/user/v1"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
 	"github.com/humanlogio/humanlog/internal/localstate"
@@ -77,12 +80,14 @@ func New(
 }
 
 var (
-	_ lhsvcpb.LocalhostServiceHandler   = (*Service)(nil)
-	_ igsvcpb.IngestServiceHandler      = (*Service)(nil)
-	_ qrsvcpb.QueryServiceHandler       = (*Service)(nil)
-	_ qrsvcpb.TraceServiceHandler       = (*Service)(nil)
-	_ qrsvcpb.TraceServiceHandler       = (*Service)(nil)
-	_ dashbrdpb.DashboardServiceHandler = (*Service)(nil)
+	_ lhsvcpb.LocalhostServiceHandler     = (*Service)(nil)
+	_ igsvcpb.IngestServiceHandler        = (*Service)(nil)
+	_ qrsvcpb.QueryServiceHandler         = (*Service)(nil)
+	_ qrsvcpb.TraceServiceHandler         = (*Service)(nil)
+	_ qrsvcpb.TraceServiceHandler         = (*Service)(nil)
+	_ stackpb.StackServiceHandler         = (*Service)(nil)
+	_ dashboardpb.DashboardServiceHandler = (*Service)(nil)
+	_ alertpb.AlertServiceHandler         = (*Service)(nil)
 )
 
 func (svc *Service) AsLoggingOTLP() *LoggingOTLP { return newLoggingOTLP(svc) }
@@ -614,57 +619,127 @@ func (svc *Service) ListSymbols(ctx context.Context, req *connect.Request[qrv1.L
 	return connect.NewResponse(out), nil
 }
 
-func (svc *Service) CreateDashboard(ctx context.Context, req *connect.Request[dashbrdv1.CreateDashboardRequest]) (*connect.Response[dashbrdv1.CreateDashboardResponse], error) {
+func (svc *Service) CreateStack(ctx context.Context, req *connect.Request[stackv1.CreateStackRequest]) (*connect.Response[stackv1.CreateStackResponse], error) {
 	msg := req.Msg
-	dsh, err := svc.db.CreateDashboard(ctx, msg)
+	out, err := svc.db.CreateStack(ctx, msg)
 	if err != nil {
 		return nil, err
 	}
-	out := &dashbrdv1.CreateDashboardResponse{Dashboard: dsh}
 	return connect.NewResponse(out), nil
 }
 
-func (svc *Service) GetDashboard(ctx context.Context, req *connect.Request[dashbrdv1.GetDashboardRequest]) (*connect.Response[dashbrdv1.GetDashboardResponse], error) {
-	dsh, err := svc.db.GetDashboard(ctx, req.Msg.Id)
+func (svc *Service) GetStack(ctx context.Context, req *connect.Request[stackv1.GetStackRequest]) (*connect.Response[stackv1.GetStackResponse], error) {
+	msg := req.Msg
+	out, err := svc.db.GetStack(ctx, msg)
 	if err != nil {
 		return nil, err
 	}
-	out := &dashbrdv1.GetDashboardResponse{Dashboard: dsh}
 	return connect.NewResponse(out), nil
 }
 
-func (svc *Service) UpdateDashboard(ctx context.Context, req *connect.Request[dashbrdv1.UpdateDashboardRequest]) (*connect.Response[dashbrdv1.UpdateDashboardResponse], error) {
-	dsh, err := svc.db.UpdateDashboard(ctx, req.Msg.Id, req.Msg.Mutations)
+func (svc *Service) UpdateStack(ctx context.Context, req *connect.Request[stackv1.UpdateStackRequest]) (*connect.Response[stackv1.UpdateStackResponse], error) {
+	msg := req.Msg
+	out, err := svc.db.UpdateStack(ctx, msg)
 	if err != nil {
 		return nil, err
 	}
-	out := &dashbrdv1.UpdateDashboardResponse{Dashboard: dsh}
 	return connect.NewResponse(out), nil
 }
 
-func (svc *Service) DeleteDashboard(ctx context.Context, req *connect.Request[dashbrdv1.DeleteDashboardRequest]) (*connect.Response[dashbrdv1.DeleteDashboardResponse], error) {
-	err := svc.db.DeleteDashboard(ctx, req.Msg.Id)
+func (svc *Service) DeleteStack(ctx context.Context, req *connect.Request[stackv1.DeleteStackRequest]) (*connect.Response[stackv1.DeleteStackResponse], error) {
+	msg := req.Msg
+	out, err := svc.db.DeleteStack(ctx, msg)
 	if err != nil {
 		return nil, err
 	}
-	out := &dashbrdv1.DeleteDashboardResponse{}
 	return connect.NewResponse(out), nil
 }
 
-func (svc *Service) ListDashboard(ctx context.Context, req *connect.Request[dashbrdv1.ListDashboardRequest]) (*connect.Response[dashbrdv1.ListDashboardResponse], error) {
-	arr, next, err := svc.db.ListDashboard(ctx, req.Msg.Cursor, req.Msg.Limit)
+func (svc *Service) ListStack(ctx context.Context, req *connect.Request[stackv1.ListStackRequest]) (*connect.Response[stackv1.ListStackResponse], error) {
+	msg := req.Msg
+	out, err := svc.db.ListStack(ctx, msg)
 	if err != nil {
 		return nil, err
 	}
-	list := make([]*dashbrdv1.ListDashboardResponse_ListItem, 0, len(arr))
-	for _, el := range arr {
-		list = append(list, &dashbrdv1.ListDashboardResponse_ListItem{Dashboard: el})
-	}
-	out := &dashbrdv1.ListDashboardResponse{
-		Next:  next,
-		Items: list,
+	return connect.NewResponse(out), nil
+}
+
+func (svc *Service) CreateDashboard(ctx context.Context, req *connect.Request[dashboardv1.CreateDashboardRequest]) (*connect.Response[dashboardv1.CreateDashboardResponse], error) {
+	msg := req.Msg
+	out, err := svc.db.CreateDashboard(ctx, msg)
+	if err != nil {
+		return nil, err
 	}
 	return connect.NewResponse(out), nil
+}
+
+func (svc *Service) GetDashboard(ctx context.Context, req *connect.Request[dashboardv1.GetDashboardRequest]) (*connect.Response[dashboardv1.GetDashboardResponse], error) {
+	out, err := svc.db.GetDashboard(ctx, req.Msg)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(out), nil
+}
+
+func (svc *Service) UpdateDashboard(ctx context.Context, req *connect.Request[dashboardv1.UpdateDashboardRequest]) (*connect.Response[dashboardv1.UpdateDashboardResponse], error) {
+	out, err := svc.db.UpdateDashboard(ctx, req.Msg)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(out), nil
+}
+
+func (svc *Service) DeleteDashboard(ctx context.Context, req *connect.Request[dashboardv1.DeleteDashboardRequest]) (*connect.Response[dashboardv1.DeleteDashboardResponse], error) {
+	out, err := svc.db.DeleteDashboard(ctx, req.Msg)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(out), nil
+}
+
+func (svc *Service) ListDashboard(ctx context.Context, req *connect.Request[dashboardv1.ListDashboardRequest]) (*connect.Response[dashboardv1.ListDashboardResponse], error) {
+	out, err := svc.db.ListDashboard(ctx, req.Msg)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(out), nil
+}
+
+func (svc *Service) CreateAlertGroup(ctx context.Context, req *connect.Request[alertv1.CreateAlertGroupRequest]) (*connect.Response[alertv1.CreateAlertGroupResponse], error) {
+	out, err := svc.db.CreateAlertGroup(ctx, req.Msg)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(out), err
+}
+
+func (svc *Service) GetAlertGroup(ctx context.Context, req *connect.Request[alertv1.GetAlertGroupRequest]) (*connect.Response[alertv1.GetAlertGroupResponse], error) {
+	out, err := svc.db.GetAlertGroup(ctx, req.Msg)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(out), err
+}
+func (svc *Service) UpdateAlertGroup(ctx context.Context, req *connect.Request[alertv1.UpdateAlertGroupRequest]) (*connect.Response[alertv1.UpdateAlertGroupResponse], error) {
+	out, err := svc.db.UpdateAlertGroup(ctx, req.Msg)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(out), err
+}
+func (svc *Service) DeleteAlertGroup(ctx context.Context, req *connect.Request[alertv1.DeleteAlertGroupRequest]) (*connect.Response[alertv1.DeleteAlertGroupResponse], error) {
+	out, err := svc.db.DeleteAlertGroup(ctx, req.Msg)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(out), err
+}
+func (svc *Service) ListAlertGroup(ctx context.Context, req *connect.Request[alertv1.ListAlertGroupRequest]) (*connect.Response[alertv1.ListAlertGroupResponse], error) {
+	out, err := svc.db.ListAlertGroup(ctx, req.Msg)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(out), err
 }
 
 func (svc *Service) CreateAlertRule(ctx context.Context, req *connect.Request[alertv1.CreateAlertRuleRequest]) (*connect.Response[alertv1.CreateAlertRuleResponse], error) {

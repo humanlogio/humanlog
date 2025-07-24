@@ -15,17 +15,17 @@ func TestAlertState(t *testing.T) {
 	start := time.Date(2025, 7, 18, 17, 8, 41, 0, time.UTC)
 	tests := []struct {
 		name  string
-		init  alertState
+		init  AlertState
 		now   time.Time
 		input *typesv1.Table
 		check CheckFunc
-		want  alertState
+		want  AlertState
 	}{
 		{
 			name: "unknown to ok",
-			init: alertState{
-				rule:   mkrule("nothing special"),
-				status: AlertStatusUnknown,
+			init: AlertState{
+				Rule:   mkrule("nothing special"),
+				Status: AlertStatusUnknown,
 			},
 			now:   start,
 			input: table(tableType(tableCol("my_rule", typesv1.TypeBool()))),
@@ -33,17 +33,17 @@ func TestAlertState(t *testing.T) {
 				require.Equal(t, AlertStatusOK, as)
 				return nil
 			},
-			want: alertState{
-				rule:           mkrule("nothing special"),
-				status:         AlertStatusOK,
-				transitionedAt: start,
+			want: AlertState{
+				Rule:           mkrule("nothing special"),
+				Status:         AlertStatusOK,
+				TransitionedAt: start,
 			},
 		},
 		{
 			name: "unknown to pending",
-			init: alertState{
-				rule:   mkrule("nothing special", setFor(time.Second)),
-				status: AlertStatusUnknown,
+			init: AlertState{
+				Rule:   mkrule("nothing special", setFor(time.Second)),
+				Status: AlertStatusUnknown,
 			},
 			now: start,
 			input: table(tableType(
@@ -54,18 +54,18 @@ func TestAlertState(t *testing.T) {
 				require.Equal(t, AlertStatusPending, as)
 				return nil
 			},
-			want: alertState{
-				rule:           mkrule("nothing special", setFor(time.Second)),
-				status:         AlertStatusPending,
-				transitionedAt: start,
-				lastFiringAt:   start,
+			want: AlertState{
+				Rule:           mkrule("nothing special", setFor(time.Second)),
+				Status:         AlertStatusPending,
+				TransitionedAt: start,
+				LastFiringAt:   start,
 			},
 		},
 		{
 			name: "unknown to firing",
-			init: alertState{
-				rule:   mkrule("nothing special"),
-				status: AlertStatusUnknown,
+			init: AlertState{
+				Rule:   mkrule("nothing special"),
+				Status: AlertStatusUnknown,
 			},
 			now: start,
 			input: table(tableType(
@@ -76,34 +76,34 @@ func TestAlertState(t *testing.T) {
 				require.Equal(t, AlertStatusFiring, as)
 				return nil
 			},
-			want: alertState{
-				rule:           mkrule("nothing special"),
-				status:         AlertStatusFiring,
-				transitionedAt: start,
-				lastFiringAt:   start,
+			want: AlertState{
+				Rule:           mkrule("nothing special"),
+				Status:         AlertStatusFiring,
+				TransitionedAt: start,
+				LastFiringAt:   start,
 			},
 		},
 		{
 			name: "ok to ok",
-			init: alertState{
-				rule:           mkrule("nothing special"),
-				status:         AlertStatusOK,
-				transitionedAt: start,
+			init: AlertState{
+				Rule:           mkrule("nothing special"),
+				Status:         AlertStatusOK,
+				TransitionedAt: start,
 			},
 			now:   start,
 			input: table(tableType(tableCol("my_rule", typesv1.TypeBool()))),
-			want: alertState{
-				rule:           mkrule("nothing special"),
-				status:         AlertStatusOK,
-				transitionedAt: start,
+			want: AlertState{
+				Rule:           mkrule("nothing special"),
+				Status:         AlertStatusOK,
+				TransitionedAt: start,
 			},
 		},
 
 		{
 			name: "ok to pending",
-			init: alertState{
-				rule:   mkrule("nothing special", setFor(time.Second)),
-				status: AlertStatusOK,
+			init: AlertState{
+				Rule:   mkrule("nothing special", setFor(time.Second)),
+				Status: AlertStatusOK,
 			},
 			now: start,
 			input: table(tableType(
@@ -114,18 +114,18 @@ func TestAlertState(t *testing.T) {
 				require.Equal(t, AlertStatusPending, as)
 				return nil
 			},
-			want: alertState{
-				rule:           mkrule("nothing special", setFor(time.Second)),
-				status:         AlertStatusPending,
-				transitionedAt: start,
-				lastFiringAt:   start,
+			want: AlertState{
+				Rule:           mkrule("nothing special", setFor(time.Second)),
+				Status:         AlertStatusPending,
+				TransitionedAt: start,
+				LastFiringAt:   start,
 			},
 		},
 		{
 			name: "ok to firing",
-			init: alertState{
-				rule:   mkrule("nothing special"),
-				status: AlertStatusOK,
+			init: AlertState{
+				Rule:   mkrule("nothing special"),
+				Status: AlertStatusOK,
 			},
 			now: start,
 			input: table(tableType(
@@ -136,19 +136,19 @@ func TestAlertState(t *testing.T) {
 				require.Equal(t, AlertStatusFiring, as)
 				return nil
 			},
-			want: alertState{
-				rule:           mkrule("nothing special"),
-				status:         AlertStatusFiring,
-				transitionedAt: start,
-				lastFiringAt:   start,
+			want: AlertState{
+				Rule:           mkrule("nothing special"),
+				Status:         AlertStatusFiring,
+				TransitionedAt: start,
+				LastFiringAt:   start,
 			},
 		},
 		{
 			name: "pending to ok - no value",
-			init: alertState{
-				rule:           mkrule("nothing special"),
-				status:         AlertStatusPending,
-				transitionedAt: start,
+			init: AlertState{
+				Rule:           mkrule("nothing special"),
+				Status:         AlertStatusPending,
+				TransitionedAt: start,
 			},
 			now:   start.Add(time.Second),
 			input: table(tableType(tableCol("my_rule", typesv1.TypeBool()))),
@@ -156,18 +156,18 @@ func TestAlertState(t *testing.T) {
 				require.Equal(t, AlertStatusOK, as)
 				return nil
 			},
-			want: alertState{
-				rule:           mkrule("nothing special"),
-				status:         AlertStatusOK,
-				transitionedAt: start.Add(time.Second),
+			want: AlertState{
+				Rule:           mkrule("nothing special"),
+				Status:         AlertStatusOK,
+				TransitionedAt: start.Add(time.Second),
 			},
 		},
 		{
 			name: "pending to ok - value but false",
-			init: alertState{
-				rule:           mkrule("nothing special"),
-				status:         AlertStatusFiring,
-				transitionedAt: start,
+			init: AlertState{
+				Rule:           mkrule("nothing special"),
+				Status:         AlertStatusFiring,
+				TransitionedAt: start,
 			},
 			now: start.Add(time.Second),
 			input: table(
@@ -178,39 +178,39 @@ func TestAlertState(t *testing.T) {
 				require.Equal(t, AlertStatusOK, as)
 				return nil
 			},
-			want: alertState{
-				rule:           mkrule("nothing special"),
-				status:         AlertStatusOK,
-				transitionedAt: start.Add(time.Second),
+			want: AlertState{
+				Rule:           mkrule("nothing special"),
+				Status:         AlertStatusOK,
+				TransitionedAt: start.Add(time.Second),
 			},
 		},
 		{
 			name: "pending to pending (not yet long enough)",
-			init: alertState{
-				rule:           mkrule("nothing special", setFor(2*time.Second)),
-				status:         AlertStatusPending,
-				transitionedAt: start,
-				lastFiringAt:   start,
+			init: AlertState{
+				Rule:           mkrule("nothing special", setFor(2*time.Second)),
+				Status:         AlertStatusPending,
+				TransitionedAt: start,
+				LastFiringAt:   start,
 			},
 			now: start.Add(time.Second),
 			input: table(tableType(
 				tableCol("my_rule", typesv1.TypeBool())),
 				arr(boolean(true)),
 			),
-			want: alertState{
-				rule:           mkrule("nothing special", setFor(2*time.Second)),
-				status:         AlertStatusPending,
-				transitionedAt: start,
-				lastFiringAt:   start.Add(time.Second),
+			want: AlertState{
+				Rule:           mkrule("nothing special", setFor(2*time.Second)),
+				Status:         AlertStatusPending,
+				TransitionedAt: start,
+				LastFiringAt:   start.Add(time.Second),
 			},
 		},
 		{
 			name: "pending to firing (long enough)",
-			init: alertState{
-				rule:           mkrule("nothing special", setFor(2*time.Second)),
-				status:         AlertStatusPending,
-				transitionedAt: start,
-				lastFiringAt:   start,
+			init: AlertState{
+				Rule:           mkrule("nothing special", setFor(2*time.Second)),
+				Status:         AlertStatusPending,
+				TransitionedAt: start,
+				LastFiringAt:   start,
 			},
 			now: start.Add(2 * time.Second),
 			input: table(tableType(
@@ -221,20 +221,20 @@ func TestAlertState(t *testing.T) {
 				require.Equal(t, AlertStatusFiring, as)
 				return nil
 			},
-			want: alertState{
-				rule:           mkrule("nothing special", setFor(2*time.Second)),
-				status:         AlertStatusFiring,
-				transitionedAt: start.Add(2 * time.Second),
-				lastFiringAt:   start.Add(2 * time.Second),
+			want: AlertState{
+				Rule:           mkrule("nothing special", setFor(2*time.Second)),
+				Status:         AlertStatusFiring,
+				TransitionedAt: start.Add(2 * time.Second),
+				LastFiringAt:   start.Add(2 * time.Second),
 			},
 		},
 		{
 			name: "pending to firing (no for, updated?)",
-			init: alertState{
-				rule:           mkrule("nothing special"),
-				status:         AlertStatusPending,
-				transitionedAt: start,
-				lastFiringAt:   start,
+			init: AlertState{
+				Rule:           mkrule("nothing special"),
+				Status:         AlertStatusPending,
+				TransitionedAt: start,
+				LastFiringAt:   start,
 			},
 			now: start.Add(2 * time.Second),
 			input: table(tableType(
@@ -245,19 +245,19 @@ func TestAlertState(t *testing.T) {
 				require.Equal(t, AlertStatusFiring, as)
 				return nil
 			},
-			want: alertState{
-				rule:           mkrule("nothing special"),
-				status:         AlertStatusFiring,
-				transitionedAt: start.Add(2 * time.Second),
-				lastFiringAt:   start.Add(2 * time.Second),
+			want: AlertState{
+				Rule:           mkrule("nothing special"),
+				Status:         AlertStatusFiring,
+				TransitionedAt: start.Add(2 * time.Second),
+				LastFiringAt:   start.Add(2 * time.Second),
 			},
 		},
 		{
 			name: "firing to ok - no value",
-			init: alertState{
-				rule:           mkrule("nothing special"),
-				status:         AlertStatusFiring,
-				transitionedAt: start,
+			init: AlertState{
+				Rule:           mkrule("nothing special"),
+				Status:         AlertStatusFiring,
+				TransitionedAt: start,
 			},
 			now: start.Add(time.Second),
 			input: table(
@@ -267,18 +267,18 @@ func TestAlertState(t *testing.T) {
 				require.Equal(t, AlertStatusOK, as)
 				return nil
 			},
-			want: alertState{
-				rule:           mkrule("nothing special"),
-				status:         AlertStatusOK,
-				transitionedAt: start.Add(time.Second),
+			want: AlertState{
+				Rule:           mkrule("nothing special"),
+				Status:         AlertStatusOK,
+				TransitionedAt: start.Add(time.Second),
 			},
 		},
 		{
 			name: "firing to ok - value but false",
-			init: alertState{
-				rule:           mkrule("nothing special"),
-				status:         AlertStatusFiring,
-				transitionedAt: start,
+			init: AlertState{
+				Rule:           mkrule("nothing special"),
+				Status:         AlertStatusFiring,
+				TransitionedAt: start,
 			},
 			now: start.Add(time.Second),
 			input: table(
@@ -289,78 +289,78 @@ func TestAlertState(t *testing.T) {
 				require.Equal(t, AlertStatusOK, as)
 				return nil
 			},
-			want: alertState{
-				rule:           mkrule("nothing special"),
-				status:         AlertStatusOK,
-				transitionedAt: start.Add(time.Second),
+			want: AlertState{
+				Rule:           mkrule("nothing special"),
+				Status:         AlertStatusOK,
+				TransitionedAt: start.Add(time.Second),
 			},
 		},
 		{
 			name: "keep firing because alert still true",
-			init: alertState{
-				rule:           mkrule("nothing special"),
-				status:         AlertStatusFiring,
-				transitionedAt: start,
-				lastFiringAt:   start,
+			init: AlertState{
+				Rule:           mkrule("nothing special"),
+				Status:         AlertStatusFiring,
+				TransitionedAt: start,
+				LastFiringAt:   start,
 			},
 			now: start.Add(time.Second),
 			input: table(
 				tableType(tableCol("my_rule", typesv1.TypeBool())),
 				arr(boolean(true)),
 			),
-			want: alertState{
-				rule:           mkrule("nothing special"),
-				status:         AlertStatusFiring,
-				transitionedAt: start,
-				lastFiringAt:   start.Add(time.Second),
+			want: AlertState{
+				Rule:           mkrule("nothing special"),
+				Status:         AlertStatusFiring,
+				TransitionedAt: start,
+				LastFiringAt:   start.Add(time.Second),
 			},
 		},
 		{
 			name: "keep firing even though value false",
-			init: alertState{
-				rule:           mkrule("nothing special", setKeepFiringFor(2*time.Second)),
-				status:         AlertStatusFiring,
-				transitionedAt: start,
-				lastFiringAt:   start,
+			init: AlertState{
+				Rule:           mkrule("nothing special", setKeepFiringFor(2*time.Second)),
+				Status:         AlertStatusFiring,
+				TransitionedAt: start,
+				LastFiringAt:   start,
 			},
 			now: start.Add(time.Second),
 			input: table(
 				tableType(tableCol("my_rule", typesv1.TypeBool())),
 				arr(boolean(false)),
 			),
-			want: alertState{
-				rule:           mkrule("nothing special", setKeepFiringFor(2*time.Second)),
-				status:         AlertStatusFiring,
-				transitionedAt: start,
-				lastFiringAt:   start,
+			want: AlertState{
+				Rule:           mkrule("nothing special", setKeepFiringFor(2*time.Second)),
+				Status:         AlertStatusFiring,
+				TransitionedAt: start,
+				LastFiringAt:   start,
 			},
 		},
 		{
 			name: "keep firing even though no value",
-			init: alertState{
-				rule:           mkrule("nothing special", setKeepFiringFor(2*time.Second)),
-				status:         AlertStatusFiring,
-				transitionedAt: start,
-				lastFiringAt:   start,
+			init: AlertState{
+				Rule:           mkrule("nothing special", setKeepFiringFor(2*time.Second)),
+				Status:         AlertStatusFiring,
+				TransitionedAt: start,
+				LastFiringAt:   start,
 			},
 			now: start.Add(time.Second),
 			input: table(
 				tableType(tableCol("my_rule", typesv1.TypeBool())),
 			),
-			want: alertState{
-				rule:           mkrule("nothing special", setKeepFiringFor(2*time.Second)),
-				status:         AlertStatusFiring,
-				transitionedAt: start,
-				lastFiringAt:   start,
+			want: AlertState{
+				Rule:           mkrule("nothing special", setKeepFiringFor(2*time.Second)),
+				Status:         AlertStatusFiring,
+				TransitionedAt: start,
+				LastFiringAt:   start,
 			},
 		},
 		{
 			name: "stop firing after long enough",
-			init: alertState{
-				rule:           mkrule("nothing special", setKeepFiringFor(2*time.Second)),
-				status:         AlertStatusFiring,
-				transitionedAt: start,
-				lastFiringAt:   start,
+			init: AlertState{
+				Rule:           mkrule("nothing special", setKeepFiringFor(2*time.Second)),
+				Status:         AlertStatusFiring,
+				TransitionedAt: start,
+				LastFiringAt:   start,
 			},
 			now: start.Add(2 * time.Second),
 			input: table(
@@ -370,11 +370,11 @@ func TestAlertState(t *testing.T) {
 				require.Equal(t, AlertStatusOK, as)
 				return nil
 			},
-			want: alertState{
-				rule:           mkrule("nothing special", setKeepFiringFor(2*time.Second)),
-				status:         AlertStatusOK,
-				transitionedAt: start.Add(2 * time.Second),
-				lastFiringAt:   start,
+			want: AlertState{
+				Rule:           mkrule("nothing special", setKeepFiringFor(2*time.Second)),
+				Status:         AlertStatusOK,
+				TransitionedAt: start.Add(2 * time.Second),
+				LastFiringAt:   start,
 			},
 		},
 	}

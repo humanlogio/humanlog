@@ -5,29 +5,29 @@ import (
 	"fmt"
 	"time"
 
-	alertv1 "github.com/humanlogio/api/go/svc/alert/v1"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
-	"github.com/humanlogio/humanlog/internal/localstate"
-	"github.com/humanlogio/humanlog/internal/pkg/iterapi"
 	"github.com/humanlogio/humanlog/pkg/localstorage"
-	"golang.org/x/sync/errgroup"
 )
 
-func NewEvaluator(ruleSource localstate.DB, db localstorage.Queryable, timeNow func() time.Time) *Evaluator {
+type AlertStorage interface {
+	GetOrCreate(ctx context.Context, groupName, alertName string, create func() *AlertState) (*AlertState, error)
+	UpdateState(ctx context.Context, groupName, alertName string, state *AlertState) error
+	DeleteStateNotInList(ctx context.Context, groupName string, keeplist []string) error
+}
+
+func NewEvaluator(db localstorage.Queryable, alertStorage AlertStorage, timeNow func() time.Time) *Evaluator {
 	return &Evaluator{
-		ruleSource:  ruleSource,
-		db:          db,
-		timeNow:     timeNow,
-		alertStates: make(map[int64]*alertState),
+		db:           db,
+		timeNow:      timeNow,
+		alertStorage: alertStorage,
 	}
 }
 
 type Evaluator struct {
-	ruleSource localstate.DB
-	db         localstorage.Queryable
-	timeNow    func() time.Time
+	db      localstorage.Queryable
+	timeNow func() time.Time
 
-	alertStates map[int64]*alertState
+	alertStorage AlertStorage
 }
 
 type AlertStatus string
@@ -37,7 +37,6 @@ const (
 	AlertStatusOK      AlertStatus = "ok"
 	AlertStatusPending AlertStatus = "pending"
 	AlertStatusFiring  AlertStatus = "firing"
-	AlertStatusDeleted AlertStatus = "deleted"
 )
 
 type AlertFiring struct {
@@ -51,70 +50,49 @@ type CheckFunc func(
 	*typesv1.Obj,
 ) error
 
-func (ev *Evaluator) EvaluateRules(ctx context.Context, onStateChange CheckFunc) error {
-	iterator := iterapi.New(ctx, 100, func(ctx context.Context, cursor *typesv1.Cursor, limit int32) (items []*typesv1.AlertRule, next *typesv1.Cursor, err error) {
-		out, err := ev.ruleSource.ListAlertRule(ctx, &alertv1.ListAlertRuleRequest{Cursor: cursor, Limit: limit})
-		if err != nil {
-			return items, next, err
-		}
-		next = out.Next
-		for _, el := range out.Items {
-			items = append(items, el.AlertRule)
-		}
-		return items, next, err
-	})
-
-	eg, ctx := errgroup.WithContext(ctx)
-	seen := make(map[int64]struct{})
-	for iterator.Next() {
-		alert := iterator.Current()
-		seen[alert.Id] = struct{}{}
-		eg.Go(func() error {
-			state, ok := ev.alertStates[alert.Id]
-			if !ok {
-				state = newAlertState(alert)
-			}
-			err := state.check(ctx, ev.db, ev.timeNow(), onStateChange)
-			if err != nil {
-				return err
-			}
-			ev.alertStates[alert.Id] = state
-			return nil
+func (ev *Evaluator) EvaluateRules(ctx context.Context, group *typesv1.AlertGroup, onStateChange CheckFunc) error {
+	var keeplist []string
+	for _, alert := range group.Rules {
+		keeplist = append(keeplist, alert.Name)
+		state, err := ev.alertStorage.GetOrCreate(ctx, group.Name, alert.Name, func() *AlertState {
+			return newAlertState(alert)
 		})
-	}
-	for _, state := range ev.alertStates {
-		if _, ok := seen[state.rule.Id]; !ok {
-			if err := onStateChange(ctx, state.rule, AlertStatusDeleted, nil); err != nil {
-				return err
-			}
+		if err != nil {
+			return fmt.Errorf("getting alert state for group %q, alert %q: %v", group.Name, alert.Name, err)
+		}
+		err = state.check(ctx, ev.db, ev.timeNow(), onStateChange)
+		if err != nil {
+			return fmt.Errorf("checking alert state for group %q, alert %q: %v", group.Name, alert.Name, err)
+		}
+		err = ev.alertStorage.UpdateState(ctx, group.Name, alert.Name, state)
+		if err != nil {
+			return fmt.Errorf("updating alert state for group %q, alert %q: %v", group.Name, alert.Name, err)
 		}
 	}
-
-	if err := iterator.Err(); err != nil {
-		return fmt.Errorf("listing rules: %v", err)
+	if err := ev.alertStorage.DeleteStateNotInList(ctx, group.Name, keeplist); err != nil {
+		return err
 	}
-
-	return eg.Wait()
+	return nil
 }
 
-type alertState struct {
-	rule           *typesv1.AlertRule
-	transitionedAt time.Time
-	lastFiringAt   time.Time
-	status         AlertStatus
+type AlertState struct {
+	Rule           *typesv1.AlertRule
+	TransitionedAt time.Time
+	LastFiringAt   time.Time
+	Status         AlertStatus
 }
 
-func newAlertState(rule *typesv1.AlertRule) *alertState {
-	return &alertState{rule: rule, status: AlertStatusUnknown}
+func newAlertState(rule *typesv1.AlertRule) *AlertState {
+	return &AlertState{Rule: rule, Status: AlertStatusUnknown}
 }
 
-func (as *alertState) check(
+func (as *AlertState) check(
 	ctx context.Context,
 	db localstorage.Queryable,
 	now time.Time,
 	onStateChange CheckFunc,
 ) error {
-	data, _, err := db.Query(ctx, as.rule.Expr, nil, 100)
+	data, _, err := db.Query(ctx, as.Rule.Expr, nil, 100)
 	if err != nil {
 		return fmt.Errorf("evaluating alert rule expression: %v", err)
 	}
@@ -126,25 +104,25 @@ func (as *alertState) check(
 	return as.apply(ctx, table, now, onStateChange)
 }
 
-func (as *alertState) apply(ctx context.Context, table *typesv1.Table, now time.Time, onStateChange CheckFunc) error {
+func (as *AlertState) apply(ctx context.Context, table *typesv1.Table, now time.Time, onStateChange CheckFunc) error {
 	transitionToOk := func(labels *typesv1.Obj) error {
-		as.status = AlertStatusOK
-		as.transitionedAt = now
-		return onStateChange(ctx, as.rule, as.status, labels)
+		as.Status = AlertStatusOK
+		as.TransitionedAt = now
+		return onStateChange(ctx, as.Rule, as.Status, labels)
 	}
 	transitionToPending := func(labels *typesv1.Obj) error {
-		as.status = AlertStatusPending
-		as.transitionedAt = now
-		return onStateChange(ctx, as.rule, as.status, labels)
+		as.Status = AlertStatusPending
+		as.TransitionedAt = now
+		return onStateChange(ctx, as.Rule, as.Status, labels)
 	}
 	transitionToFiring := func(labels *typesv1.Obj) error {
-		as.status = AlertStatusFiring
-		as.transitionedAt = now
-		return onStateChange(ctx, as.rule, as.status, labels)
+		as.Status = AlertStatusFiring
+		as.TransitionedAt = now
+		return onStateChange(ctx, as.Rule, as.Status, labels)
 	}
 
 	onOk := func(labels *typesv1.Obj) error {
-		switch as.status {
+		switch as.Status {
 		case AlertStatusUnknown:
 			return transitionToOk(labels)
 		case AlertStatusOK:
@@ -153,40 +131,40 @@ func (as *alertState) apply(ctx context.Context, table *typesv1.Table, now time.
 		case AlertStatusPending:
 			return transitionToOk(labels)
 		case AlertStatusFiring:
-			if as.rule.KeepFiringFor == nil {
+			if as.Rule.KeepFiringFor == nil {
 				// we're done
 				return transitionToOk(labels)
 			}
-			firingFor := as.rule.KeepFiringFor.AsDuration()
-			mustBeOkUntil := as.lastFiringAt.Add(firingFor)
+			firingFor := as.Rule.KeepFiringFor.AsDuration()
+			mustBeOkUntil := as.LastFiringAt.Add(firingFor)
 			if now.Before(mustBeOkUntil) {
 				return nil // still firing
 			}
 			// we're done firing
 			return transitionToOk(labels)
 		default:
-			return fmt.Errorf("unhandled case: %T (%#v)", as.status, as.status)
+			return fmt.Errorf("unhandled case: %T (%#v)", as.Status, as.Status)
 		}
 	}
 	onFiring := func(labels *typesv1.Obj) error {
-		as.lastFiringAt = now // always record the last firing
-		switch as.status {
+		as.LastFiringAt = now // always record the last firing
+		switch as.Status {
 		case AlertStatusUnknown:
-			if as.rule.For == nil {
+			if as.Rule.For == nil {
 				return transitionToFiring(labels)
 			}
 			return transitionToPending(labels)
 		case AlertStatusOK:
-			if as.rule.For == nil {
+			if as.Rule.For == nil {
 				return transitionToFiring(labels)
 			}
 			return transitionToPending(labels)
 		case AlertStatusPending:
-			if as.rule.For == nil {
+			if as.Rule.For == nil {
 				return transitionToFiring(labels)
 			}
-			pendingFor := as.rule.For.AsDuration()
-			firesAt := as.transitionedAt.Add(pendingFor)
+			pendingFor := as.Rule.For.AsDuration()
+			firesAt := as.TransitionedAt.Add(pendingFor)
 			if now.Before(firesAt) {
 				// still pending
 				return nil
@@ -196,7 +174,7 @@ func (as *alertState) apply(ctx context.Context, table *typesv1.Table, now time.
 			// we're already firing
 			return nil
 		default:
-			return fmt.Errorf("unhandled case: %T (%#v)", as.status, as.status)
+			return fmt.Errorf("unhandled case: %T (%#v)", as.Status, as.Status)
 		}
 	}
 	return EvaluateTableForAlert(table, onOk, onFiring)
