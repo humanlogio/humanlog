@@ -9,372 +9,374 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func TestAlertState(t *testing.T) {
 	start := time.Date(2025, 7, 18, 17, 8, 41, 0, time.UTC)
+	startts := timestamppb.New(start)
 	tests := []struct {
 		name  string
-		init  AlertState
+		init  *typesv1.AlertState
 		now   time.Time
 		input *typesv1.Table
 		check CheckFunc
-		want  AlertState
+		want  *typesv1.AlertState
 	}{
 		{
 			name: "unknown to ok",
-			init: AlertState{
+			init: &typesv1.AlertState{
 				Rule:   mkrule("nothing special"),
-				Status: AlertStatusUnknown,
+				Status: alertStateUnknown(),
 			},
 			now:   start,
 			input: table(tableType(tableCol("my_rule", typesv1.TypeBool()))),
-			check: func(ctx context.Context, ar *typesv1.AlertRule, as AlertStatus, o *typesv1.Obj) error {
-				require.Equal(t, AlertStatusOK, as)
+			check: func(ctx context.Context, ar *typesv1.AlertRule, as *typesv1.AlertState, o *typesv1.Obj) error {
+				require.Equal(t, alertStateOk().Ok, as.GetOk())
 				return nil
 			},
-			want: AlertState{
+			want: &typesv1.AlertState{
 				Rule:           mkrule("nothing special"),
-				Status:         AlertStatusOK,
-				TransitionedAt: start,
+				Status:         alertStateOk(),
+				TransitionedAt: startts,
 			},
 		},
 		{
 			name: "unknown to pending",
-			init: AlertState{
+			init: &typesv1.AlertState{
 				Rule:   mkrule("nothing special", setFor(time.Second)),
-				Status: AlertStatusUnknown,
+				Status: alertStateUnknown(),
 			},
 			now: start,
 			input: table(tableType(
 				tableCol("my_rule", typesv1.TypeBool())),
 				arr(boolean(true)),
 			),
-			check: func(ctx context.Context, ar *typesv1.AlertRule, as AlertStatus, o *typesv1.Obj) error {
-				require.Equal(t, AlertStatusPending, as)
+			check: func(ctx context.Context, ar *typesv1.AlertRule, as *typesv1.AlertState, o *typesv1.Obj) error {
+				require.Equal(t, alertStatePending().Pending, as.GetPending())
 				return nil
 			},
-			want: AlertState{
+			want: &typesv1.AlertState{
 				Rule:           mkrule("nothing special", setFor(time.Second)),
-				Status:         AlertStatusPending,
-				TransitionedAt: start,
-				LastFiringAt:   start,
+				Status:         alertStatePending(),
+				TransitionedAt: startts,
+				LastFiringAt:   startts,
 			},
 		},
 		{
 			name: "unknown to firing",
-			init: AlertState{
+			init: &typesv1.AlertState{
 				Rule:   mkrule("nothing special"),
-				Status: AlertStatusUnknown,
+				Status: alertStateUnknown(),
 			},
 			now: start,
 			input: table(tableType(
 				tableCol("my_rule", typesv1.TypeBool())),
 				arr(boolean(true)),
 			),
-			check: func(ctx context.Context, ar *typesv1.AlertRule, as AlertStatus, o *typesv1.Obj) error {
-				require.Equal(t, AlertStatusFiring, as)
+			check: func(ctx context.Context, ar *typesv1.AlertRule, as *typesv1.AlertState, o *typesv1.Obj) error {
+				require.Equal(t, alertStateFiring(nil).Firing, as.GetFiring())
 				return nil
 			},
-			want: AlertState{
+			want: &typesv1.AlertState{
 				Rule:           mkrule("nothing special"),
-				Status:         AlertStatusFiring,
-				TransitionedAt: start,
-				LastFiringAt:   start,
+				Status:         alertStateFiring(nil),
+				TransitionedAt: startts,
+				LastFiringAt:   startts,
 			},
 		},
 		{
 			name: "ok to ok",
-			init: AlertState{
+			init: &typesv1.AlertState{
 				Rule:           mkrule("nothing special"),
-				Status:         AlertStatusOK,
-				TransitionedAt: start,
+				Status:         alertStateOk(),
+				TransitionedAt: startts,
 			},
 			now:   start,
 			input: table(tableType(tableCol("my_rule", typesv1.TypeBool()))),
-			want: AlertState{
+			want: &typesv1.AlertState{
 				Rule:           mkrule("nothing special"),
-				Status:         AlertStatusOK,
-				TransitionedAt: start,
+				Status:         alertStateOk(),
+				TransitionedAt: startts,
 			},
 		},
 
 		{
 			name: "ok to pending",
-			init: AlertState{
+			init: &typesv1.AlertState{
 				Rule:   mkrule("nothing special", setFor(time.Second)),
-				Status: AlertStatusOK,
+				Status: alertStateOk(),
 			},
 			now: start,
 			input: table(tableType(
 				tableCol("my_rule", typesv1.TypeBool())),
 				arr(boolean(true)),
 			),
-			check: func(ctx context.Context, ar *typesv1.AlertRule, as AlertStatus, o *typesv1.Obj) error {
-				require.Equal(t, AlertStatusPending, as)
+			check: func(ctx context.Context, ar *typesv1.AlertRule, as *typesv1.AlertState, o *typesv1.Obj) error {
+				require.Equal(t, alertStatePending().Pending, as.GetPending())
 				return nil
 			},
-			want: AlertState{
+			want: &typesv1.AlertState{
 				Rule:           mkrule("nothing special", setFor(time.Second)),
-				Status:         AlertStatusPending,
-				TransitionedAt: start,
-				LastFiringAt:   start,
+				Status:         alertStatePending(),
+				TransitionedAt: startts,
+				LastFiringAt:   startts,
 			},
 		},
 		{
 			name: "ok to firing",
-			init: AlertState{
+			init: &typesv1.AlertState{
 				Rule:   mkrule("nothing special"),
-				Status: AlertStatusOK,
+				Status: alertStateOk(),
 			},
 			now: start,
 			input: table(tableType(
 				tableCol("my_rule", typesv1.TypeBool())),
 				arr(boolean(true)),
 			),
-			check: func(ctx context.Context, ar *typesv1.AlertRule, as AlertStatus, o *typesv1.Obj) error {
-				require.Equal(t, AlertStatusFiring, as)
+			check: func(ctx context.Context, ar *typesv1.AlertRule, as *typesv1.AlertState, o *typesv1.Obj) error {
+				require.Equal(t, alertStateFiring(nil).Firing, as.GetFiring())
 				return nil
 			},
-			want: AlertState{
+			want: &typesv1.AlertState{
 				Rule:           mkrule("nothing special"),
-				Status:         AlertStatusFiring,
-				TransitionedAt: start,
-				LastFiringAt:   start,
+				Status:         alertStateFiring(nil),
+				TransitionedAt: startts,
+				LastFiringAt:   startts,
 			},
 		},
 		{
 			name: "pending to ok - no value",
-			init: AlertState{
+			init: &typesv1.AlertState{
 				Rule:           mkrule("nothing special"),
-				Status:         AlertStatusPending,
-				TransitionedAt: start,
+				Status:         alertStatePending(),
+				TransitionedAt: startts,
 			},
 			now:   start.Add(time.Second),
 			input: table(tableType(tableCol("my_rule", typesv1.TypeBool()))),
-			check: func(ctx context.Context, ar *typesv1.AlertRule, as AlertStatus, o *typesv1.Obj) error {
-				require.Equal(t, AlertStatusOK, as)
+			check: func(ctx context.Context, ar *typesv1.AlertRule, as *typesv1.AlertState, o *typesv1.Obj) error {
+				require.Equal(t, alertStateOk().Ok, as.GetOk())
 				return nil
 			},
-			want: AlertState{
+			want: &typesv1.AlertState{
 				Rule:           mkrule("nothing special"),
-				Status:         AlertStatusOK,
-				TransitionedAt: start.Add(time.Second),
+				Status:         alertStateOk(),
+				TransitionedAt: timestamppb.New(start.Add(time.Second)),
 			},
 		},
 		{
 			name: "pending to ok - value but false",
-			init: AlertState{
+			init: &typesv1.AlertState{
 				Rule:           mkrule("nothing special"),
-				Status:         AlertStatusFiring,
-				TransitionedAt: start,
+				Status:         alertStateFiring(nil),
+				TransitionedAt: startts,
 			},
 			now: start.Add(time.Second),
 			input: table(
 				tableType(tableCol("my_rule", typesv1.TypeBool())),
 				arr(boolean(false)),
 			),
-			check: func(ctx context.Context, ar *typesv1.AlertRule, as AlertStatus, o *typesv1.Obj) error {
-				require.Equal(t, AlertStatusOK, as)
+			check: func(ctx context.Context, ar *typesv1.AlertRule, as *typesv1.AlertState, o *typesv1.Obj) error {
+				require.Equal(t, alertStateOk().Ok, as.GetOk())
 				return nil
 			},
-			want: AlertState{
+			want: &typesv1.AlertState{
 				Rule:           mkrule("nothing special"),
-				Status:         AlertStatusOK,
-				TransitionedAt: start.Add(time.Second),
+				Status:         alertStateOk(),
+				TransitionedAt: timestamppb.New(start.Add(time.Second)),
 			},
 		},
 		{
 			name: "pending to pending (not yet long enough)",
-			init: AlertState{
+			init: &typesv1.AlertState{
 				Rule:           mkrule("nothing special", setFor(2*time.Second)),
-				Status:         AlertStatusPending,
-				TransitionedAt: start,
-				LastFiringAt:   start,
+				Status:         alertStatePending(),
+				TransitionedAt: startts,
+				LastFiringAt:   startts,
 			},
 			now: start.Add(time.Second),
 			input: table(tableType(
 				tableCol("my_rule", typesv1.TypeBool())),
 				arr(boolean(true)),
 			),
-			want: AlertState{
+			want: &typesv1.AlertState{
 				Rule:           mkrule("nothing special", setFor(2*time.Second)),
-				Status:         AlertStatusPending,
-				TransitionedAt: start,
-				LastFiringAt:   start.Add(time.Second),
+				Status:         alertStatePending(),
+				TransitionedAt: startts,
+				LastFiringAt:   timestamppb.New(start.Add(time.Second)),
 			},
 		},
 		{
 			name: "pending to firing (long enough)",
-			init: AlertState{
+			init: &typesv1.AlertState{
 				Rule:           mkrule("nothing special", setFor(2*time.Second)),
-				Status:         AlertStatusPending,
-				TransitionedAt: start,
-				LastFiringAt:   start,
+				Status:         alertStatePending(),
+				TransitionedAt: startts,
+				LastFiringAt:   startts,
 			},
 			now: start.Add(2 * time.Second),
 			input: table(tableType(
 				tableCol("my_rule", typesv1.TypeBool())),
 				arr(boolean(true)),
 			),
-			check: func(ctx context.Context, ar *typesv1.AlertRule, as AlertStatus, o *typesv1.Obj) error {
-				require.Equal(t, AlertStatusFiring, as)
+			check: func(ctx context.Context, ar *typesv1.AlertRule, as *typesv1.AlertState, o *typesv1.Obj) error {
+				require.Equal(t, alertStateFiring(nil).Firing, as.GetFiring())
 				return nil
 			},
-			want: AlertState{
+			want: &typesv1.AlertState{
 				Rule:           mkrule("nothing special", setFor(2*time.Second)),
-				Status:         AlertStatusFiring,
-				TransitionedAt: start.Add(2 * time.Second),
-				LastFiringAt:   start.Add(2 * time.Second),
+				Status:         alertStateFiring(nil),
+				TransitionedAt: timestamppb.New(start.Add(2 * time.Second)),
+				LastFiringAt:   timestamppb.New(start.Add(2 * time.Second)),
 			},
 		},
 		{
 			name: "pending to firing (no for, updated?)",
-			init: AlertState{
+			init: &typesv1.AlertState{
 				Rule:           mkrule("nothing special"),
-				Status:         AlertStatusPending,
-				TransitionedAt: start,
-				LastFiringAt:   start,
+				Status:         alertStatePending(),
+				TransitionedAt: startts,
+				LastFiringAt:   startts,
 			},
 			now: start.Add(2 * time.Second),
 			input: table(tableType(
 				tableCol("my_rule", typesv1.TypeBool())),
 				arr(boolean(true)),
 			),
-			check: func(ctx context.Context, ar *typesv1.AlertRule, as AlertStatus, o *typesv1.Obj) error {
-				require.Equal(t, AlertStatusFiring, as)
+			check: func(ctx context.Context, ar *typesv1.AlertRule, as *typesv1.AlertState, o *typesv1.Obj) error {
+				require.Equal(t, alertStateFiring(nil).Firing, as.GetFiring())
 				return nil
 			},
-			want: AlertState{
+			want: &typesv1.AlertState{
 				Rule:           mkrule("nothing special"),
-				Status:         AlertStatusFiring,
-				TransitionedAt: start.Add(2 * time.Second),
-				LastFiringAt:   start.Add(2 * time.Second),
+				Status:         alertStateFiring(nil),
+				TransitionedAt: timestamppb.New(start.Add(2 * time.Second)),
+				LastFiringAt:   timestamppb.New(start.Add(2 * time.Second)),
 			},
 		},
 		{
 			name: "firing to ok - no value",
-			init: AlertState{
+			init: &typesv1.AlertState{
 				Rule:           mkrule("nothing special"),
-				Status:         AlertStatusFiring,
-				TransitionedAt: start,
+				Status:         alertStateFiring(nil),
+				TransitionedAt: startts,
 			},
 			now: start.Add(time.Second),
 			input: table(
 				tableType(tableCol("my_rule", typesv1.TypeBool())),
 			),
-			check: func(ctx context.Context, ar *typesv1.AlertRule, as AlertStatus, o *typesv1.Obj) error {
-				require.Equal(t, AlertStatusOK, as)
+			check: func(ctx context.Context, ar *typesv1.AlertRule, as *typesv1.AlertState, o *typesv1.Obj) error {
+				require.Equal(t, alertStateOk().Ok, as.GetOk())
 				return nil
 			},
-			want: AlertState{
+			want: &typesv1.AlertState{
 				Rule:           mkrule("nothing special"),
-				Status:         AlertStatusOK,
-				TransitionedAt: start.Add(time.Second),
+				Status:         alertStateOk(),
+				TransitionedAt: timestamppb.New(start.Add(time.Second)),
 			},
 		},
 		{
 			name: "firing to ok - value but false",
-			init: AlertState{
+			init: &typesv1.AlertState{
 				Rule:           mkrule("nothing special"),
-				Status:         AlertStatusFiring,
-				TransitionedAt: start,
+				Status:         alertStateFiring(nil),
+				TransitionedAt: startts,
 			},
 			now: start.Add(time.Second),
 			input: table(
 				tableType(tableCol("my_rule", typesv1.TypeBool())),
 				arr(boolean(false)),
 			),
-			check: func(ctx context.Context, ar *typesv1.AlertRule, as AlertStatus, o *typesv1.Obj) error {
-				require.Equal(t, AlertStatusOK, as)
+			check: func(ctx context.Context, ar *typesv1.AlertRule, as *typesv1.AlertState, o *typesv1.Obj) error {
+				require.Equal(t, alertStateOk().Ok, as.GetOk())
 				return nil
 			},
-			want: AlertState{
+			want: &typesv1.AlertState{
 				Rule:           mkrule("nothing special"),
-				Status:         AlertStatusOK,
-				TransitionedAt: start.Add(time.Second),
+				Status:         alertStateOk(),
+				TransitionedAt: timestamppb.New(start.Add(time.Second)),
 			},
 		},
 		{
 			name: "keep firing because alert still true",
-			init: AlertState{
+			init: &typesv1.AlertState{
 				Rule:           mkrule("nothing special"),
-				Status:         AlertStatusFiring,
-				TransitionedAt: start,
-				LastFiringAt:   start,
+				Status:         alertStateFiring(nil),
+				TransitionedAt: startts,
+				LastFiringAt:   startts,
 			},
 			now: start.Add(time.Second),
 			input: table(
 				tableType(tableCol("my_rule", typesv1.TypeBool())),
 				arr(boolean(true)),
 			),
-			want: AlertState{
+			want: &typesv1.AlertState{
 				Rule:           mkrule("nothing special"),
-				Status:         AlertStatusFiring,
-				TransitionedAt: start,
-				LastFiringAt:   start.Add(time.Second),
+				Status:         alertStateFiring(nil),
+				TransitionedAt: startts,
+				LastFiringAt:   timestamppb.New(start.Add(time.Second)),
 			},
 		},
 		{
 			name: "keep firing even though value false",
-			init: AlertState{
+			init: &typesv1.AlertState{
 				Rule:           mkrule("nothing special", setKeepFiringFor(2*time.Second)),
-				Status:         AlertStatusFiring,
-				TransitionedAt: start,
-				LastFiringAt:   start,
+				Status:         alertStateFiring(nil),
+				TransitionedAt: startts,
+				LastFiringAt:   startts,
 			},
 			now: start.Add(time.Second),
 			input: table(
 				tableType(tableCol("my_rule", typesv1.TypeBool())),
 				arr(boolean(false)),
 			),
-			want: AlertState{
+			want: &typesv1.AlertState{
 				Rule:           mkrule("nothing special", setKeepFiringFor(2*time.Second)),
-				Status:         AlertStatusFiring,
-				TransitionedAt: start,
-				LastFiringAt:   start,
+				Status:         alertStateFiring(nil),
+				TransitionedAt: startts,
+				LastFiringAt:   startts,
 			},
 		},
 		{
 			name: "keep firing even though no value",
-			init: AlertState{
+			init: &typesv1.AlertState{
 				Rule:           mkrule("nothing special", setKeepFiringFor(2*time.Second)),
-				Status:         AlertStatusFiring,
-				TransitionedAt: start,
-				LastFiringAt:   start,
+				Status:         alertStateFiring(nil),
+				TransitionedAt: startts,
+				LastFiringAt:   startts,
 			},
 			now: start.Add(time.Second),
 			input: table(
 				tableType(tableCol("my_rule", typesv1.TypeBool())),
 			),
-			want: AlertState{
+			want: &typesv1.AlertState{
 				Rule:           mkrule("nothing special", setKeepFiringFor(2*time.Second)),
-				Status:         AlertStatusFiring,
-				TransitionedAt: start,
-				LastFiringAt:   start,
+				Status:         alertStateFiring(nil),
+				TransitionedAt: startts,
+				LastFiringAt:   startts,
 			},
 		},
 		{
 			name: "stop firing after long enough",
-			init: AlertState{
+			init: &typesv1.AlertState{
 				Rule:           mkrule("nothing special", setKeepFiringFor(2*time.Second)),
-				Status:         AlertStatusFiring,
-				TransitionedAt: start,
-				LastFiringAt:   start,
+				Status:         alertStateFiring(nil),
+				TransitionedAt: startts,
+				LastFiringAt:   startts,
 			},
 			now: start.Add(2 * time.Second),
 			input: table(
 				tableType(tableCol("my_rule", typesv1.TypeBool())),
 			),
-			check: func(ctx context.Context, ar *typesv1.AlertRule, as AlertStatus, o *typesv1.Obj) error {
-				require.Equal(t, AlertStatusOK, as)
+			check: func(ctx context.Context, ar *typesv1.AlertRule, as *typesv1.AlertState, o *typesv1.Obj) error {
+				require.Equal(t, alertStateOk().Ok, as.GetOk())
 				return nil
 			},
-			want: AlertState{
+			want: &typesv1.AlertState{
 				Rule:           mkrule("nothing special", setKeepFiringFor(2*time.Second)),
-				Status:         AlertStatusOK,
-				TransitionedAt: start.Add(2 * time.Second),
-				LastFiringAt:   start,
+				Status:         alertStateOk(),
+				TransitionedAt: timestamppb.New(start.Add(2 * time.Second)),
+				LastFiringAt:   startts,
 			},
 		},
 	}
@@ -384,7 +386,7 @@ func TestAlertState(t *testing.T) {
 			state := tt.init
 			check := tt.check
 			if check == nil {
-				check = func(ctx context.Context, ar *typesv1.AlertRule, as AlertStatus, o *typesv1.Obj) error {
+				check = func(ctx context.Context, ar *typesv1.AlertRule, as *typesv1.AlertState, o *typesv1.Obj) error {
 					assert.Nil(t, ar)
 					assert.Nil(t, as)
 					assert.Nil(t, o)
@@ -392,11 +394,26 @@ func TestAlertState(t *testing.T) {
 					return nil
 				}
 			}
-			err := state.apply(ctx, tt.input, tt.now, check)
+			err := apply(ctx, state, tt.input, tt.now, check)
 			require.NoError(t, err)
 			require.Equal(t, tt.want, state)
 		})
 	}
+}
+
+func alertStateUnknown() *typesv1.AlertState_Unknown {
+	return &typesv1.AlertState_Unknown{Unknown: &typesv1.AlertUnknown{}}
+}
+
+func alertStateOk() *typesv1.AlertState_Ok {
+	return &typesv1.AlertState_Ok{Ok: &typesv1.AlertOk{}}
+}
+
+func alertStatePending() *typesv1.AlertState_Pending {
+	return &typesv1.AlertState_Pending{Pending: &typesv1.AlertPending{}}
+}
+func alertStateFiring(labels *typesv1.Obj) *typesv1.AlertState_Firing {
+	return &typesv1.AlertState_Firing{Firing: &typesv1.AlertFiring{Labels: labels}}
 }
 
 func mkrule(name string, opts ...func(*typesv1.AlertRule)) *typesv1.AlertRule {

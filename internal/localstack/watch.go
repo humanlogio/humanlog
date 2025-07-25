@@ -17,9 +17,9 @@ import (
 	stackv1 "github.com/humanlogio/api/go/svc/stack/v1"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
 	"github.com/humanlogio/humanlog/internal/compat/alertmanager"
-	"github.com/humanlogio/humanlog/internal/localalert"
 	"github.com/humanlogio/humanlog/internal/localstate"
 	"github.com/humanlogio/humanlog/internal/pkg/config"
+	"github.com/humanlogio/humanlog/pkg/localstorage"
 	persesv1 "github.com/perses/perses/pkg/model/api/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"gopkg.in/yaml.v3"
@@ -28,11 +28,11 @@ import (
 type watch struct {
 	fs          fs.FS
 	cfg         *config.Config
-	alertState  localalert.AlertStorage
+	alertState  localstorage.Alertable
 	logQlParser func(string) (*typesv1.Query, error)
 }
 
-func Watch(ctx context.Context, fs fs.FS, cfg *config.Config, alertState localalert.AlertStorage, logQlParser func(string) (*typesv1.Query, error)) localstate.DB {
+func Watch(ctx context.Context, fs fs.FS, cfg *config.Config, alertState localstorage.Alertable, logQlParser func(string) (*typesv1.Query, error)) localstate.DB {
 	return &watch{fs: fs, cfg: cfg, alertState: alertState, logQlParser: logQlParser}
 }
 
@@ -216,10 +216,6 @@ func (wt *watch) ListAlertRule(ctx context.Context, req *alertv1.ListAlertRuleRe
 		return err
 	})
 	return &alertv1.ListAlertRuleResponse{Items: out, Next: next}, err
-}
-
-func (wt *watch) AlertStateStorage() localalert.AlertStorage {
-	return wt.alertState
 }
 
 func (wt *watch) withStackConfig(ctx context.Context, fn func(*typesv1.StacksConfig) error) error {

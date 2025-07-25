@@ -54,7 +54,7 @@ func ServeLocalhost(
 	ownVersion *typesv1.Version,
 	app *localstorage.AppCtx,
 	openStorage func(ctx context.Context) (localstorage.Storage, error),
-	openState func(ctx context.Context) (localstate.DB, error),
+	openState func(ctx context.Context, db localstorage.Storage) (localstate.DB, error),
 	registerOnCloseServer func(srv *http.Server),
 	doLogin func(ctx context.Context, returnToURL string) error,
 	doLogout func(ctx context.Context, returnToURL string) error,
@@ -63,7 +63,7 @@ func ServeLocalhost(
 	getConfig func(ctx context.Context) (*typesv1.LocalhostConfig, error),
 	setConfig func(ctx context.Context, cfg *typesv1.LocalhostConfig) error,
 	whoami func(ctx context.Context) (*userv1.WhoamiResponse, error),
-	notifyAlert func(ctx context.Context, ar *typesv1.AlertRule, as localalert.AlertStatus, o *typesv1.Obj) error,
+	notifyAlert func(ctx context.Context, ar *typesv1.AlertRule, as *typesv1.AlertState, o *typesv1.Obj) error,
 ) error {
 	port := int(localhostCfg.Port)
 
@@ -125,11 +125,6 @@ func ServeLocalhost(
 		ll.InfoContext(ctx, "obtained OTLP HTTP listener")
 	}
 
-	ll.InfoContext(ctx, "opening state engine")
-	state, err := openState(ctx)
-	if err != nil {
-		return fmt.Errorf("opening localstorage %q: %v", localhostCfg.Engine, err)
-	}
 	ll.InfoContext(ctx, "opening storage engine")
 	storage, err := openStorage(ctx)
 	if err != nil {
@@ -143,6 +138,11 @@ func ServeLocalhost(
 			ll.InfoContext(ctx, "storage engine closed cleanly")
 		}
 	}()
+	ll.InfoContext(ctx, "opening state engine")
+	state, err := openState(ctx, storage)
+	if err != nil {
+		return fmt.Errorf("opening localstorage %q: %v", localhostCfg.Engine, err)
+	}
 
 	ll.InfoContext(ctx, "preparing localhost services")
 
@@ -280,7 +280,7 @@ func ServeLocalhost(
 			stackIter := iteratorForStack(ctx)
 			for stackIter.Next() {
 				stack := stackIter.Current()
-				evaluator := localalert.NewEvaluator(storage, state.AlertStateStorage(), time.Now)
+				evaluator := localalert.NewEvaluator(storage, time.Now)
 
 				alertGroupIter := iteratorForAlertGroup(ctx, stack.Name)
 				for alertGroupIter.Next() {

@@ -57,6 +57,14 @@ type Storage interface {
 	OTLPLogger
 	OTLPTracer
 	OTLPMeter
+
+	Alertable
+}
+
+type Alertable interface {
+	AlertGetOrCreate(ctx context.Context, stackName, groupName, alertName string, create func() *typesv1.AlertState) (*typesv1.AlertState, error)
+	AlertUpdateState(ctx context.Context, stackName, groupName, alertName string, state *typesv1.AlertState) error
+	AlertDeleteStateNotInList(ctx context.Context, stackName, groupName string, keeplist []string) error
 }
 
 type OTLPLogger interface {

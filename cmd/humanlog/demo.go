@@ -16,7 +16,6 @@ import (
 	userv1 "github.com/humanlogio/api/go/svc/user/v1"
 	"github.com/humanlogio/api/go/svc/user/v1/userv1connect"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
-	"github.com/humanlogio/humanlog/internal/localalert"
 	"github.com/humanlogio/humanlog/internal/localserver"
 	"github.com/humanlogio/humanlog/internal/localstate"
 	"github.com/humanlogio/humanlog/internal/logqleval"
@@ -115,7 +114,7 @@ func demoCmd(
 
 				return storage, nil
 			}
-			openState := func(ctx context.Context) (localstate.DB, error) {
+			openState := func(ctx context.Context, db localstorage.Storage) (localstate.DB, error) {
 				return localstate.NewMemory(), nil
 			}
 
@@ -188,7 +187,7 @@ func demoCmd(
 					}
 					return res.Msg, nil
 				},
-				func(ctx context.Context, ar *typesv1.AlertRule, as localalert.AlertStatus, o *typesv1.Obj) error {
+				func(ctx context.Context, ar *typesv1.AlertRule, as *typesv1.AlertState, o *typesv1.Obj) error {
 					args := []any{slog.String("name", ar.Name)}
 					if o != nil {
 						for _, kv := range o.Kvs {
@@ -199,14 +198,14 @@ func demoCmd(
 							args = append(args, slog.Any(kv.Key, v))
 						}
 					}
-					switch as {
-					case localalert.AlertStatusUnknown:
+					switch as.Status.(type) {
+					case *typesv1.AlertState_Unknown:
 						ll.InfoContext(ctx, "alert in unknown status", args...)
-					case localalert.AlertStatusOK:
+					case *typesv1.AlertState_Ok:
 						ll.InfoContext(ctx, "alert in ok status", args...)
-					case localalert.AlertStatusPending:
+					case *typesv1.AlertState_Pending:
 						ll.WarnContext(ctx, "alert in pending status", args...)
-					case localalert.AlertStatusFiring:
+					case *typesv1.AlertState_Firing:
 						ll.ErrorContext(ctx, "alert is firing!", args...)
 					}
 					return nil
