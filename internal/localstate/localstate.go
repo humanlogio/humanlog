@@ -34,5 +34,5 @@ type DB interface {
 	DeleteAlertRule(ctx context.Context, req *alertv1.DeleteAlertRuleRequest) (*alertv1.DeleteAlertRuleResponse, error)
 	ListAlertRule(ctx context.Context, req *alertv1.ListAlertRuleRequest) (*alertv1.ListAlertRuleResponse, error)
 
-	AlertStateStorage(stackID string) localalert.AlertStorage
+	AlertStateStorage() localalert.AlertStorage
 }

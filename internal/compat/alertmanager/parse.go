@@ -10,15 +10,14 @@ import (
 	typesv1 "github.com/humanlogio/api/go/types/v1"
 	"github.com/prometheus/prometheus/model/rulefmt"
 	"google.golang.org/protobuf/types/known/durationpb"
+	"gopkg.in/yaml.v3"
 )
 
 func ParseRules(r io.Reader, logQlParser func(string) (*typesv1.Query, error)) ([]*typesv1.AlertGroup, error) {
-	content, err := io.ReadAll(r)
-	if err != nil {
-		return nil, err
-	}
-	groups, errs := rulefmt.Parse(content, false)
-	if len(errs) > 0 {
+	var groups rulefmt.RuleGroups
+	decoder := yaml.NewDecoder(r)
+	decoder.KnownFields(true)
+	if err := decoder.Decode(&groups); err != nil {
 		return nil, fmt.Errorf("parsing alert rules: %v", err)
 	}
 	return ToGroups(groups.Groups, logQlParser)
@@ -63,12 +62,14 @@ func ToAlert(ar rulefmt.Rule, parser func(string) (*typesv1.Query, error)) (*typ
 		return nil, err
 	}
 	out := &typesv1.AlertRule{
-		Name:          ar.Alert,
-		Expr:          q,
-		For:           durationpb.New(time.Duration(ar.For)),
-		KeepFiringFor: durationpb.New(time.Duration(ar.KeepFiringFor)),
-		Labels:        mapToObj(ar.Labels),
-		Annotations:   mapToObj(ar.Annotations),
+		Name:        ar.Alert,
+		Expr:        q,
+		For:         durationpb.New(time.Duration(ar.For)),
+		Labels:      mapToObj(ar.Labels),
+		Annotations: mapToObj(ar.Annotations),
+	}
+	if ar.KeepFiringFor != 0 {
+		out.KeepFiringFor = durationpb.New(time.Duration(ar.KeepFiringFor))
 	}
 	return out, nil
 }
