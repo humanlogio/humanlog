@@ -262,9 +262,9 @@ func ServeLocalhost(
 				return items, out.Next, nil
 			})
 		}
-		iteratorForAlertGroup := func(ctx context.Context, stackID string) *iterapi.Iter[*typesv1.AlertGroup] {
+		iteratorForAlertGroup := func(ctx context.Context, stackName string) *iterapi.Iter[*typesv1.AlertGroup] {
 			return iterapi.New(ctx, 100, func(ctx context.Context, cursor *typesv1.Cursor, limit int32) ([]*typesv1.AlertGroup, *typesv1.Cursor, error) {
-				out, err := state.ListAlertGroup(ctx, &alertv1.ListAlertGroupRequest{StackId: stackID, Cursor: cursor, Limit: limit})
+				out, err := state.ListAlertGroup(ctx, &alertv1.ListAlertGroupRequest{StackName: stackName, Cursor: cursor, Limit: limit})
 				if err != nil {
 					return nil, nil, err
 				}
@@ -280,12 +280,12 @@ func ServeLocalhost(
 			stackIter := iteratorForStack(ctx)
 			for stackIter.Next() {
 				stack := stackIter.Current()
-				evaluator := localalert.NewEvaluator(storage, state.AlertStateStorage(stack.Id), time.Now)
+				evaluator := localalert.NewEvaluator(storage, state.AlertStateStorage(), time.Now)
 
-				alertGroupIter := iteratorForAlertGroup(ctx, stack.Id)
+				alertGroupIter := iteratorForAlertGroup(ctx, stack.Name)
 				for alertGroupIter.Next() {
 					alertGroup := alertGroupIter.Current()
-					if err := evaluator.EvaluateRules(ctx, alertGroup, notifyAlert); err != nil {
+					if err := evaluator.EvaluateRules(ctx, stack, alertGroup, notifyAlert); err != nil {
 						return fmt.Errorf("evaluating alert group %q: %v", alertGroup.Name, err)
 					}
 				}

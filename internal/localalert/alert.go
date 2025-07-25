@@ -10,9 +10,9 @@ import (
 )
 
 type AlertStorage interface {
-	GetOrCreate(ctx context.Context, groupName, alertName string, create func() *AlertState) (*AlertState, error)
-	UpdateState(ctx context.Context, groupName, alertName string, state *AlertState) error
-	DeleteStateNotInList(ctx context.Context, groupName string, keeplist []string) error
+	GetOrCreate(ctx context.Context, stackName, groupName, alertName string, create func() *AlertState) (*AlertState, error)
+	UpdateState(ctx context.Context, stackName, groupName, alertName string, state *AlertState) error
+	DeleteStateNotInList(ctx context.Context, stackName, groupName string, keeplist []string) error
 }
 
 func NewEvaluator(db localstorage.Queryable, alertStorage AlertStorage, timeNow func() time.Time) *Evaluator {
@@ -50,11 +50,11 @@ type CheckFunc func(
 	*typesv1.Obj,
 ) error
 
-func (ev *Evaluator) EvaluateRules(ctx context.Context, group *typesv1.AlertGroup, onStateChange CheckFunc) error {
+func (ev *Evaluator) EvaluateRules(ctx context.Context, stack *typesv1.Stack, group *typesv1.AlertGroup, onStateChange CheckFunc) error {
 	var keeplist []string
 	for _, alert := range group.Rules {
 		keeplist = append(keeplist, alert.Name)
-		state, err := ev.alertStorage.GetOrCreate(ctx, group.Name, alert.Name, func() *AlertState {
+		state, err := ev.alertStorage.GetOrCreate(ctx, stack.Name, group.Name, alert.Name, func() *AlertState {
 			return newAlertState(alert)
 		})
 		if err != nil {
@@ -64,12 +64,12 @@ func (ev *Evaluator) EvaluateRules(ctx context.Context, group *typesv1.AlertGrou
 		if err != nil {
 			return fmt.Errorf("checking alert state for group %q, alert %q: %v", group.Name, alert.Name, err)
 		}
-		err = ev.alertStorage.UpdateState(ctx, group.Name, alert.Name, state)
+		err = ev.alertStorage.UpdateState(ctx, stack.Name, group.Name, alert.Name, state)
 		if err != nil {
 			return fmt.Errorf("updating alert state for group %q, alert %q: %v", group.Name, alert.Name, err)
 		}
 	}
-	if err := ev.alertStorage.DeleteStateNotInList(ctx, group.Name, keeplist); err != nil {
+	if err := ev.alertStorage.DeleteStateNotInList(ctx, stack.Name, group.Name, keeplist); err != nil {
 		return err
 	}
 	return nil
