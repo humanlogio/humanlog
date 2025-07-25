@@ -13,7 +13,6 @@ import (
 	"github.com/gen2brain/beeep"
 	"github.com/getlantern/systray"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
-	"github.com/humanlogio/humanlog/internal/localalert"
 	"github.com/humanlogio/humanlog/internal/logqleval"
 	"github.com/pkg/browser"
 )
@@ -160,7 +159,7 @@ func newSystrayController(ctx context.Context, ll *slog.Logger, client serviceCl
 	return ctrl, nil
 }
 
-func (ctrl *systrayController) NotifyAlert(ctx context.Context, ar *typesv1.AlertRule, as localalert.AlertStatus, o *typesv1.Obj) error {
+func (ctrl *systrayController) NotifyAlert(ctx context.Context, ar *typesv1.AlertRule, as *typesv1.AlertState, o *typesv1.Obj) error {
 	ctrl.mu.Lock()
 	defer ctrl.mu.Unlock()
 	args := []any{slog.String("name", ar.Name)}
@@ -174,22 +173,22 @@ func (ctrl *systrayController) NotifyAlert(ctx context.Context, ar *typesv1.Aler
 		}
 	}
 	ll := ctrl.ll
-	switch as {
-	case localalert.AlertStatusUnknown:
+	switch as.Status.(type) {
+	case *typesv1.AlertState_Unknown:
 		ll.InfoContext(ctx, "alert in unknown status", args...)
-	case localalert.AlertStatusOK:
+	case *typesv1.AlertState_Ok:
 		ll.InfoContext(ctx, "alert in ok status", args...)
 		beeep.Alert("✅ humanlog: alert resolved",
 			fmt.Sprintf("alert resolved: %q", ar.Name),
 			"",
 		)
-	case localalert.AlertStatusPending:
+	case *typesv1.AlertState_Pending:
 		ll.WarnContext(ctx, "alert in pending status", args...)
 		beeep.Alert("⚠️ humanlog: an alert is pending",
 			fmt.Sprintf("alert pending: %q", ar.Name),
 			"",
 		)
-	case localalert.AlertStatusFiring:
+	case *typesv1.AlertState_Firing:
 		ll.ErrorContext(ctx, "alert is firing!", args...)
 		beeep.Alert("🚨 humanlog: an alert is firing",
 			fmt.Sprintf("alert pending: %q", ar.Name),

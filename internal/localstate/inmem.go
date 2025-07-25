@@ -12,7 +12,7 @@ import (
 	dashboardv1 "github.com/humanlogio/api/go/svc/dashboard/v1"
 	stackv1 "github.com/humanlogio/api/go/svc/stack/v1"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
-	"github.com/humanlogio/humanlog/internal/localalert"
+	"github.com/humanlogio/humanlog/pkg/localstorage"
 	"github.com/oklog/ulid/v2"
 	persesv1 "github.com/perses/perses/pkg/model/api/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -40,7 +40,7 @@ type stack struct {
 type alertGroup struct {
 	group *typesv1.AlertGroup
 
-	alertState map[string]*localalert.AlertState
+	alertState map[string]*typesv1.AlertState
 }
 
 func NewMemory() *Mem {
@@ -351,7 +351,7 @@ func (db *Mem) CreateAlertGroup(ctx context.Context, req *alertv1.CreateAlertGro
 		st.alertGroupList = append(st.alertGroupList, out.Name)
 		st.alertGroups[out.Name] = &alertGroup{
 			group:      out,
-			alertState: make(map[string]*localalert.AlertState),
+			alertState: make(map[string]*typesv1.AlertState),
 		}
 		return nil
 	})
@@ -592,7 +592,7 @@ func (db *Mem) ListAlertRule(ctx context.Context, req *alertv1.ListAlertRuleRequ
 	return &alertv1.ListAlertRuleResponse{Items: out, Next: next}, err
 }
 
-func (db *Mem) AlertStateStorage() localalert.AlertStorage {
+func (db *Mem) AlertStateStorage() localstorage.Alertable {
 	return &alertStorageMem{db: db}
 }
 
@@ -600,8 +600,8 @@ type alertStorageMem struct {
 	db *Mem
 }
 
-func (as *alertStorageMem) GetOrCreate(ctx context.Context, stackName, groupName, alertName string, create func() *localalert.AlertState) (*localalert.AlertState, error) {
-	setState := func(group *alertGroup, rule *typesv1.AlertRule, create func() *localalert.AlertState) *localalert.AlertState {
+func (as *alertStorageMem) AlertGetOrCreate(ctx context.Context, stackName, groupName, alertName string, create func() *typesv1.AlertState) (*typesv1.AlertState, error) {
+	setState := func(group *alertGroup, rule *typesv1.AlertRule, create func() *typesv1.AlertState) *typesv1.AlertState {
 		state, ok := group.alertState[rule.Name]
 		if !ok {
 			state = create()
@@ -610,7 +610,7 @@ func (as *alertStorageMem) GetOrCreate(ctx context.Context, stackName, groupName
 		return state
 	}
 
-	var out *localalert.AlertState
+	var out *typesv1.AlertState
 	err := as.db.withAlertGroup(stackName, groupName, func(st *stack, group *alertGroup) error {
 		for _, alertRule := range group.group.Rules {
 			if alertRule.Name == alertName {
@@ -622,7 +622,7 @@ func (as *alertStorageMem) GetOrCreate(ctx context.Context, stackName, groupName
 	})
 	return out, err
 }
-func (as *alertStorageMem) UpdateState(ctx context.Context, stackName, groupName, alertName string, state *localalert.AlertState) error {
+func (as *alertStorageMem) AlertUpdateState(ctx context.Context, stackName, groupName, alertName string, state *typesv1.AlertState) error {
 	err := as.db.withAlertGroup(stackName, groupName, func(st *stack, group *alertGroup) error {
 		for _, alertRule := range group.group.Rules {
 			if alertRule.Name == alertName {
@@ -634,7 +634,7 @@ func (as *alertStorageMem) UpdateState(ctx context.Context, stackName, groupName
 	})
 	return err
 }
-func (as *alertStorageMem) DeleteStateNotInList(ctx context.Context, stackName, groupName string, keeplist []string) error {
+func (as *alertStorageMem) AlertDeleteStateNotInList(ctx context.Context, stackName, groupName string, keeplist []string) error {
 	err := as.db.withAlertGroup(stackName, groupName, func(st *stack, group *alertGroup) error {
 		keepset := make(map[string]struct{})
 		for _, keep := range keeplist {

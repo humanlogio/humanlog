@@ -6,7 +6,6 @@ import (
 	alertv1 "github.com/humanlogio/api/go/svc/alert/v1"
 	dashboardv1 "github.com/humanlogio/api/go/svc/dashboard/v1"
 	stackv1 "github.com/humanlogio/api/go/svc/stack/v1"
-	"github.com/humanlogio/humanlog/internal/localalert"
 )
 
 type DB interface {
@@ -33,6 +32,4 @@ type DB interface {
 	UpdateAlertRule(ctx context.Context, req *alertv1.UpdateAlertRuleRequest) (*alertv1.UpdateAlertRuleResponse, error)
 	DeleteAlertRule(ctx context.Context, req *alertv1.DeleteAlertRuleRequest) (*alertv1.DeleteAlertRuleResponse, error)
 	ListAlertRule(ctx context.Context, req *alertv1.ListAlertRuleRequest) (*alertv1.ListAlertRuleResponse, error)
-
-	AlertStateStorage() localalert.AlertStorage
 }

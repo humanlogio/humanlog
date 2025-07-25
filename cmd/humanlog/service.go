@@ -27,8 +27,8 @@ import (
 	userv1 "github.com/humanlogio/api/go/svc/user/v1"
 	"github.com/humanlogio/api/go/svc/user/v1/userv1connect"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
-	"github.com/humanlogio/humanlog/internal/localalert"
 	"github.com/humanlogio/humanlog/internal/localserver"
+	"github.com/humanlogio/humanlog/internal/localstack"
 	"github.com/humanlogio/humanlog/internal/localstate"
 	"github.com/humanlogio/humanlog/internal/pkg/config"
 	"github.com/humanlogio/humanlog/internal/pkg/selfupdate"
@@ -310,7 +310,7 @@ type systrayClient interface {
 	NotifyUnauthenticated(ctx context.Context) error
 	NotifyAuthenticated(ctx context.Context, user *typesv1.User, defaultOrg, currentOrg *typesv1.Organization) error
 	NotifyUpdateAvailable(ctx context.Context, oldV, newV *typesv1.Version) error
-	NotifyAlert(ctx context.Context, ar *typesv1.AlertRule, as localalert.AlertStatus, o *typesv1.Obj) error
+	NotifyAlert(ctx context.Context, ar *typesv1.AlertRule, as *typesv1.AlertState, o *typesv1.Obj) error
 }
 
 type serviceClient interface {
@@ -427,7 +427,7 @@ func (hdl *serviceHandler) run(ctx context.Context, cancel context.CancelFunc) e
 			})
 		}
 		eg.Go(func() error {
-			if err := hdl.runLocalhost(ctx, ll, localhostCfg, version, app, registerOnCloseServer); err != nil {
+			if err := hdl.runLocalhost(ctx, ll, hdl.config, localhostCfg, version, app, registerOnCloseServer); err != nil {
 				ll.ErrorContext(ctx, "unable to run localhost", slog.Any("err", err))
 				return err
 			}
@@ -491,13 +491,16 @@ func (hdl *serviceHandler) shutdown(ctx context.Context) error {
 func (hdl *serviceHandler) runLocalhost(
 	ctx context.Context,
 	ll *slog.Logger,
+	cfg *config.Config,
 	localhostCfg *typesv1.ServeLocalhostConfig,
 	ownVersion *typesv1.Version,
 	app *localstorage.AppCtx,
 	registerOnCloseServer func(srv *http.Server),
 ) error {
-	openState := func(ctx context.Context) (localstate.DB, error) {
-		return localstate.NewMemory(), nil
+	openState := func(ctx context.Context, db localstorage.Storage) (localstate.DB, error) {
+		return localstack.Watch(ctx, os.DirFS("/"), cfg, db, func(s string) (*typesv1.Query, error) {
+			return db.Parse(ctx, s)
+		}), nil
 	}
 	openStorage := func(ctx context.Context) (localstorage.Storage, error) {
 		return localstorage.Open(
@@ -747,7 +750,7 @@ func (hdl *serviceHandler) registerClient(client systrayClient) {
 	ll.InfoContext(ctx, "systray client primed")
 }
 
-func (hdl *serviceHandler) notifyAlert(ctx context.Context, ar *typesv1.AlertRule, as localalert.AlertStatus, o *typesv1.Obj) error {
+func (hdl *serviceHandler) notifyAlert(ctx context.Context, ar *typesv1.AlertRule, as *typesv1.AlertState, o *typesv1.Obj) error {
 	hdl.ll.InfoContext(ctx, "calling notifyAlert")
 	hdl.clientMu.Lock()
 	defer hdl.clientMu.Unlock()
