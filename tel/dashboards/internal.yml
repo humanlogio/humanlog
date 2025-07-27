@@ -1,0 +1,8 @@
+kind: Dashboard
+metadata:
+  name: internal
+  project: humanlog
+spec:
+  display:
+    name: Humanlog Internals
+    description: Obverve the internals of Humanlog.
