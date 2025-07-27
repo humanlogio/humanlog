@@ -4,12 +4,15 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
+	"os"
 	"path"
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 
 	"connectrpc.com/connect"
 	alertv1 "github.com/humanlogio/api/go/svc/alert/v1"
@@ -21,12 +24,14 @@ import (
 	"github.com/humanlogio/humanlog/internal/pkg/config"
 	"github.com/humanlogio/humanlog/pkg/localstorage"
 	persesv1 "github.com/perses/perses/pkg/model/api/v1"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"gopkg.in/yaml.v3"
 )
 
 type watch struct {
 	fs          fs.FS
+	mu          sync.Mutex
 	cfg         *config.Config
 	alertState  localstorage.Alertable
 	logQlParser func(string) (*typesv1.Query, error)
@@ -36,15 +41,172 @@ func Watch(ctx context.Context, fs fs.FS, cfg *config.Config, alertState localst
 	return &watch{fs: fs, cfg: cfg, alertState: alertState, logQlParser: logQlParser}
 }
 
-func (wt *watch) CreateStack(context.Context, *stackv1.CreateStackRequest) (*stackv1.CreateStackResponse, error) {
-	return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("localhost stacks are created via the config file"))
+func validateStackPointer(ffs fs.FS, stacks []*typesv1.StacksConfig_LocalhostStackPointer, name string, sp *typesv1.StacksConfig_LocalhostStackPointer) error {
+	if name == "" {
+		return connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("stack name cannot be empty"))
+	}
+	for _, stack := range stacks {
+		if stack.Name == name {
+			return connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("a stack with this name already exists (path %q)", stack.Path))
+		}
+	}
+
+	ensureIsDir := func(path string) error {
+		fi, err := fs.Stat(ffs, path)
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				return connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("the path %q doesn't exist", path))
+			}
+			return err
+		}
+		if !fi.IsDir() {
+			return connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("the path %q is not a directory", path))
+		}
+		return nil
+	}
+	ensureIsSubdir := func(dir, path string) error {
+		if path == "" {
+			return fmt.Errorf("expecting a sub directory of %q, but no path was specified", dir)
+		}
+		if filepath.IsAbs(path) {
+			return fmt.Errorf("expecting a sub directory of %q, but was an absolute path: %q", dir, path)
+		}
+		path = filepath.Join(dir, path)
+		if err := ensureIsDir(path); err != nil {
+			return err
+		}
+		return nil
+	}
+	if !path.IsAbs(sp.Path) {
+		return fmt.Errorf("pointer's path must be absolute, but was relative: %q", sp.Path)
+	}
+	if err := ensureIsDir(sp.Path); err != nil {
+		return fmt.Errorf("path is invalid: %v", err)
+	}
+	if err := ensureIsSubdir(sp.Path, sp.DashboardDir); err != nil {
+		return fmt.Errorf("dashboard dir is invalid: %v", err)
+	}
+	if err := ensureIsSubdir(sp.Path, sp.AlertDir); err != nil {
+		return fmt.Errorf("alert dir is invalid: %v", err)
+	}
+	return nil
 }
-func (wt *watch) UpdateStack(context.Context, *stackv1.UpdateStackRequest) (*stackv1.UpdateStackResponse, error) {
-	return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("localhost stacks are updated in the config file"))
+
+func (wt *watch) CreateStack(ctx context.Context, req *stackv1.CreateStackRequest) (*stackv1.CreateStackResponse, error) {
+	name := req.Name
+	pointer := req.Pointer
+
+	lh := pointer.GetLocalhost()
+	if lh == nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("localhost stacks must refer to the local filesystem"))
+	}
+
+	err := func() error {
+		wt.mu.Lock()
+		defer wt.mu.Unlock()
+		cfg, err := wt.cfg.Reload()
+		if err != nil {
+			return fmt.Errorf("reading config file: %v", err)
+		}
+		wt.cfg = cfg
+		if cfg.Runtime == nil {
+			cfg.Runtime = &typesv1.RuntimeConfig{}
+		}
+		if cfg.Runtime.ExperimentalFeatures == nil {
+			cfg.Runtime.ExperimentalFeatures = &typesv1.RuntimeConfig_ExperimentalFeatures{}
+		}
+		if cfg.Runtime.ExperimentalFeatures.Stacks == nil {
+			cfg.Runtime.ExperimentalFeatures.Stacks = &typesv1.StacksConfig{}
+		}
+		stacks := cfg.Runtime.ExperimentalFeatures.Stacks
+
+		sp := &typesv1.StacksConfig_LocalhostStackPointer{
+			Name:         name,
+			Path:         lh.Path,
+			DashboardDir: lh.DashboardDir,
+			AlertDir:     lh.AlertDir,
+		}
+		if err := validateStackPointer(wt.fs, stacks.Stacks, name, sp); err != nil {
+			return err
+		}
+		stacks.Stacks = append(stacks.Stacks, sp)
+		cfg.Runtime.ExperimentalFeatures.Stacks = stacks
+		if err := cfg.WriteBack(); err != nil {
+			return connect.NewError(connect.CodeInternal, fmt.Errorf("writing back configuration: %v", err))
+		}
+		return nil
+	}()
+	if err != nil {
+		return nil, err
+	}
+	var out *typesv1.Stack
+	err = wt.lockedWithStackByName(ctx, name, func(s *typesv1.Stack, sc *typesv1.StacksConfig_LocalhostStackPointer) error {
+		out = s
+		return nil
+	})
+	return &stackv1.CreateStackResponse{Stack: out}, err
 }
-func (wt *watch) DeleteStack(context.Context, *stackv1.DeleteStackRequest) (*stackv1.DeleteStackResponse, error) {
-	return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("localhost stacks are deleted in the config file"))
+
+func (wt *watch) UpdateStack(ctx context.Context, req *stackv1.UpdateStackRequest) (*stackv1.UpdateStackResponse, error) {
+	err := wt.lockedWithStackByName(ctx, req.Name, func(_ *typesv1.Stack, sc *typesv1.StacksConfig_LocalhostStackPointer) error {
+		candidate := proto.Clone(sc).(*typesv1.StacksConfig_LocalhostStackPointer)
+
+		for _, mutation := range req.Mutations {
+			switch do := mutation.Do.(type) {
+			case *stackv1.UpdateStackRequest_Mutation_SetName:
+				candidate.Name = do.SetName
+			case *stackv1.UpdateStackRequest_Mutation_SetPointer:
+				lh := do.SetPointer.GetLocalhost()
+				if lh == nil {
+					return connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("can't update localhost stack to point to non-localhost pointers"))
+				}
+				candidate.Path = lh.Path
+				candidate.DashboardDir = lh.DashboardDir
+				candidate.AlertDir = lh.AlertDir
+			}
+		}
+		stacks := wt.cfg.GetRuntime().GetExperimentalFeatures().GetStacks()
+		if err := validateStackPointer(wt.fs, stacks.Stacks, candidate.Name, candidate); err != nil {
+			return err
+		}
+		wt.cfg.GetRuntime().GetExperimentalFeatures().Stacks = stacks
+		if err := wt.cfg.WriteBack(); err != nil {
+			return connect.NewError(connect.CodeInternal, fmt.Errorf("updating stack on disk: %v", err))
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	// return an updated version of the stack
+	var out *typesv1.Stack
+	err = wt.lockedWithStackByName(ctx, req.Name, func(s *typesv1.Stack, _ *typesv1.StacksConfig_LocalhostStackPointer) error {
+		out = s
+		return nil
+	})
+	return &stackv1.UpdateStackResponse{Stack: out}, err
 }
+
+func (wt *watch) DeleteStack(ctx context.Context, req *stackv1.DeleteStackRequest) (*stackv1.DeleteStackResponse, error) {
+	// return an updated version of the stack
+	err := wt.lockedWithStackConfig(ctx, func(s *typesv1.StacksConfig) error {
+		found := false
+		s.Stacks = slices.DeleteFunc(s.Stacks, func(e *typesv1.StacksConfig_LocalhostStackPointer) bool {
+			found = true
+			return e.Name == req.Name
+		})
+		if !found {
+			return nil
+		}
+		wt.cfg.GetRuntime().GetExperimentalFeatures().Stacks = s
+		if err := wt.cfg.WriteBack(); err != nil {
+			return connect.NewError(connect.CodeInternal, fmt.Errorf("deleting stack on disk: %v", err))
+		}
+		return nil
+	})
+	return &stackv1.DeleteStackResponse{}, err
+}
+
 func (wt *watch) GetStack(ctx context.Context, req *stackv1.GetStackRequest) (*stackv1.GetStackResponse, error) {
 	var (
 		stack       *typesv1.Stack
@@ -52,7 +214,7 @@ func (wt *watch) GetStack(ctx context.Context, req *stackv1.GetStackRequest) (*s
 		alertGroups []*typesv1.AlertGroup
 		err         error
 	)
-	err = wt.withStackByName(ctx, req.Name, func(sc *typesv1.Stack, ptr *typesv1.StacksConfig_LocalhostStackPointer) error {
+	err = wt.lockedWithStackByName(ctx, req.Name, func(sc *typesv1.Stack, ptr *typesv1.StacksConfig_LocalhostStackPointer) error {
 		stack = sc
 		dashboards, err = parseStackDashboards(ctx, wt.fs, sc.Name, ptr.Path, ptr.DashboardDir)
 		if err != nil {
@@ -76,7 +238,7 @@ func (wt *watch) ListStack(ctx context.Context, req *stackv1.ListStackRequest) (
 		next *typesv1.Cursor
 		err  error
 	)
-	err = wt.withStackConfig(ctx, func(sc *typesv1.StacksConfig) error {
+	err = wt.lockedWithStackConfig(ctx, func(sc *typesv1.StacksConfig) error {
 		next, err = cursorForSlice(sc.Stacks, req.Cursor, req.Limit, 10, 100,
 			func(sp *typesv1.StacksConfig_LocalhostStackPointer) string { return sp.Name },
 			func(sp *typesv1.StacksConfig_LocalhostStackPointer) error {
@@ -107,7 +269,7 @@ func (wt *watch) GetDashboard(ctx context.Context, req *dashboardv1.GetDashboard
 		out *typesv1.Dashboard
 		err error
 	)
-	err = wt.withDashboardByID(ctx, req.StackName, req.Id, func(s *typesv1.Dashboard) error {
+	err = wt.lockedWithDashboardByID(ctx, req.StackName, req.Id, func(s *typesv1.Dashboard) error {
 		out = s
 		return nil
 	})
@@ -119,7 +281,7 @@ func (wt *watch) ListDashboard(ctx context.Context, req *dashboardv1.ListDashboa
 		next *typesv1.Cursor
 		err  error
 	)
-	err = wt.withStackByName(ctx, req.StackName, func(sc *typesv1.Stack, ptr *typesv1.StacksConfig_LocalhostStackPointer) error {
+	err = wt.lockedWithStackByName(ctx, req.StackName, func(sc *typesv1.Stack, ptr *typesv1.StacksConfig_LocalhostStackPointer) error {
 		items, err := parseStackDashboards(ctx, wt.fs, sc.Name, ptr.Path, ptr.DashboardDir)
 		if err != nil {
 			return err
@@ -150,7 +312,7 @@ func (wt *watch) GetAlertGroup(ctx context.Context, req *alertv1.GetAlertGroupRe
 		out *typesv1.AlertGroup
 		err error
 	)
-	err = wt.withAlertGroupByName(ctx, req.StackName, req.Name, func(s *typesv1.AlertGroup) error {
+	err = wt.lockedWithAlertGroupByName(ctx, req.StackName, req.Name, func(s *typesv1.AlertGroup) error {
 		out = s
 		return nil
 	})
@@ -162,7 +324,7 @@ func (wt *watch) ListAlertGroup(ctx context.Context, req *alertv1.ListAlertGroup
 		next *typesv1.Cursor
 		err  error
 	)
-	err = wt.withStackByName(ctx, req.StackName, func(sc *typesv1.Stack, ptr *typesv1.StacksConfig_LocalhostStackPointer) error {
+	err = wt.lockedWithStackByName(ctx, req.StackName, func(sc *typesv1.Stack, ptr *typesv1.StacksConfig_LocalhostStackPointer) error {
 		items, err := parseStackAlertGroups(ctx, wt.fs, sc.Name, ptr.Path, ptr.AlertDir, wt.logQlParser)
 		if err != nil {
 			return err
@@ -193,7 +355,7 @@ func (wt *watch) GetAlertRule(ctx context.Context, req *alertv1.GetAlertRuleRequ
 		out *typesv1.AlertRule
 		err error
 	)
-	err = wt.withAlertByName(ctx, req.StackName, req.GroupName, req.Name, func(ar *typesv1.AlertRule) error {
+	err = wt.lockedWithAlertByName(ctx, req.StackName, req.GroupName, req.Name, func(ar *typesv1.AlertRule) error {
 		out = ar
 		return nil
 	})
@@ -205,7 +367,7 @@ func (wt *watch) ListAlertRule(ctx context.Context, req *alertv1.ListAlertRuleRe
 		next *typesv1.Cursor
 		err  error
 	)
-	err = wt.withAlertGroupByName(ctx, req.StackName, req.GroupName, func(s *typesv1.AlertGroup) error {
+	err = wt.lockedWithAlertGroupByName(ctx, req.StackName, req.GroupName, func(s *typesv1.AlertGroup) error {
 		next, err = cursorForSlice(s.Rules, req.Cursor, req.Limit, 10, 100,
 			func(sp *typesv1.AlertRule) string { return sp.Name },
 			func(sp *typesv1.AlertRule) error {
@@ -218,16 +380,25 @@ func (wt *watch) ListAlertRule(ctx context.Context, req *alertv1.ListAlertRuleRe
 	return &alertv1.ListAlertRuleResponse{Items: out, Next: next}, err
 }
 
-func (wt *watch) withStackConfig(ctx context.Context, fn func(*typesv1.StacksConfig) error) error {
-	stacks := wt.cfg.GetRuntime().GetExperimentalFeatures().GetStacks()
+func (wt *watch) lockedWithStackConfig(ctx context.Context, fn func(*typesv1.StacksConfig) error) error {
+	wt.mu.Lock()
+	defer wt.mu.Unlock()
+	// make sure we load the latest data
+	cfg, err := wt.cfg.Reload()
+	if err != nil {
+		return connect.NewError(connect.CodeInternal, fmt.Errorf("reloading config file: %v", err))
+	}
+	wt.cfg = cfg
+
+	stacks := cfg.GetRuntime().GetExperimentalFeatures().GetStacks()
 	if stacks == nil {
 		return connect.NewError(connect.CodeNotFound, fmt.Errorf("localhost stacks are not enabled, set them up in your config file"))
 	}
 	return fn(stacks)
 }
 
-func (wt *watch) withStackByName(ctx context.Context, name string, fn func(*typesv1.Stack, *typesv1.StacksConfig_LocalhostStackPointer) error) error {
-	return wt.withStackConfig(ctx, func(sc *typesv1.StacksConfig) error {
+func (wt *watch) lockedWithStackByName(ctx context.Context, name string, fn func(*typesv1.Stack, *typesv1.StacksConfig_LocalhostStackPointer) error) error {
+	return wt.lockedWithStackConfig(ctx, func(sc *typesv1.StacksConfig) error {
 		for _, localpointer := range sc.Stacks {
 			if localpointer.Name == name {
 				st, err := parseStackPointer(ctx, wt.fs, localpointer)
@@ -241,8 +412,8 @@ func (wt *watch) withStackByName(ctx context.Context, name string, fn func(*type
 	})
 }
 
-func (wt *watch) withDashboardByID(ctx context.Context, stackName, id string, fn func(*typesv1.Dashboard) error) error {
-	return wt.withStackByName(ctx, stackName, func(s *typesv1.Stack, sc *typesv1.StacksConfig_LocalhostStackPointer) error {
+func (wt *watch) lockedWithDashboardByID(ctx context.Context, stackName, id string, fn func(*typesv1.Dashboard) error) error {
+	return wt.lockedWithStackByName(ctx, stackName, func(s *typesv1.Stack, sc *typesv1.StacksConfig_LocalhostStackPointer) error {
 		dashboards, err := parseStackDashboards(ctx, wt.fs, sc.Name, sc.Path, sc.DashboardDir)
 		if err != nil {
 			return err
@@ -256,8 +427,8 @@ func (wt *watch) withDashboardByID(ctx context.Context, stackName, id string, fn
 	})
 }
 
-func (wt *watch) withAlertGroupByName(ctx context.Context, stackName, name string, fn func(*typesv1.AlertGroup) error) error {
-	return wt.withStackByName(ctx, stackName, func(s *typesv1.Stack, sc *typesv1.StacksConfig_LocalhostStackPointer) error {
+func (wt *watch) lockedWithAlertGroupByName(ctx context.Context, stackName, name string, fn func(*typesv1.AlertGroup) error) error {
+	return wt.lockedWithStackByName(ctx, stackName, func(s *typesv1.Stack, sc *typesv1.StacksConfig_LocalhostStackPointer) error {
 		alertGroups, err := parseStackAlertGroups(ctx, wt.fs, sc.Name, sc.Path, sc.AlertDir, wt.logQlParser)
 		if err != nil {
 			return err
@@ -271,8 +442,8 @@ func (wt *watch) withAlertGroupByName(ctx context.Context, stackName, name strin
 	})
 }
 
-func (wt *watch) withAlertByName(ctx context.Context, stackName, groupName, name string, fn func(*typesv1.AlertRule) error) error {
-	return wt.withAlertGroupByName(ctx, stackName, groupName, func(ag *typesv1.AlertGroup) error {
+func (wt *watch) lockedWithAlertByName(ctx context.Context, stackName, groupName, name string, fn func(*typesv1.AlertRule) error) error {
+	return wt.lockedWithAlertGroupByName(ctx, stackName, groupName, func(ag *typesv1.AlertGroup) error {
 		for _, el := range ag.Rules {
 			if el.Name == name {
 				return fn(el)

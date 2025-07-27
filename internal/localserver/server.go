@@ -23,6 +23,7 @@ import (
 	"github.com/humanlogio/api/go/svc/localhost/v1/localhostv1connect"
 	"github.com/humanlogio/api/go/svc/query/v1/queryv1connect"
 	stackv1 "github.com/humanlogio/api/go/svc/stack/v1"
+	"github.com/humanlogio/api/go/svc/stack/v1/stackv1connect"
 	userv1 "github.com/humanlogio/api/go/svc/user/v1"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
 	"github.com/humanlogio/humanlog/internal/errutil"
@@ -167,6 +168,7 @@ func ServeLocalhost(
 	mux.Handle(ingestv1connect.NewIngestServiceHandler(localhostsvc, connect.WithInterceptors(otelIctpr)))
 	mux.Handle(queryv1connect.NewQueryServiceHandler(localhostsvc, connect.WithInterceptors(otelIctpr)))
 	mux.Handle(queryv1connect.NewTraceServiceHandler(localhostsvc, connect.WithInterceptors(otelIctpr)))
+	mux.Handle(stackv1connect.NewStackServiceHandler(localhostsvc, connect.WithInterceptors(otelIctpr)))
 	mux.Handle(dashboardv1connect.NewDashboardServiceHandler(localhostsvc, connect.WithInterceptors(otelIctpr)))
 	mux.Handle(alertv1connect.NewAlertServiceHandler(localhostsvc, connect.WithInterceptors(otelIctpr)))
 

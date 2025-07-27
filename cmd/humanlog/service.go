@@ -30,6 +30,7 @@ import (
 	"github.com/humanlogio/humanlog/internal/localserver"
 	"github.com/humanlogio/humanlog/internal/localstack"
 	"github.com/humanlogio/humanlog/internal/localstate"
+	"github.com/humanlogio/humanlog/internal/pkg/absfs"
 	"github.com/humanlogio/humanlog/internal/pkg/config"
 	"github.com/humanlogio/humanlog/internal/pkg/selfupdate"
 	"github.com/humanlogio/humanlog/internal/pkg/state"
@@ -498,7 +499,7 @@ func (hdl *serviceHandler) runLocalhost(
 	registerOnCloseServer func(srv *http.Server),
 ) error {
 	openState := func(ctx context.Context, db localstorage.Storage) (localstate.DB, error) {
-		return localstack.Watch(ctx, os.DirFS("/"), cfg, db, func(s string) (*typesv1.Query, error) {
+		return localstack.Watch(ctx, absfs.New("/"), cfg, db, func(s string) (*typesv1.Query, error) {
 			return db.Parse(ctx, s)
 		}), nil
 	}

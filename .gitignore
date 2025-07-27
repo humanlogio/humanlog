@@ -4,3 +4,4 @@ debug.log
 logdump.json
 dist-extra
 vendor
+*__debug_bin*

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -85,6 +86,7 @@ func GetDefaultConfig(releaseChannel string) (*Config, error) {
 					ReleaseChannel:  &releaseChannel,
 					SendLogsToCloud: sendLogsToCloud,
 					ServeLocalhost:  serveLocalhostCfg,
+					Stacks:          &typesv1.StacksConfig{},
 				},
 			},
 		},
@@ -149,7 +151,7 @@ func GetDefaultConfigFilepath() (string, error) {
 }
 
 func ReadConfigFile(path string, dflt *Config, writebackIfMigrated bool) (*Config, error) {
-	if dflt.path == "" {
+	if dflt != nil && dflt.path == "" {
 		dflt.path = path
 	}
 	configFile, err := os.Open(path)
@@ -170,6 +172,7 @@ func ReadConfigFile(path string, dflt *Config, writebackIfMigrated bool) (*Confi
 			return nil, fmt.Errorf("writing back migrated config file: %v", err)
 		}
 	}
+	cfg.dflt = dflt
 	return cfg.populateEmpty(dflt), nil
 }
 
@@ -214,6 +217,7 @@ type Config struct {
 	// unexported, the filepath where the `Config` get's serialized and saved to
 	path     string
 	migrated bool
+	dflt     *Config // what was used to set the default
 }
 
 var _ json.Unmarshaler = (*Config)(nil)
@@ -256,10 +260,29 @@ func (cfg *Config) UnmarshalJSON(p []byte) error {
 }
 
 func (cfg *Config) WriteBack() error {
+	if cfg.path == "" {
+		// we're not based off a file, nothing to write back
+		return nil
+	}
 	return WriteConfigFile(cfg.path, cfg)
 }
 
+func (cfg *Config) Reload() (*Config, error) {
+	if cfg.path == "" {
+		// we're not based off a file, nothing to reload
+		return cfg, nil
+	}
+	reloaded, err := ReadConfigFile(cfg.path, cfg.dflt, false)
+	if err != nil {
+		return nil, err
+	}
+	return reloaded, nil
+}
+
 func (cfg Config) populateEmpty(other *Config) *Config {
+	if other == nil {
+		return &cfg
+	}
 	out := &Config{Version: cfg.Version, path: cfg.path}
 	if out.CurrentConfig == nil {
 		out.CurrentConfig = new(typesv1.LocalhostConfig)
@@ -499,6 +522,9 @@ func mergeRuntimeExperimentalFeatures(prev, next *typesv1.RuntimeConfig_Experime
 	if next.ServeLocalhost != nil {
 		out.ServeLocalhost = mergeRuntimeServeLocalhostConfig(prev.GetServeLocalhost(), next.ServeLocalhost)
 	}
+	if next.Stacks != nil {
+		out.Stacks = mergeRuntimeStacksConfig(prev.GetStacks(), next.Stacks)
+	}
 	return out
 }
 
@@ -546,6 +572,23 @@ func mergeRuntimeServeLocalhostConfigOltp(prev, next *typesv1.ServeLocalhostConf
 	}
 	out.GrpcPort = next.GrpcPort
 	out.HttpPort = next.HttpPort
+	return out
+}
+
+func mergeRuntimeStacksConfig(prev, next *typesv1.StacksConfig) *typesv1.StacksConfig {
+	out := proto.Clone(prev).(*typesv1.StacksConfig)
+	if out == nil {
+		out = new(typesv1.StacksConfig)
+	}
+	out.Stacks = mergeRuntimeStacksConfig_LocalhostStackPointer(prev.Stacks, next.Stacks)
+	return out
+}
+
+func mergeRuntimeStacksConfig_LocalhostStackPointer(prev, next []*typesv1.StacksConfig_LocalhostStackPointer) []*typesv1.StacksConfig_LocalhostStackPointer {
+	out := slices.Concat(prev, next)
+	slices.SortFunc(out, func(a, b *typesv1.StacksConfig_LocalhostStackPointer) int {
+		return strings.Compare(a.Name, b.Name)
+	})
 	return out
 }
 
