@@ -3,6 +3,7 @@ package localstack
 import (
 	"bytes"
 	"context"
+	"encoding/base32"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -24,6 +25,7 @@ import (
 	"github.com/humanlogio/humanlog/internal/pkg/config"
 	"github.com/humanlogio/humanlog/pkg/localstorage"
 	persesv1 "github.com/perses/perses/pkg/model/api/v1"
+	"github.com/zeebo/blake3"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"gopkg.in/yaml.v3"
@@ -503,10 +505,19 @@ func parseStackDashboards(ctx context.Context, ffs fs.FS, stackName, stackPath, 
 	return out, nil
 }
 
+func dashboardID(stackName, projectName, dashboardName string) string {
+	h := blake3.New()
+	h.WriteString(stackName)
+	h.WriteString(projectName)
+	h.WriteString(dashboardName)
+	return "hdash_" + base32.HexEncoding.EncodeToString(h.Sum(nil))
+}
+
 func parseStackDashboard(ctx context.Context, ffs fs.FS, stackName, dashboardPath, filename string) (*typesv1.Dashboard, error) {
 	persesToProto := func(in *persesv1.Dashboard, stackName, filepath string, data []byte) (*typesv1.Dashboard, error) {
+
 		return &typesv1.Dashboard{
-			Id:          path.Join(stackName, in.Metadata.Project, in.Metadata.Name),
+			Id:          dashboardID(stackName, in.Metadata.Project, in.Metadata.Name),
 			Name:        in.Spec.Display.Name,
 			Description: in.Spec.Display.Description,
 			IsReadonly:  true,

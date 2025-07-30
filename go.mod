@@ -42,6 +42,7 @@ require (
 	github.com/ryanuber/go-glob v1.0.0
 	github.com/stretchr/testify v1.10.0
 	github.com/urfave/cli v1.22.14
+	github.com/zeebo/blake3 v0.2.4
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.60.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.61.0
 	go.opentelemetry.io/contrib/propagators/b3 v1.35.0
