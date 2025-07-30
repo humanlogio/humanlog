@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	dashboardv1 "github.com/humanlogio/api/go/svc/dashboard/v1"
 	stackv1 "github.com/humanlogio/api/go/svc/stack/v1"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
 	"github.com/humanlogio/humanlog/internal/localstate"
@@ -257,6 +258,30 @@ spec:
 						res, err := d.ListStack(ctx, &stackv1.ListStackRequest{})
 						require.NoError(t, err)
 						got := res.Items
+						diff := cmp.Diff(want, got, protocmp.Transform())
+						require.Empty(t, diff)
+					},
+				},
+				{
+					name: "get dashboard by id",
+					check: func(ctx context.Context, t *testing.T, d localstate.DB) {
+						want := &typesv1.Dashboard{
+							Id:          dashboardID("my stack", "my project", "my_dashboard"),
+							Name:        "my dashboard",
+							Description: "it's a nice dashboard",
+							IsReadonly:  true,
+							CreatedAt:   timestamppb.New(time.Time{}),
+							UpdatedAt:   timestamppb.New(time.Time{}),
+							PersesJson:  mkDashboardDataJSON(),
+							Source:      &typesv1.Dashboard_File{File: "stack1dir/dashdir/dash1.json"},
+						}
+						res, err := d.GetDashboard(ctx, &dashboardv1.GetDashboardRequest{
+							EnvironmentId: 0,
+							StackName:     "my stack",
+							Id:            dashboardID("my stack", "my project", "my_dashboard"),
+						})
+						require.NoError(t, err)
+						got := res.Dashboard
 						diff := cmp.Diff(want, got, protocmp.Transform())
 						require.Empty(t, diff)
 					},
