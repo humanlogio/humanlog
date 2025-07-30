@@ -114,7 +114,7 @@ spec:
 							},
 							Dashboards: []*typesv1.Dashboard{
 								{
-									Id:          "my stack/my project/my_dashboard",
+									Id:          dashboardID("my stack", "my project", "my_dashboard"),
 									Name:        "my dashboard",
 									Description: "it's a nice dashboard",
 									IsReadonly:  true,
@@ -124,7 +124,7 @@ spec:
 									Source:      &typesv1.Dashboard_File{File: "stack1dir/dashdir/dash1.json"},
 								},
 								{
-									Id:          "my stack/my project/my_dashboard",
+									Id:          dashboardID("my stack", "my project", "my_dashboard"),
 									Name:        "my dashboard",
 									Description: "it's a nice dashboard",
 									IsReadonly:  true,
@@ -134,7 +134,7 @@ spec:
 									Source:      &typesv1.Dashboard_File{File: "stack1dir/dashdir/dash2.yaml"},
 								},
 								{
-									Id:          "my stack/my project/my_dashboard",
+									Id:          dashboardID("my stack", "my project", "my_dashboard"),
 									Name:        "my dashboard",
 									Description: "it's a nice dashboard",
 									IsReadonly:  true,
@@ -221,7 +221,7 @@ spec:
 						}
 						got, err := d.GetStack(ctx, &stackv1.GetStackRequest{Name: "my stack"})
 						require.NoError(t, err)
-						diff := cmp.Diff(got, want, protocmp.Transform())
+						diff := cmp.Diff(want, got, protocmp.Transform())
 						require.Empty(t, diff)
 					},
 				},
@@ -257,7 +257,7 @@ spec:
 						res, err := d.ListStack(ctx, &stackv1.ListStackRequest{})
 						require.NoError(t, err)
 						got := res.Items
-						diff := cmp.Diff(got, want, protocmp.Transform())
+						diff := cmp.Diff(want, got, protocmp.Transform())
 						require.Empty(t, diff)
 					},
 				},
