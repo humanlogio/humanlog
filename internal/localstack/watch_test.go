@@ -3,6 +3,7 @@ package localstack
 import (
 	"context"
 	"io/fs"
+	"net/url"
 	"slices"
 	"testing"
 	"testing/fstest"
@@ -19,6 +20,12 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
+
+func TestDashboardIDIsURLSafe(t *testing.T) {
+	want := dashboardID("hello world", "i love potatoes", "my garden dashboards, potato focused")
+	got := url.QueryEscape(want)
+	require.Equal(t, want, got, "should not require escaping")
+}
 
 func TestWatch(t *testing.T) {
 	mkDashboardDataJSON := func() []byte {
