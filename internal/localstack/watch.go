@@ -510,7 +510,7 @@ func dashboardID(stackName, projectName, dashboardName string) string {
 	h.WriteString(stackName)
 	h.WriteString(projectName)
 	h.WriteString(dashboardName)
-	return "hdash_" + base32.HexEncoding.EncodeToString(h.Sum(nil))
+	return "hdash_" + strings.ToLower(base32.HexEncoding.WithPadding(base32.NoPadding).EncodeToString(h.Sum(nil)))
 }
 
 func parseStackDashboard(ctx context.Context, ffs fs.FS, stackName, dashboardPath, filename string) (*typesv1.Dashboard, error) {
