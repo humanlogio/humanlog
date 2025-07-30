@@ -3,6 +3,7 @@ package localstack
 import (
 	"context"
 	"io/fs"
+	"slices"
 	"testing"
 	"testing/fstest"
 	"time"
@@ -279,6 +280,40 @@ spec:
 							EnvironmentId: 0,
 							StackName:     "my stack",
 							Id:            dashboardID("my stack", "my project", "my_dashboard"),
+						})
+						require.NoError(t, err)
+						got := res.Dashboard
+						diff := cmp.Diff(want, got, protocmp.Transform())
+						require.Empty(t, diff)
+					},
+				},
+				{
+					name: "get dashboard by id, via stack's dashboard list",
+					check: func(ctx context.Context, t *testing.T, d localstate.DB) {
+						gotStack, err := d.GetStack(ctx, &stackv1.GetStackRequest{Name: "my stack"})
+						require.NoError(t, err)
+						// gotStack.Dashboards
+						i := slices.IndexFunc(gotStack.Dashboards, func(d *typesv1.Dashboard) bool {
+							return d.Name == "my dashboard"
+						})
+						require.NotEqual(t, -1, i)
+
+						db := gotStack.Dashboards[i]
+
+						want := &typesv1.Dashboard{
+							Id:          dashboardID("my stack", "my project", "my_dashboard"),
+							Name:        "my dashboard",
+							Description: "it's a nice dashboard",
+							IsReadonly:  true,
+							CreatedAt:   timestamppb.New(time.Time{}),
+							UpdatedAt:   timestamppb.New(time.Time{}),
+							PersesJson:  mkDashboardDataJSON(),
+							Source:      &typesv1.Dashboard_File{File: "stack1dir/dashdir/dash1.json"},
+						}
+						res, err := d.GetDashboard(ctx, &dashboardv1.GetDashboardRequest{
+							EnvironmentId: 0,
+							StackName:     gotStack.Stack.Name,
+							Id:            db.Id,
 						})
 						require.NoError(t, err)
 						got := res.Dashboard
