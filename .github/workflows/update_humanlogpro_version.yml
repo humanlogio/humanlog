@@ -21,6 +21,7 @@ jobs:
     env:
       GOPRIVATE: "github.com/humanlogio/humanlog-pro"
       GH_ACCESS_TOKEN_FOR_HUMANLOGPRO: ${{ secrets.GH_ACCESS_TOKEN_FOR_HUMANLOGPRO }}
+      GH_ACCESS_TOKEN_FOR_AUTO_PR: ${{ secrets.GH_ACCESS_TOKEN_FOR_AUTO_PR }}
       PACKAGE_VERSION: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.package_version || github.event.client_payload.package_version }}
 
     steps:
@@ -36,5 +37,6 @@ jobs:
       - run: ./script/update_humanlogpro_version.sh $PACKAGE_VERSION
       - uses: peter-evans/create-pull-request@v7
         with:
+          token: ${{ secrets.GH_ACCESS_TOKEN_FOR_AUTO_PR }}
           commit-message: "chore(pro): bump humanlog-pro@PACKAGE_VERSION"
           branch: "bump-humanlog-pro"
