@@ -38,5 +38,6 @@ jobs:
       - uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ secrets.GH_ACCESS_TOKEN_FOR_AUTO_PR }}
-          commit-message: "chore(pro): bump humanlog-pro@PACKAGE_VERSION"
+          title: "chore(pro): bump humanlog-pro@${{ github.event_name == 'workflow_dispatch' && github.event.inputs.package_version || github.event.client_payload.package_version }}"
+          commit-message: "chore(pro): bump humanlog-pro@${{ github.event_name == 'workflow_dispatch' && github.event.inputs.package_version || github.event.client_payload.package_version }}"
           branch: "bump-humanlog-pro"
