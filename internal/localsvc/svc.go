@@ -16,10 +16,10 @@ import (
 	igsvcpb "github.com/humanlogio/api/go/svc/ingest/v1/ingestv1connect"
 	lhv1 "github.com/humanlogio/api/go/svc/localhost/v1"
 	lhsvcpb "github.com/humanlogio/api/go/svc/localhost/v1/localhostv1connect"
+	projectv1 "github.com/humanlogio/api/go/svc/project/v1"
+	projectpb "github.com/humanlogio/api/go/svc/project/v1/projectv1connect"
 	qrv1 "github.com/humanlogio/api/go/svc/query/v1"
 	qrsvcpb "github.com/humanlogio/api/go/svc/query/v1/queryv1connect"
-	stackv1 "github.com/humanlogio/api/go/svc/stack/v1"
-	stackpb "github.com/humanlogio/api/go/svc/stack/v1/stackv1connect"
 	userv1 "github.com/humanlogio/api/go/svc/user/v1"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
 	"github.com/humanlogio/humanlog/internal/localstate"
@@ -85,7 +85,7 @@ var (
 	_ qrsvcpb.QueryServiceHandler         = (*Service)(nil)
 	_ qrsvcpb.TraceServiceHandler         = (*Service)(nil)
 	_ qrsvcpb.TraceServiceHandler         = (*Service)(nil)
-	_ stackpb.StackServiceHandler         = (*Service)(nil)
+	_ projectpb.ProjectServiceHandler     = (*Service)(nil)
 	_ dashboardpb.DashboardServiceHandler = (*Service)(nil)
 	_ alertpb.AlertServiceHandler         = (*Service)(nil)
 )
@@ -619,45 +619,45 @@ func (svc *Service) ListSymbols(ctx context.Context, req *connect.Request[qrv1.L
 	return connect.NewResponse(out), nil
 }
 
-func (svc *Service) CreateStack(ctx context.Context, req *connect.Request[stackv1.CreateStackRequest]) (*connect.Response[stackv1.CreateStackResponse], error) {
+func (svc *Service) CreateProject(ctx context.Context, req *connect.Request[projectv1.CreateProjectRequest]) (*connect.Response[projectv1.CreateProjectResponse], error) {
 	msg := req.Msg
-	out, err := svc.db.CreateStack(ctx, msg)
+	out, err := svc.db.CreateProject(ctx, msg)
 	if err != nil {
 		return nil, err
 	}
 	return connect.NewResponse(out), nil
 }
 
-func (svc *Service) GetStack(ctx context.Context, req *connect.Request[stackv1.GetStackRequest]) (*connect.Response[stackv1.GetStackResponse], error) {
+func (svc *Service) GetProject(ctx context.Context, req *connect.Request[projectv1.GetProjectRequest]) (*connect.Response[projectv1.GetProjectResponse], error) {
 	msg := req.Msg
-	out, err := svc.db.GetStack(ctx, msg)
+	out, err := svc.db.GetProject(ctx, msg)
 	if err != nil {
 		return nil, err
 	}
 	return connect.NewResponse(out), nil
 }
 
-func (svc *Service) UpdateStack(ctx context.Context, req *connect.Request[stackv1.UpdateStackRequest]) (*connect.Response[stackv1.UpdateStackResponse], error) {
+func (svc *Service) UpdateProject(ctx context.Context, req *connect.Request[projectv1.UpdateProjectRequest]) (*connect.Response[projectv1.UpdateProjectResponse], error) {
 	msg := req.Msg
-	out, err := svc.db.UpdateStack(ctx, msg)
+	out, err := svc.db.UpdateProject(ctx, msg)
 	if err != nil {
 		return nil, err
 	}
 	return connect.NewResponse(out), nil
 }
 
-func (svc *Service) DeleteStack(ctx context.Context, req *connect.Request[stackv1.DeleteStackRequest]) (*connect.Response[stackv1.DeleteStackResponse], error) {
+func (svc *Service) DeleteProject(ctx context.Context, req *connect.Request[projectv1.DeleteProjectRequest]) (*connect.Response[projectv1.DeleteProjectResponse], error) {
 	msg := req.Msg
-	out, err := svc.db.DeleteStack(ctx, msg)
+	out, err := svc.db.DeleteProject(ctx, msg)
 	if err != nil {
 		return nil, err
 	}
 	return connect.NewResponse(out), nil
 }
 
-func (svc *Service) ListStack(ctx context.Context, req *connect.Request[stackv1.ListStackRequest]) (*connect.Response[stackv1.ListStackResponse], error) {
+func (svc *Service) ListProject(ctx context.Context, req *connect.Request[projectv1.ListProjectRequest]) (*connect.Response[projectv1.ListProjectResponse], error) {
 	msg := req.Msg
-	out, err := svc.db.ListStack(ctx, msg)
+	out, err := svc.db.ListProject(ctx, msg)
 	if err != nil {
 		return nil, err
 	}

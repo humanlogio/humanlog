@@ -10,7 +10,7 @@ import (
 	"connectrpc.com/connect"
 	alertv1 "github.com/humanlogio/api/go/svc/alert/v1"
 	dashboardv1 "github.com/humanlogio/api/go/svc/dashboard/v1"
-	stackv1 "github.com/humanlogio/api/go/svc/stack/v1"
+	projectv1 "github.com/humanlogio/api/go/svc/project/v1"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
 	"github.com/humanlogio/humanlog/pkg/localstorage"
 	"github.com/oklog/ulid/v2"
@@ -23,12 +23,12 @@ var _ DB = (*Mem)(nil)
 type Mem struct {
 	mu sync.Mutex
 
-	stacklist []string
-	stacks    map[string]*stack
+	projectlist []string
+	projects    map[string]*project
 }
 
-type stack struct {
-	stack *typesv1.Stack
+type project struct {
+	project *typesv1.Project
 
 	dashboardlist []string
 	dashboards    map[string]*typesv1.Dashboard
@@ -45,22 +45,22 @@ type alertGroup struct {
 
 func NewMemory() *Mem {
 	db := &Mem{
-		stacks: make(map[string]*stack),
+		projects: make(map[string]*project),
 	}
-	stackRes, err := db.CreateStack(context.Background(), &stackv1.CreateStackRequest{
-		Name: "test-ephemeral-stack",
-		Pointer: &typesv1.StackPointer{Scheme: &typesv1.StackPointer_Db{
-			Db: &typesv1.StackPointer_Virtual{
-				Uri: "db://localhost/test-ephemeral-stack",
+	projectRes, err := db.CreateProject(context.Background(), &projectv1.CreateProjectRequest{
+		Name: "test-ephemeral-project",
+		Pointer: &typesv1.ProjectPointer{Scheme: &typesv1.ProjectPointer_Db{
+			Db: &typesv1.ProjectPointer_Virtual{
+				Uri: "db://localhost/test-ephemeral-project",
 			},
 		}},
 	})
 	if err != nil {
 		panic(err)
 	}
-	stack := stackRes.Stack
+	project := projectRes.Project
 	_, err = db.CreateDashboard(context.Background(), &dashboardv1.CreateDashboardRequest{
-		StackName:   stack.Name,
+		ProjectName: project.Name,
 		Name:        defaultDashboard.Name,
 		Description: defaultDashboard.Description,
 		IsReadonly:  defaultDashboard.IsReadonly,
@@ -72,18 +72,18 @@ func NewMemory() *Mem {
 	return db
 }
 
-func (db *Mem) withStack(name string, fn func(st *stack) error) error {
+func (db *Mem) withProject(name string, fn func(st *project) error) error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
-	stack, ok := db.stacks[name]
+	project, ok := db.projects[name]
 	if !ok {
-		return connect.NewError(connect.CodeNotFound, fmt.Errorf("no stack with name %q exists", name))
+		return connect.NewError(connect.CodeNotFound, fmt.Errorf("no project with name %q exists", name))
 	}
-	return fn(stack)
+	return fn(project)
 }
 
-func (db *Mem) withAlertGroup(stackName, alertGroupName string, fn func(st *stack, group *alertGroup) error) error {
-	return db.withStack(stackName, func(st *stack) error {
+func (db *Mem) withAlertGroup(projectName, alertGroupName string, fn func(st *project, group *alertGroup) error) error {
+	return db.withProject(projectName, func(st *project) error {
 		group, ok := st.alertGroups[alertGroupName]
 		if !ok {
 			return connect.NewError(connect.CodeNotFound, fmt.Errorf("no alert group with name %q exists", alertGroupName))
@@ -92,8 +92,8 @@ func (db *Mem) withAlertGroup(stackName, alertGroupName string, fn func(st *stac
 	})
 }
 
-func (db *Mem) CreateStack(ctx context.Context, req *stackv1.CreateStackRequest) (*stackv1.CreateStackResponse, error) {
-	out := &typesv1.Stack{
+func (db *Mem) CreateProject(ctx context.Context, req *projectv1.CreateProjectRequest) (*projectv1.CreateProjectResponse, error) {
+	out := &typesv1.Project{
 		Name:      req.Name,
 		Pointer:   req.Pointer,
 		CreatedAt: timestamppb.Now(),
@@ -101,28 +101,28 @@ func (db *Mem) CreateStack(ctx context.Context, req *stackv1.CreateStackRequest)
 	}
 	db.mu.Lock()
 	defer db.mu.Unlock()
-	for _, stack := range db.stacks {
-		if stack.stack.Name == req.Name {
-			return nil, connect.NewError(connect.CodeAlreadyExists, fmt.Errorf("stack %q already uses the name %q", stack.stack.Name, req.Name))
+	for _, project := range db.projects {
+		if project.project.Name == req.Name {
+			return nil, connect.NewError(connect.CodeAlreadyExists, fmt.Errorf("project %q already uses the name %q", project.project.Name, req.Name))
 		}
 	}
-	db.stacklist = append(db.stacklist, out.Name)
-	db.stacks[out.Name] = &stack{
-		stack:       out,
+	db.projectlist = append(db.projectlist, out.Name)
+	db.projects[out.Name] = &project{
+		project:     out,
 		dashboards:  make(map[string]*typesv1.Dashboard),
 		alertGroups: make(map[string]*alertGroup),
 	}
-	return &stackv1.CreateStackResponse{Stack: out}, nil
+	return &projectv1.CreateProjectResponse{Project: out}, nil
 }
 
-func (db *Mem) GetStack(ctx context.Context, req *stackv1.GetStackRequest) (*stackv1.GetStackResponse, error) {
+func (db *Mem) GetProject(ctx context.Context, req *projectv1.GetProjectRequest) (*projectv1.GetProjectResponse, error) {
 	var (
-		out         *typesv1.Stack
+		out         *typesv1.Project
 		dashboards  []*typesv1.Dashboard
 		alertGroups []*typesv1.AlertGroup
 	)
-	err := db.withStack(req.Name, func(st *stack) error {
-		out = st.stack
+	err := db.withProject(req.Name, func(st *project) error {
+		out = st.project
 		for _, key := range st.dashboardlist {
 			dashboards = append(dashboards, st.dashboards[key])
 		}
@@ -131,36 +131,36 @@ func (db *Mem) GetStack(ctx context.Context, req *stackv1.GetStackRequest) (*sta
 		}
 		return nil
 	})
-	return &stackv1.GetStackResponse{Stack: out, Dashboards: dashboards, AlertGroups: alertGroups}, err
+	return &projectv1.GetProjectResponse{Project: out, Dashboards: dashboards, AlertGroups: alertGroups}, err
 }
 
-func (db *Mem) UpdateStack(ctx context.Context, req *stackv1.UpdateStackRequest) (*stackv1.UpdateStackResponse, error) {
-	var out *typesv1.Stack
-	err := db.withStack(req.Name, func(st *stack) error {
-		out = st.stack
+func (db *Mem) UpdateProject(ctx context.Context, req *projectv1.UpdateProjectRequest) (*projectv1.UpdateProjectResponse, error) {
+	var out *typesv1.Project
+	err := db.withProject(req.Name, func(st *project) error {
+		out = st.project
 		for _, mutation := range req.Mutations {
 			switch do := mutation.Do.(type) {
-			case *stackv1.UpdateStackRequest_Mutation_SetName:
+			case *projectv1.UpdateProjectRequest_Mutation_SetName:
 				out.Name = do.SetName
-			case *stackv1.UpdateStackRequest_Mutation_SetPointer:
+			case *projectv1.UpdateProjectRequest_Mutation_SetPointer:
 				out.Pointer = do.SetPointer
 			}
 		}
 		out.UpdatedAt = timestamppb.Now()
 		return nil
 	})
-	return &stackv1.UpdateStackResponse{Stack: out}, err
+	return &projectv1.UpdateProjectResponse{Project: out}, err
 }
 
-func (db *Mem) DeleteStack(ctx context.Context, req *stackv1.DeleteStackRequest) (*stackv1.DeleteStackResponse, error) {
+func (db *Mem) DeleteProject(ctx context.Context, req *projectv1.DeleteProjectRequest) (*projectv1.DeleteProjectResponse, error) {
 	db.mu.Lock()
 	defer db.mu.Unlock()
-	delete(db.stacks, req.Name)
-	db.stacklist = slices.DeleteFunc(db.stacklist, func(e string) bool { return e == req.Name })
+	delete(db.projects, req.Name)
+	db.projectlist = slices.DeleteFunc(db.projectlist, func(e string) bool { return e == req.Name })
 	return nil, nil
 }
 
-func (db *Mem) ListStack(ctx context.Context, req *stackv1.ListStackRequest) (*stackv1.ListStackResponse, error) {
+func (db *Mem) ListProject(ctx context.Context, req *projectv1.ListProjectRequest) (*projectv1.ListProjectResponse, error) {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
@@ -170,7 +170,7 @@ func (db *Mem) ListStack(ctx context.Context, req *stackv1.ListStackRequest) (*s
 	limit = min(limit, 10)
 
 	var (
-		out  []*stackv1.ListStackResponse_ListItem
+		out  []*projectv1.ListProjectResponse_ListItem
 		next *typesv1.Cursor
 		err  error
 	)
@@ -185,32 +185,32 @@ func (db *Mem) ListStack(ctx context.Context, req *stackv1.ListStackRequest) (*s
 	}
 	var i int
 	if fromID != "" {
-		i = slices.IndexFunc(db.stacklist, func(e string) bool { return e == fromID }) + 1
+		i = slices.IndexFunc(db.projectlist, func(e string) bool { return e == fromID }) + 1
 	}
-	if i > len(db.stacklist) {
-		return &stackv1.ListStackResponse{}, nil
+	if i > len(db.projectlist) {
+		return &projectv1.ListProjectResponse{}, nil
 	}
 	from := i
-	to := min(i+int(limit), len(db.stacklist))
+	to := min(i+int(limit), len(db.projectlist))
 
-	for _, name := range db.stacklist[from:to] {
-		st := db.stacks[name]
-		out = append(out, &stackv1.ListStackResponse_ListItem{Stack: st.stack})
+	for _, name := range db.projectlist[from:to] {
+		st := db.projects[name]
+		out = append(out, &projectv1.ListProjectResponse_ListItem{Project: st.project})
 	}
 	if len(out) == int(limit) && limit != 0 {
 		next = new(typesv1.Cursor)
-		p := stringPage{LastID: out[len(out)-1].Stack.Name}
+		p := stringPage{LastID: out[len(out)-1].Project.Name}
 		next.Opaque, err = json.Marshal(p)
 		if err != nil {
 			return nil, err
 		}
 	}
-	return &stackv1.ListStackResponse{}, nil
+	return &projectv1.ListProjectResponse{}, nil
 }
 
 func (db *Mem) CreateDashboard(ctx context.Context, req *dashboardv1.CreateDashboardRequest) (*dashboardv1.CreateDashboardResponse, error) {
 	var out *typesv1.Dashboard
-	err := db.withStack(req.StackName, func(st *stack) error {
+	err := db.withProject(req.ProjectName, func(st *project) error {
 		id := ulid.Make()
 		out = &typesv1.Dashboard{
 			Id:          id.String(),
@@ -231,7 +231,7 @@ func (db *Mem) CreateDashboard(ctx context.Context, req *dashboardv1.CreateDashb
 
 func (db *Mem) GetDashboard(ctx context.Context, req *dashboardv1.GetDashboardRequest) (*dashboardv1.GetDashboardResponse, error) {
 	var out *typesv1.Dashboard
-	err := db.withStack(req.StackName, func(st *stack) error {
+	err := db.withProject(req.ProjectName, func(st *project) error {
 		var ok bool
 		out, ok = st.dashboards[req.Id]
 
@@ -245,7 +245,7 @@ func (db *Mem) GetDashboard(ctx context.Context, req *dashboardv1.GetDashboardRe
 
 func (db *Mem) UpdateDashboard(ctx context.Context, req *dashboardv1.UpdateDashboardRequest) (*dashboardv1.UpdateDashboardResponse, error) {
 	var out *typesv1.Dashboard
-	err := db.withStack(req.StackName, func(st *stack) error {
+	err := db.withProject(req.ProjectName, func(st *project) error {
 		var ok bool
 		out, ok = st.dashboards[req.Id]
 		if !ok {
@@ -273,7 +273,7 @@ func (db *Mem) UpdateDashboard(ctx context.Context, req *dashboardv1.UpdateDashb
 }
 
 func (db *Mem) DeleteDashboard(ctx context.Context, req *dashboardv1.DeleteDashboardRequest) (*dashboardv1.DeleteDashboardResponse, error) {
-	err := db.withStack(req.StackName, func(st *stack) error {
+	err := db.withProject(req.ProjectName, func(st *project) error {
 		delete(st.dashboards, req.Id)
 		st.dashboardlist = slices.DeleteFunc(st.dashboardlist, func(e string) bool { return e == req.Id })
 		return nil
@@ -296,7 +296,7 @@ func (db *Mem) ListDashboard(ctx context.Context, req *dashboardv1.ListDashboard
 		next *typesv1.Cursor
 		err  error
 	)
-	err = db.withStack(req.StackName, func(st *stack) error {
+	err = db.withProject(req.ProjectName, func(st *project) error {
 		var fromID string
 		if cursor != nil {
 			var p stringPage
@@ -334,7 +334,7 @@ func (db *Mem) ListDashboard(ctx context.Context, req *dashboardv1.ListDashboard
 
 func (db *Mem) CreateAlertGroup(ctx context.Context, req *alertv1.CreateAlertGroupRequest) (*alertv1.CreateAlertGroupResponse, error) {
 	var out *typesv1.AlertGroup
-	err := db.withStack(req.StackName, func(st *stack) error {
+	err := db.withProject(req.ProjectName, func(st *project) error {
 		out = &typesv1.AlertGroup{
 			Name:        req.Name,
 			Interval:    req.Interval,
@@ -360,7 +360,7 @@ func (db *Mem) CreateAlertGroup(ctx context.Context, req *alertv1.CreateAlertGro
 
 func (db *Mem) GetAlertGroup(ctx context.Context, req *alertv1.GetAlertGroupRequest) (*alertv1.GetAlertGroupResponse, error) {
 	var out *typesv1.AlertGroup
-	err := db.withStack(req.StackName, func(st *stack) error {
+	err := db.withProject(req.ProjectName, func(st *project) error {
 		group, ok := st.alertGroups[req.Name]
 		if !ok {
 			return connect.NewError(connect.CodeNotFound, fmt.Errorf("no such alert group: %q", req.Name))
@@ -373,7 +373,7 @@ func (db *Mem) GetAlertGroup(ctx context.Context, req *alertv1.GetAlertGroupRequ
 
 func (db *Mem) UpdateAlertGroup(ctx context.Context, req *alertv1.UpdateAlertGroupRequest) (*alertv1.UpdateAlertGroupResponse, error) {
 	var out *typesv1.AlertGroup
-	err := db.withStack(req.StackName, func(st *stack) error {
+	err := db.withProject(req.ProjectName, func(st *project) error {
 		group, ok := st.alertGroups[req.Name]
 		if !ok {
 			return connect.NewError(connect.CodeNotFound, fmt.Errorf("no such alert group"))
@@ -401,7 +401,7 @@ func (db *Mem) UpdateAlertGroup(ctx context.Context, req *alertv1.UpdateAlertGro
 }
 
 func (db *Mem) DeleteAlertGroup(ctx context.Context, req *alertv1.DeleteAlertGroupRequest) (*alertv1.DeleteAlertGroupResponse, error) {
-	err := db.withStack(req.StackName, func(st *stack) error {
+	err := db.withProject(req.ProjectName, func(st *project) error {
 		delete(st.alertGroups, req.Name)
 		st.alertGroupList = slices.DeleteFunc(st.alertGroupList, func(e string) bool { return e == req.Name })
 		return nil
@@ -420,7 +420,7 @@ func (db *Mem) ListAlertGroup(ctx context.Context, req *alertv1.ListAlertGroupRe
 		next *typesv1.Cursor
 		err  error
 	)
-	err = db.withStack(req.StackName, func(st *stack) error {
+	err = db.withProject(req.ProjectName, func(st *project) error {
 		var fromID string
 		if cursor != nil {
 			var p stringPage
@@ -458,7 +458,7 @@ func (db *Mem) ListAlertGroup(ctx context.Context, req *alertv1.ListAlertGroupRe
 
 func (db *Mem) CreateAlertRule(ctx context.Context, req *alertv1.CreateAlertRuleRequest) (*alertv1.CreateAlertRuleResponse, error) {
 	var out *typesv1.AlertRule
-	db.withAlertGroup(req.StackName, req.GroupName, func(st *stack, group *alertGroup) error {
+	db.withAlertGroup(req.ProjectName, req.GroupName, func(st *project, group *alertGroup) error {
 		item := &typesv1.AlertRule{
 			Name:          req.Name,
 			Expr:          req.Expr,
@@ -481,7 +481,7 @@ func (db *Mem) CreateAlertRule(ctx context.Context, req *alertv1.CreateAlertRule
 
 func (db *Mem) GetAlertRule(ctx context.Context, req *alertv1.GetAlertRuleRequest) (*alertv1.GetAlertRuleResponse, error) {
 	var out *typesv1.AlertRule
-	err := db.withAlertGroup(req.StackName, req.GroupName, func(st *stack, group *alertGroup) error {
+	err := db.withAlertGroup(req.ProjectName, req.GroupName, func(st *project, group *alertGroup) error {
 		for _, el := range group.group.Rules {
 			if el.Name == req.Name {
 				out = el
@@ -522,7 +522,7 @@ func (db *Mem) UpdateAlertRule(ctx context.Context, req *alertv1.UpdateAlertRule
 		out *typesv1.AlertRule
 		err error
 	)
-	err = db.withAlertGroup(req.StackName, req.GroupName, func(st *stack, group *alertGroup) error {
+	err = db.withAlertGroup(req.ProjectName, req.GroupName, func(st *project, group *alertGroup) error {
 		for _, el := range group.group.Rules {
 			if el.Name == req.Name {
 				out, err = applyMutations(el)
@@ -536,7 +536,7 @@ func (db *Mem) UpdateAlertRule(ctx context.Context, req *alertv1.UpdateAlertRule
 }
 
 func (db *Mem) DeleteAlertRule(ctx context.Context, req *alertv1.DeleteAlertRuleRequest) (*alertv1.DeleteAlertRuleResponse, error) {
-	err := db.withAlertGroup(req.StackName, req.GroupName, func(st *stack, group *alertGroup) error {
+	err := db.withAlertGroup(req.ProjectName, req.GroupName, func(st *project, group *alertGroup) error {
 		group.group.Rules = slices.DeleteFunc(group.group.Rules, func(e *typesv1.AlertRule) bool { return e.Name == req.Name })
 		return nil
 	})
@@ -554,7 +554,7 @@ func (db *Mem) ListAlertRule(ctx context.Context, req *alertv1.ListAlertRuleRequ
 		next *typesv1.Cursor
 		err  error
 	)
-	err = db.withAlertGroup(req.StackName, req.GroupName, func(st *stack, group *alertGroup) error {
+	err = db.withAlertGroup(req.ProjectName, req.GroupName, func(st *project, group *alertGroup) error {
 		var fromName string
 		if cursor != nil {
 			var p stringPage
@@ -600,7 +600,7 @@ type alertStorageMem struct {
 	db *Mem
 }
 
-func (as *alertStorageMem) AlertGetOrCreate(ctx context.Context, stackName, groupName, alertName string, create func() *typesv1.AlertState) (*typesv1.AlertState, error) {
+func (as *alertStorageMem) AlertGetOrCreate(ctx context.Context, projectName, groupName, alertName string, create func() *typesv1.AlertState) (*typesv1.AlertState, error) {
 	setState := func(group *alertGroup, rule *typesv1.AlertRule, create func() *typesv1.AlertState) *typesv1.AlertState {
 		state, ok := group.alertState[rule.Name]
 		if !ok {
@@ -611,7 +611,7 @@ func (as *alertStorageMem) AlertGetOrCreate(ctx context.Context, stackName, grou
 	}
 
 	var out *typesv1.AlertState
-	err := as.db.withAlertGroup(stackName, groupName, func(st *stack, group *alertGroup) error {
+	err := as.db.withAlertGroup(projectName, groupName, func(st *project, group *alertGroup) error {
 		for _, alertRule := range group.group.Rules {
 			if alertRule.Name == alertName {
 				out = setState(group, alertRule, create)
@@ -622,8 +622,8 @@ func (as *alertStorageMem) AlertGetOrCreate(ctx context.Context, stackName, grou
 	})
 	return out, err
 }
-func (as *alertStorageMem) AlertUpdateState(ctx context.Context, stackName, groupName, alertName string, state *typesv1.AlertState) error {
-	err := as.db.withAlertGroup(stackName, groupName, func(st *stack, group *alertGroup) error {
+func (as *alertStorageMem) AlertUpdateState(ctx context.Context, projectName, groupName, alertName string, state *typesv1.AlertState) error {
+	err := as.db.withAlertGroup(projectName, groupName, func(st *project, group *alertGroup) error {
 		for _, alertRule := range group.group.Rules {
 			if alertRule.Name == alertName {
 				group.alertState[alertName] = state
@@ -634,8 +634,8 @@ func (as *alertStorageMem) AlertUpdateState(ctx context.Context, stackName, grou
 	})
 	return err
 }
-func (as *alertStorageMem) AlertDeleteStateNotInList(ctx context.Context, stackName, groupName string, keeplist []string) error {
-	err := as.db.withAlertGroup(stackName, groupName, func(st *stack, group *alertGroup) error {
+func (as *alertStorageMem) AlertDeleteStateNotInList(ctx context.Context, projectName, groupName string, keeplist []string) error {
+	err := as.db.withAlertGroup(projectName, groupName, func(st *project, group *alertGroup) error {
 		keepset := make(map[string]struct{})
 		for _, keep := range keeplist {
 			keepset[keep] = struct{}{}

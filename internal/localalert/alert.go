@@ -33,11 +33,11 @@ type CheckFunc func(
 	*typesv1.Obj,
 ) error
 
-func (ev *Evaluator) EvaluateRules(ctx context.Context, stack *typesv1.Stack, group *typesv1.AlertGroup, onStateChange CheckFunc) error {
+func (ev *Evaluator) EvaluateRules(ctx context.Context, project *typesv1.Project, group *typesv1.AlertGroup, onStateChange CheckFunc) error {
 	var keeplist []string
 	for _, alert := range group.Rules {
 		keeplist = append(keeplist, alert.Name)
-		state, err := ev.db.AlertGetOrCreate(ctx, stack.Name, group.Name, alert.Name, func() *typesv1.AlertState {
+		state, err := ev.db.AlertGetOrCreate(ctx, project.Name, group.Name, alert.Name, func() *typesv1.AlertState {
 			return newAlertState(alert)
 		})
 		if err != nil {
@@ -47,12 +47,12 @@ func (ev *Evaluator) EvaluateRules(ctx context.Context, stack *typesv1.Stack, gr
 		if err != nil {
 			return fmt.Errorf("checking alert state for group %q, alert %q: %v", group.Name, alert.Name, err)
 		}
-		err = ev.db.AlertUpdateState(ctx, stack.Name, group.Name, alert.Name, state)
+		err = ev.db.AlertUpdateState(ctx, project.Name, group.Name, alert.Name, state)
 		if err != nil {
 			return fmt.Errorf("updating alert state for group %q, alert %q: %v", group.Name, alert.Name, err)
 		}
 	}
-	if err := ev.db.AlertDeleteStateNotInList(ctx, stack.Name, group.Name, keeplist); err != nil {
+	if err := ev.db.AlertDeleteStateNotInList(ctx, project.Name, group.Name, keeplist); err != nil {
 		return err
 	}
 	return nil

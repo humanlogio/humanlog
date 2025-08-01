@@ -5,15 +5,15 @@ import (
 
 	alertv1 "github.com/humanlogio/api/go/svc/alert/v1"
 	dashboardv1 "github.com/humanlogio/api/go/svc/dashboard/v1"
-	stackv1 "github.com/humanlogio/api/go/svc/stack/v1"
+	projectv1 "github.com/humanlogio/api/go/svc/project/v1"
 )
 
 type DB interface {
-	CreateStack(context.Context, *stackv1.CreateStackRequest) (*stackv1.CreateStackResponse, error)
-	GetStack(context.Context, *stackv1.GetStackRequest) (*stackv1.GetStackResponse, error)
-	UpdateStack(context.Context, *stackv1.UpdateStackRequest) (*stackv1.UpdateStackResponse, error)
-	DeleteStack(context.Context, *stackv1.DeleteStackRequest) (*stackv1.DeleteStackResponse, error)
-	ListStack(context.Context, *stackv1.ListStackRequest) (*stackv1.ListStackResponse, error)
+	CreateProject(context.Context, *projectv1.CreateProjectRequest) (*projectv1.CreateProjectResponse, error)
+	GetProject(context.Context, *projectv1.GetProjectRequest) (*projectv1.GetProjectResponse, error)
+	UpdateProject(context.Context, *projectv1.UpdateProjectRequest) (*projectv1.UpdateProjectResponse, error)
+	DeleteProject(context.Context, *projectv1.DeleteProjectRequest) (*projectv1.DeleteProjectResponse, error)
+	ListProject(context.Context, *projectv1.ListProjectRequest) (*projectv1.ListProjectResponse, error)
 
 	CreateDashboard(ctx context.Context, req *dashboardv1.CreateDashboardRequest) (*dashboardv1.CreateDashboardResponse, error)
 	GetDashboard(ctx context.Context, req *dashboardv1.GetDashboardRequest) (*dashboardv1.GetDashboardResponse, error)

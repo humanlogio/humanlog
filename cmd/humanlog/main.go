@@ -18,7 +18,7 @@ import (
 	"time"
 
 	otelresource "go.opentelemetry.io/otel/sdk/resource"
-	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.34.0"
 
 	"connectrpc.com/connect"
 	"github.com/99designs/keyring"

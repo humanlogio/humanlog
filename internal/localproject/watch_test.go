@@ -1,4 +1,4 @@
-package localstack
+package localproject
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	dashboardv1 "github.com/humanlogio/api/go/svc/dashboard/v1"
-	stackv1 "github.com/humanlogio/api/go/svc/stack/v1"
+	projectv1 "github.com/humanlogio/api/go/svc/project/v1"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
 	"github.com/humanlogio/humanlog/internal/localstate"
 	"github.com/humanlogio/humanlog/internal/pkg/config"
@@ -64,56 +64,46 @@ spec:
 	tests := []struct {
 		name    string
 		fs      fs.FS
-		cfg     *typesv1.StacksConfig
+		cfg     *typesv1.ProjectsConfig
 		subtest []subtest
 	}{
 		{
-			name: "some stacks",
+			name: "some projects",
 			fs: fstest.MapFS{
-				"stack1dir/dashdir/dash1.json":   &fstest.MapFile{Data: mkDashboardDataJSON()},
-				"stack1dir/dashdir/dash2.yaml":   &fstest.MapFile{Data: mkDashboardDataYAML()},
-				"stack1dir/dashdir/dash3.yml":    &fstest.MapFile{Data: mkDashboardDataYAML()},
-				"stack1dir/dashdir/ignored":      &fstest.MapFile{},
-				"stack1dir/alertdir/alert1.yaml": &fstest.MapFile{Data: mkAlertGroupData()},
-				"stack1dir/alertdir/alert2.yml":  &fstest.MapFile{Data: mkAlertGroupData()},
-				"stack1dir/alertdir/ignored":     &fstest.MapFile{},
-				"stack1dir/ignored":              &fstest.MapFile{},
+				"project1dir/dashdir/dash1.json":   &fstest.MapFile{Data: mkDashboardDataJSON()},
+				"project1dir/dashdir/dash2.yaml":   &fstest.MapFile{Data: mkDashboardDataYAML()},
+				"project1dir/dashdir/dash3.yml":    &fstest.MapFile{Data: mkDashboardDataYAML()},
+				"project1dir/dashdir/ignored":      &fstest.MapFile{},
+				"project1dir/alertdir/alert1.yaml": &fstest.MapFile{Data: mkAlertGroupData()},
+				"project1dir/alertdir/alert2.yml":  &fstest.MapFile{Data: mkAlertGroupData()},
+				"project1dir/alertdir/ignored":     &fstest.MapFile{},
+				"project1dir/ignored":              &fstest.MapFile{},
 
-				"stack2dir/nested/dashdir/dash1.json":   &fstest.MapFile{},
-				"stack2dir/nested/dashdir/dash2.yaml":   &fstest.MapFile{},
-				"stack2dir/nested/dashdir/dash3.yml":    &fstest.MapFile{},
-				"stack2dir/nested/dashdir/ignored":      &fstest.MapFile{},
-				"stack2dir/nested/alertdir/alert1.yaml": &fstest.MapFile{},
-				"stack2dir/nested/alertdir/alert2.yml":  &fstest.MapFile{},
-				"stack2dir/nested/alertdir/ignored":     &fstest.MapFile{},
-				"stack2dir/nested/ignored":              &fstest.MapFile{},
+				"project2dir/nested/dashdir/dash1.json":   &fstest.MapFile{},
+				"project2dir/nested/dashdir/dash2.yaml":   &fstest.MapFile{},
+				"project2dir/nested/dashdir/dash3.yml":    &fstest.MapFile{},
+				"project2dir/nested/dashdir/ignored":      &fstest.MapFile{},
+				"project2dir/nested/alertdir/alert1.yaml": &fstest.MapFile{},
+				"project2dir/nested/alertdir/alert2.yml":  &fstest.MapFile{},
+				"project2dir/nested/alertdir/ignored":     &fstest.MapFile{},
+				"project2dir/nested/ignored":              &fstest.MapFile{},
 			},
-			cfg: &typesv1.StacksConfig{
-				Stacks: []*typesv1.StacksConfig_LocalhostStackPointer{
-					{
-						Name:         "my stack",
-						Path:         "stack1dir",
-						DashboardDir: "dashdir",
-						AlertDir:     "alertdir",
-					},
-					{
-						Name:         "my other stack",
-						Path:         "stack2dir",
-						DashboardDir: "nested/dashdir",
-						AlertDir:     "nested/alertdir",
-					},
+			cfg: &typesv1.ProjectsConfig{
+				Projects: []*typesv1.ProjectsConfig_Project{
+					localProjectPointer("my project", "project1dir", "dashdir", "alertdir", true),
+					localProjectPointer("my project", "project2dir", "nested/dashdir", "nested/alertdir", true),
 				},
 			},
 			subtest: []subtest{
 				{
-					name: "get stack and details",
+					name: "get project and details",
 					check: func(ctx context.Context, t *testing.T, d localstate.DB) {
-						want := &stackv1.GetStackResponse{
-							Stack: &typesv1.Stack{
-								Name: "my stack",
-								Pointer: &typesv1.StackPointer{Scheme: &typesv1.StackPointer_Localhost{
-									Localhost: &typesv1.StackPointer_LocalGit{
-										Path:         "stack1dir",
+						want := &projectv1.GetProjectResponse{
+							Project: &typesv1.Project{
+								Name: "my project",
+								Pointer: &typesv1.ProjectPointer{Scheme: &typesv1.ProjectPointer_Localhost{
+									Localhost: &typesv1.ProjectPointer_LocalGit{
+										Path:         "project1dir",
 										AlertDir:     "alertdir",
 										DashboardDir: "dashdir",
 									},
@@ -123,34 +113,34 @@ spec:
 							},
 							Dashboards: []*typesv1.Dashboard{
 								{
-									Id:          dashboardID("my stack", "my project", "my_dashboard"),
+									Id:          dashboardID("my project", "my project", "my_dashboard"),
 									Name:        "my dashboard",
 									Description: "it's a nice dashboard",
 									IsReadonly:  true,
 									CreatedAt:   timestamppb.New(time.Time{}),
 									UpdatedAt:   timestamppb.New(time.Time{}),
 									PersesJson:  mkDashboardDataJSON(),
-									Source:      &typesv1.Dashboard_File{File: "stack1dir/dashdir/dash1.json"},
+									Source:      &typesv1.Dashboard_File{File: "project1dir/dashdir/dash1.json"},
 								},
 								{
-									Id:          dashboardID("my stack", "my project", "my_dashboard"),
+									Id:          dashboardID("my project", "my project", "my_dashboard"),
 									Name:        "my dashboard",
 									Description: "it's a nice dashboard",
 									IsReadonly:  true,
 									CreatedAt:   timestamppb.New(time.Time{}),
 									UpdatedAt:   timestamppb.New(time.Time{}),
 									PersesJson:  mkDashboardDataYAML(),
-									Source:      &typesv1.Dashboard_File{File: "stack1dir/dashdir/dash2.yaml"},
+									Source:      &typesv1.Dashboard_File{File: "project1dir/dashdir/dash2.yaml"},
 								},
 								{
-									Id:          dashboardID("my stack", "my project", "my_dashboard"),
+									Id:          dashboardID("my project", "my project", "my_dashboard"),
 									Name:        "my dashboard",
 									Description: "it's a nice dashboard",
 									IsReadonly:  true,
 									CreatedAt:   timestamppb.New(time.Time{}),
 									UpdatedAt:   timestamppb.New(time.Time{}),
 									PersesJson:  mkDashboardDataYAML(),
-									Source:      &typesv1.Dashboard_File{File: "stack1dir/dashdir/dash3.yml"},
+									Source:      &typesv1.Dashboard_File{File: "project1dir/dashdir/dash3.yml"},
 								},
 							},
 							AlertGroups: []*typesv1.AlertGroup{
@@ -228,21 +218,21 @@ spec:
 								},
 							},
 						}
-						got, err := d.GetStack(ctx, &stackv1.GetStackRequest{Name: "my stack"})
+						got, err := d.GetProject(ctx, &projectv1.GetProjectRequest{Name: "my project"})
 						require.NoError(t, err)
 						diff := cmp.Diff(want, got, protocmp.Transform())
 						require.Empty(t, diff)
 					},
 				},
 				{
-					name: "list stacks",
+					name: "list projects",
 					check: func(ctx context.Context, t *testing.T, d localstate.DB) {
-						want := []*stackv1.ListStackResponse_ListItem{
-							{Stack: &typesv1.Stack{
-								Name: "my stack",
-								Pointer: &typesv1.StackPointer{Scheme: &typesv1.StackPointer_Localhost{
-									Localhost: &typesv1.StackPointer_LocalGit{
-										Path:         "stack1dir",
+						want := []*projectv1.ListProjectResponse_ListItem{
+							{Project: &typesv1.Project{
+								Name: "my project",
+								Pointer: &typesv1.ProjectPointer{Scheme: &typesv1.ProjectPointer_Localhost{
+									Localhost: &typesv1.ProjectPointer_LocalGit{
+										Path:         "project1dir",
 										AlertDir:     "alertdir",
 										DashboardDir: "dashdir",
 									},
@@ -250,11 +240,11 @@ spec:
 								CreatedAt: timestamppb.New(time.Time{}),
 								UpdatedAt: timestamppb.New(time.Time{}),
 							}},
-							{Stack: &typesv1.Stack{
-								Name: "my other stack",
-								Pointer: &typesv1.StackPointer{Scheme: &typesv1.StackPointer_Localhost{
-									Localhost: &typesv1.StackPointer_LocalGit{
-										Path:         "stack2dir",
+							{Project: &typesv1.Project{
+								Name: "my other project",
+								Pointer: &typesv1.ProjectPointer{Scheme: &typesv1.ProjectPointer_Localhost{
+									Localhost: &typesv1.ProjectPointer_LocalGit{
+										Path:         "project2dir",
 										AlertDir:     "nested/alertdir",
 										DashboardDir: "nested/dashdir",
 									},
@@ -263,7 +253,7 @@ spec:
 								UpdatedAt: timestamppb.New(time.Time{}),
 							}},
 						}
-						res, err := d.ListStack(ctx, &stackv1.ListStackRequest{})
+						res, err := d.ListProject(ctx, &projectv1.ListProjectRequest{})
 						require.NoError(t, err)
 						got := res.Items
 						diff := cmp.Diff(want, got, protocmp.Transform())
@@ -274,19 +264,19 @@ spec:
 					name: "get dashboard by id",
 					check: func(ctx context.Context, t *testing.T, d localstate.DB) {
 						want := &typesv1.Dashboard{
-							Id:          dashboardID("my stack", "my project", "my_dashboard"),
+							Id:          dashboardID("my project", "my project", "my_dashboard"),
 							Name:        "my dashboard",
 							Description: "it's a nice dashboard",
 							IsReadonly:  true,
 							CreatedAt:   timestamppb.New(time.Time{}),
 							UpdatedAt:   timestamppb.New(time.Time{}),
 							PersesJson:  mkDashboardDataJSON(),
-							Source:      &typesv1.Dashboard_File{File: "stack1dir/dashdir/dash1.json"},
+							Source:      &typesv1.Dashboard_File{File: "project1dir/dashdir/dash1.json"},
 						}
 						res, err := d.GetDashboard(ctx, &dashboardv1.GetDashboardRequest{
 							EnvironmentId: 0,
-							StackName:     "my stack",
-							Id:            dashboardID("my stack", "my project", "my_dashboard"),
+							ProjectName:   "my project",
+							Id:            dashboardID("my project", "my project", "my_dashboard"),
 						})
 						require.NoError(t, err)
 						got := res.Dashboard
@@ -295,31 +285,31 @@ spec:
 					},
 				},
 				{
-					name: "get dashboard by id, via stack's dashboard list",
+					name: "get dashboard by id, via project's dashboard list",
 					check: func(ctx context.Context, t *testing.T, d localstate.DB) {
-						gotStack, err := d.GetStack(ctx, &stackv1.GetStackRequest{Name: "my stack"})
+						gotProject, err := d.GetProject(ctx, &projectv1.GetProjectRequest{Name: "my project"})
 						require.NoError(t, err)
-						// gotStack.Dashboards
-						i := slices.IndexFunc(gotStack.Dashboards, func(d *typesv1.Dashboard) bool {
+						// gotProject.Dashboards
+						i := slices.IndexFunc(gotProject.Dashboards, func(d *typesv1.Dashboard) bool {
 							return d.Name == "my dashboard"
 						})
 						require.NotEqual(t, -1, i)
 
-						db := gotStack.Dashboards[i]
+						db := gotProject.Dashboards[i]
 
 						want := &typesv1.Dashboard{
-							Id:          dashboardID("my stack", "my project", "my_dashboard"),
+							Id:          dashboardID("my project", "my project", "my_dashboard"),
 							Name:        "my dashboard",
 							Description: "it's a nice dashboard",
 							IsReadonly:  true,
 							CreatedAt:   timestamppb.New(time.Time{}),
 							UpdatedAt:   timestamppb.New(time.Time{}),
 							PersesJson:  mkDashboardDataJSON(),
-							Source:      &typesv1.Dashboard_File{File: "stack1dir/dashdir/dash1.json"},
+							Source:      &typesv1.Dashboard_File{File: "project1dir/dashdir/dash1.json"},
 						}
 						res, err := d.GetDashboard(ctx, &dashboardv1.GetDashboardRequest{
 							EnvironmentId: 0,
-							StackName:     gotStack.Stack.Name,
+							ProjectName:   gotProject.Project.Name,
 							Id:            db.Id,
 						})
 						require.NoError(t, err)
@@ -338,7 +328,7 @@ spec:
 			cfg := &config.Config{CurrentConfig: &typesv1.LocalhostConfig{
 				Runtime: &typesv1.RuntimeConfig{
 					ExperimentalFeatures: &typesv1.RuntimeConfig_ExperimentalFeatures{
-						Stacks: tt.cfg,
+						Projects: tt.cfg,
 					},
 				},
 			}}
@@ -397,3 +387,18 @@ const alertGroup = `groups:
         labels:
           severity: critical
 `
+
+func localProjectPointer(projectName, path, dashboard, alert string, readOnly bool) *typesv1.ProjectsConfig_Project {
+	return &typesv1.ProjectsConfig_Project{
+		Pointer: &typesv1.ProjectPointer{
+			Scheme: &typesv1.ProjectPointer_Localhost{
+				Localhost: &typesv1.ProjectPointer_LocalGit{
+					Path:         path,
+					DashboardDir: dashboard,
+					AlertDir:     alert,
+					ReadOnly:     readOnly,
+				},
+			},
+		},
+	}
+}
