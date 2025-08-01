@@ -33,11 +33,11 @@ jobs:
         run: echo "will set humanlog-pro@${{github.event.inputs.package_version }}"
 
       - if: ${{ github.event_name == 'workflow_dispatch' }}
-        run: ./script/update_humanlogpro_version.sh ${{ github.event.inputs.package_version }}
+        run: ./script/update_humanlogpro_version.sh ${{ github.event.client_payload.package_version }}
       - if: ${{ github.event_name == 'workflow_dispatch' }}
         uses: peter-evans/create-pull-request@v7
         with:
-          commit-message: "chore(pro): bump humanlog-pro@${{ github.event.inputs.package_version }}"
+          commit-message: "chore(pro): bump humanlog-pro@${{ github.event.client_payload.package_version }}"
           branch: "bump-humanlog-pro"
 
       - if: ${{ github.event_name == 'repository_dispatch' }}
