@@ -27,8 +27,8 @@ import (
 	userv1 "github.com/humanlogio/api/go/svc/user/v1"
 	"github.com/humanlogio/api/go/svc/user/v1/userv1connect"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
+	"github.com/humanlogio/humanlog/internal/localproject"
 	"github.com/humanlogio/humanlog/internal/localserver"
-	"github.com/humanlogio/humanlog/internal/localstack"
 	"github.com/humanlogio/humanlog/internal/localstate"
 	"github.com/humanlogio/humanlog/internal/pkg/absfs"
 	"github.com/humanlogio/humanlog/internal/pkg/config"
@@ -499,7 +499,7 @@ func (hdl *serviceHandler) runLocalhost(
 	registerOnCloseServer func(srv *http.Server),
 ) error {
 	openState := func(ctx context.Context, db localstorage.Storage) (localstate.DB, error) {
-		return localstack.Watch(ctx, absfs.New("/"), cfg, db, func(s string) (*typesv1.Query, error) {
+		return localproject.Watch(ctx, absfs.New("/"), cfg, db, func(s string) (*typesv1.Query, error) {
 			return db.Parse(ctx, s)
 		}), nil
 	}

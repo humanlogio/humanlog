@@ -21,9 +21,9 @@ import (
 	"github.com/humanlogio/api/go/svc/dashboard/v1/dashboardv1connect"
 	"github.com/humanlogio/api/go/svc/ingest/v1/ingestv1connect"
 	"github.com/humanlogio/api/go/svc/localhost/v1/localhostv1connect"
+	projectv1 "github.com/humanlogio/api/go/svc/project/v1"
+	"github.com/humanlogio/api/go/svc/project/v1/projectv1connect"
 	"github.com/humanlogio/api/go/svc/query/v1/queryv1connect"
-	stackv1 "github.com/humanlogio/api/go/svc/stack/v1"
-	"github.com/humanlogio/api/go/svc/stack/v1/stackv1connect"
 	userv1 "github.com/humanlogio/api/go/svc/user/v1"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
 	"github.com/humanlogio/humanlog/internal/errutil"
@@ -168,7 +168,7 @@ func ServeLocalhost(
 	mux.Handle(ingestv1connect.NewIngestServiceHandler(localhostsvc, connect.WithInterceptors(otelIctpr)))
 	mux.Handle(queryv1connect.NewQueryServiceHandler(localhostsvc, connect.WithInterceptors(otelIctpr)))
 	mux.Handle(queryv1connect.NewTraceServiceHandler(localhostsvc, connect.WithInterceptors(otelIctpr)))
-	mux.Handle(stackv1connect.NewStackServiceHandler(localhostsvc, connect.WithInterceptors(otelIctpr)))
+	mux.Handle(projectv1connect.NewProjectServiceHandler(localhostsvc, connect.WithInterceptors(otelIctpr)))
 	mux.Handle(dashboardv1connect.NewDashboardServiceHandler(localhostsvc, connect.WithInterceptors(otelIctpr)))
 	mux.Handle(alertv1connect.NewAlertServiceHandler(localhostsvc, connect.WithInterceptors(otelIctpr)))
 
@@ -251,22 +251,22 @@ func ServeLocalhost(
 	eg.Go(func() error {
 		// handle alerts
 
-		iteratorForStack := func(ctx context.Context) *iterapi.Iter[*typesv1.Stack] {
-			return iterapi.New(ctx, 100, func(ctx context.Context, cursor *typesv1.Cursor, limit int32) ([]*typesv1.Stack, *typesv1.Cursor, error) {
-				out, err := state.ListStack(ctx, &stackv1.ListStackRequest{Cursor: cursor, Limit: limit})
+		iteratorForProject := func(ctx context.Context) *iterapi.Iter[*typesv1.Project] {
+			return iterapi.New(ctx, 100, func(ctx context.Context, cursor *typesv1.Cursor, limit int32) ([]*typesv1.Project, *typesv1.Cursor, error) {
+				out, err := state.ListProject(ctx, &projectv1.ListProjectRequest{Cursor: cursor, Limit: limit})
 				if err != nil {
 					return nil, nil, err
 				}
-				var items []*typesv1.Stack
+				var items []*typesv1.Project
 				for _, el := range out.Items {
-					items = append(items, el.Stack)
+					items = append(items, el.Project)
 				}
 				return items, out.Next, nil
 			})
 		}
-		iteratorForAlertGroup := func(ctx context.Context, stackName string) *iterapi.Iter[*typesv1.AlertGroup] {
+		iteratorForAlertGroup := func(ctx context.Context, projectName string) *iterapi.Iter[*typesv1.AlertGroup] {
 			return iterapi.New(ctx, 100, func(ctx context.Context, cursor *typesv1.Cursor, limit int32) ([]*typesv1.AlertGroup, *typesv1.Cursor, error) {
-				out, err := state.ListAlertGroup(ctx, &alertv1.ListAlertGroupRequest{StackName: stackName, Cursor: cursor, Limit: limit})
+				out, err := state.ListAlertGroup(ctx, &alertv1.ListAlertGroupRequest{ProjectName: projectName, Cursor: cursor, Limit: limit})
 				if err != nil {
 					return nil, nil, err
 				}
@@ -279,15 +279,15 @@ func ServeLocalhost(
 		}
 
 		handleAlerts := func(ctx context.Context) error {
-			stackIter := iteratorForStack(ctx)
-			for stackIter.Next() {
-				stack := stackIter.Current()
+			projectIter := iteratorForProject(ctx)
+			for projectIter.Next() {
+				project := projectIter.Current()
 				evaluator := localalert.NewEvaluator(storage, time.Now)
 
-				alertGroupIter := iteratorForAlertGroup(ctx, stack.Name)
+				alertGroupIter := iteratorForAlertGroup(ctx, project.Name)
 				for alertGroupIter.Next() {
 					alertGroup := alertGroupIter.Current()
-					if err := evaluator.EvaluateRules(ctx, stack, alertGroup, notifyAlert); err != nil {
+					if err := evaluator.EvaluateRules(ctx, project, alertGroup, notifyAlert); err != nil {
 						return fmt.Errorf("evaluating alert group %q: %v", alertGroup.Name, err)
 					}
 				}
@@ -295,8 +295,8 @@ func ServeLocalhost(
 					return fmt.Errorf("iterating alert groups: %v", err)
 				}
 			}
-			if err := stackIter.Err(); err != nil {
-				return fmt.Errorf("iterating stacks: %v", err)
+			if err := projectIter.Err(); err != nil {
+				return fmt.Errorf("iterating projects: %v", err)
 			}
 
 			return nil

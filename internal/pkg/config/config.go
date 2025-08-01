@@ -86,7 +86,7 @@ func GetDefaultConfig(releaseChannel string) (*Config, error) {
 					ReleaseChannel:  &releaseChannel,
 					SendLogsToCloud: sendLogsToCloud,
 					ServeLocalhost:  serveLocalhostCfg,
-					Stacks:          &typesv1.StacksConfig{},
+					Projects:        &typesv1.ProjectsConfig{},
 				},
 			},
 		},
@@ -522,8 +522,8 @@ func mergeRuntimeExperimentalFeatures(prev, next *typesv1.RuntimeConfig_Experime
 	if next.ServeLocalhost != nil {
 		out.ServeLocalhost = mergeRuntimeServeLocalhostConfig(prev.GetServeLocalhost(), next.ServeLocalhost)
 	}
-	if next.Stacks != nil {
-		out.Stacks = mergeRuntimeStacksConfig(prev.GetStacks(), next.Stacks)
+	if next.Projects != nil {
+		out.Projects = mergeRuntimeProjectsConfig(prev.GetProjects(), next.Projects)
 	}
 	return out
 }
@@ -575,18 +575,18 @@ func mergeRuntimeServeLocalhostConfigOltp(prev, next *typesv1.ServeLocalhostConf
 	return out
 }
 
-func mergeRuntimeStacksConfig(prev, next *typesv1.StacksConfig) *typesv1.StacksConfig {
-	out := proto.Clone(prev).(*typesv1.StacksConfig)
+func mergeRuntimeProjectsConfig(prev, next *typesv1.ProjectsConfig) *typesv1.ProjectsConfig {
+	out := proto.Clone(prev).(*typesv1.ProjectsConfig)
 	if out == nil {
-		out = new(typesv1.StacksConfig)
+		out = new(typesv1.ProjectsConfig)
 	}
-	out.Stacks = mergeRuntimeStacksConfig_LocalhostStackPointer(prev.Stacks, next.Stacks)
+	out.Projects = mergeRuntimeProjectsConfig_Pointer(prev.Projects, next.Projects)
 	return out
 }
 
-func mergeRuntimeStacksConfig_LocalhostStackPointer(prev, next []*typesv1.StacksConfig_LocalhostStackPointer) []*typesv1.StacksConfig_LocalhostStackPointer {
+func mergeRuntimeProjectsConfig_Pointer(prev, next []*typesv1.ProjectsConfig_Project) []*typesv1.ProjectsConfig_Project {
 	out := slices.Concat(prev, next)
-	slices.SortFunc(out, func(a, b *typesv1.StacksConfig_LocalhostStackPointer) int {
+	slices.SortFunc(out, func(a, b *typesv1.ProjectsConfig_Project) int {
 		return strings.Compare(a.Name, b.Name)
 	})
 	return out
