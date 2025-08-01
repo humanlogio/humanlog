@@ -21,6 +21,7 @@ jobs:
     env:
       GOPRIVATE: "github.com/humanlogio/humanlog-pro"
       GH_ACCESS_TOKEN_FOR_HUMANLOGPRO: ${{ secrets.GH_ACCESS_TOKEN_FOR_HUMANLOGPRO }}
+      PACKAGE_VERSION: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.package_version || github.event.client_payload.package_version }}
 
     steps:
       - uses: actions/checkout@v4
@@ -30,20 +31,10 @@ jobs:
       - run: git config --global url.https://$GH_ACCESS_TOKEN_FOR_HUMANLOGPRO@github.com/.insteadOf https://github.com/
 
       - name: Check outputs
-        run: echo "will set humanlog-pro@${{github.event.inputs.package_version }}"
+        run: echo "will set humanlog-pro@$PACKAGE_VERSION"
 
-      - if: ${{ github.event_name == 'workflow_dispatch' }}
-        run: ./script/update_humanlogpro_version.sh ${{ github.event.client_payload.package_version }}
-      - if: ${{ github.event_name == 'workflow_dispatch' }}
-        uses: peter-evans/create-pull-request@v7
+      - run: ./script/update_humanlogpro_version.sh $PACKAGE_VERSION
+      - uses: peter-evans/create-pull-request@v7
         with:
-          commit-message: "chore(pro): bump humanlog-pro@${{ github.event.client_payload.package_version }}"
-          branch: "bump-humanlog-pro"
-
-      - if: ${{ github.event_name == 'repository_dispatch' }}
-        run: ./script/update_humanlogpro_version.sh ${{ github.event.inputs.package_version }}
-      - if: ${{ github.event_name == 'repository_dispatch' }}
-        uses: peter-evans/create-pull-request@v7
-        with:
-          commit-message: "chore(pro): bump humanlog-pro@${{ github.event.inputs.package_version }}"
+          commit-message: "chore(pro): bump humanlog-pro@PACKAGE_VERSION"
           branch: "bump-humanlog-pro"
