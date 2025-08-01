@@ -1,0 +1,45 @@
+name: update humanlog-pro version
+
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: 'SHA to update to'
+        required: true
+        type: string
+  repository_dispatch:
+    types: [update_humanlogpro_version]
+
+jobs:
+  set_tag:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      pull-requests: write
+
+    env:
+      GOPRIVATE: "github.com/humanlogio/humanlog-pro"
+      GH_ACCESS_TOKEN_FOR_HUMANLOGPRO: ${{ secrets.GH_ACCESS_TOKEN_FOR_HUMANLOGPRO }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+            ref: ${{ github.head_ref }}
+      - run: git config --global --add safe.directory '*'
+      - run: git config --global url.https://$GH_ACCESS_TOKEN_FOR_HUMANLOGPRO@github.com/.insteadOf https://github.com/
+      - if: ${{ github.event_name == 'workflow_dispatch' }}
+        run: ./script/update_humanlogpro_version.sh ${{ github.event.inputs.sha }}
+      - if: ${{ github.event_name == 'workflow_dispatch' }}
+        uses: peter-evans/create-pull-request@v7
+        with:
+          commit-message: "chore(pro): bump humanlog-pro@${{github.event.inputs.sha}}"
+          branch: "bump-humanlog-pro"
+
+      - if: ${{ github.event_name == 'repository_dispatch' }}
+        run: ./script/update_humanlogpro_version.sh ${{ github.event.inputs.sha }}
+      - if: ${{ github.event_name == 'repository_dispatch' }}
+        uses: peter-evans/create-pull-request@v7
+        with:
+          commit-message: "chore(pro): bump humanlog-pro@${{github.event.inputs.sha}}"
+          branch: "bump-humanlog-pro"
