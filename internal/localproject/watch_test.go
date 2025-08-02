@@ -21,12 +21,6 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func TestDashboardIDIsURLSafe(t *testing.T) {
-	want := dashboardID("hello world", "i love potatoes", "my garden dashboards, potato focused")
-	got := url.QueryEscape(want)
-	require.Equal(t, want, got, "should not require escaping")
-}
-
 func TestWatch(t *testing.T) {
 	mkDashboardDataJSON := func() []byte {
 		return []byte(`{
@@ -91,10 +85,46 @@ spec:
 			cfg: &typesv1.ProjectsConfig{
 				Projects: []*typesv1.ProjectsConfig_Project{
 					localProjectPointer("my project", "project1dir", "dashdir", "alertdir", true),
-					localProjectPointer("my project", "project2dir", "nested/dashdir", "nested/alertdir", true),
+					localProjectPointer("my other project", "project2dir", "nested/dashdir", "nested/alertdir", true),
 				},
 			},
 			subtest: []subtest{
+				{
+					name: "list projects",
+					check: func(ctx context.Context, t *testing.T, d localstate.DB) {
+						want := []*projectv1.ListProjectResponse_ListItem{
+							{Project: &typesv1.Project{
+								Name: "my project",
+								Pointer: &typesv1.ProjectPointer{Scheme: &typesv1.ProjectPointer_Localhost{
+									Localhost: &typesv1.ProjectPointer_LocalGit{
+										Path:         "project1dir",
+										AlertDir:     "alertdir",
+										DashboardDir: "dashdir",
+									},
+								}},
+								CreatedAt: timestamppb.New(time.Time{}),
+								UpdatedAt: timestamppb.New(time.Time{}),
+							}},
+							{Project: &typesv1.Project{
+								Name: "my other project",
+								Pointer: &typesv1.ProjectPointer{Scheme: &typesv1.ProjectPointer_Localhost{
+									Localhost: &typesv1.ProjectPointer_LocalGit{
+										Path:         "project2dir",
+										AlertDir:     "nested/alertdir",
+										DashboardDir: "nested/dashdir",
+									},
+								}},
+								CreatedAt: timestamppb.New(time.Time{}),
+								UpdatedAt: timestamppb.New(time.Time{}),
+							}},
+						}
+						res, err := d.ListProject(ctx, &projectv1.ListProjectRequest{})
+						require.NoError(t, err)
+						got := res.Items
+						diff := cmp.Diff(want, got, protocmp.Transform())
+						require.Empty(t, diff)
+					},
+				},
 				{
 					name: "get project and details",
 					check: func(ctx context.Context, t *testing.T, d localstate.DB) {
@@ -225,42 +255,6 @@ spec:
 					},
 				},
 				{
-					name: "list projects",
-					check: func(ctx context.Context, t *testing.T, d localstate.DB) {
-						want := []*projectv1.ListProjectResponse_ListItem{
-							{Project: &typesv1.Project{
-								Name: "my project",
-								Pointer: &typesv1.ProjectPointer{Scheme: &typesv1.ProjectPointer_Localhost{
-									Localhost: &typesv1.ProjectPointer_LocalGit{
-										Path:         "project1dir",
-										AlertDir:     "alertdir",
-										DashboardDir: "dashdir",
-									},
-								}},
-								CreatedAt: timestamppb.New(time.Time{}),
-								UpdatedAt: timestamppb.New(time.Time{}),
-							}},
-							{Project: &typesv1.Project{
-								Name: "my other project",
-								Pointer: &typesv1.ProjectPointer{Scheme: &typesv1.ProjectPointer_Localhost{
-									Localhost: &typesv1.ProjectPointer_LocalGit{
-										Path:         "project2dir",
-										AlertDir:     "nested/alertdir",
-										DashboardDir: "nested/dashdir",
-									},
-								}},
-								CreatedAt: timestamppb.New(time.Time{}),
-								UpdatedAt: timestamppb.New(time.Time{}),
-							}},
-						}
-						res, err := d.ListProject(ctx, &projectv1.ListProjectRequest{})
-						require.NoError(t, err)
-						got := res.Items
-						diff := cmp.Diff(want, got, protocmp.Transform())
-						require.Empty(t, diff)
-					},
-				},
-				{
 					name: "get dashboard by id",
 					check: func(ctx context.Context, t *testing.T, d localstate.DB) {
 						want := &typesv1.Dashboard{
@@ -342,6 +336,12 @@ spec:
 	}
 }
 
+func TestDashboardIDIsURLSafe(t *testing.T) {
+	want := dashboardID("hello world", "i love potatoes", "my garden dashboards, potato focused")
+	got := url.QueryEscape(want)
+	require.Equal(t, want, got, "should not require escaping")
+}
+
 func mustParseQuery(s string) *typesv1.Query {
 	q, err := parseQuery(s)
 	if err != nil {
@@ -390,6 +390,7 @@ const alertGroup = `groups:
 
 func localProjectPointer(projectName, path, dashboard, alert string, readOnly bool) *typesv1.ProjectsConfig_Project {
 	return &typesv1.ProjectsConfig_Project{
+		Name: projectName,
 		Pointer: &typesv1.ProjectPointer{
 			Scheme: &typesv1.ProjectPointer_Localhost{
 				Localhost: &typesv1.ProjectPointer_LocalGit{

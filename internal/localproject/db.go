@@ -37,7 +37,11 @@ func (store *dbStorage) getOrCreateProject(ctx context.Context, name string, ptr
 	// return onProject(st, dashboards, alertGroups)
 }
 
-func (store *dbStorage) getProject(ctx context.Context, name string, ptr *typesv1.ProjectPointer, onGetProject GetProjectHydratedFn) error {
+func (store *dbStorage) getProjectHydrated(ctx context.Context, name string, ptr *typesv1.ProjectPointer, onGetProject GetProjectHydratedFn) error {
+	panic("todo")
+}
+
+func (store *dbStorage) getProject(ctx context.Context, name string, ptr *typesv1.ProjectPointer, onGetProject GetProjectFn) error {
 	panic("todo")
 }
 

@@ -38,7 +38,11 @@ func (store *remoteGitStorage) getOrCreateProject(ctx context.Context, name stri
 	// return onProject(st, dashboards, alertGroups)
 }
 
-func (store *remoteGitStorage) getProject(ctx context.Context, name string, ptr *typesv1.ProjectPointer, onGetProject GetProjectHydratedFn) error {
+func (store *remoteGitStorage) getProjectHydrated(ctx context.Context, name string, ptr *typesv1.ProjectPointer, onGetProject GetProjectHydratedFn) error {
+	panic("todo")
+}
+
+func (store *remoteGitStorage) getProject(ctx context.Context, name string, ptr *typesv1.ProjectPointer, onGetProject GetProjectFn) error {
 	panic("todo")
 }
 
