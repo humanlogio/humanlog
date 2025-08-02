@@ -43,7 +43,8 @@ type GetAlertRuleFn func(*typesv1.AlertRule) error
 
 type projectStorage interface {
 	getOrCreateProject(ctx context.Context, name string, ptr *typesv1.ProjectPointer, onCreate CreateProjectFn, onGetProject GetProjectFn) error
-	getProject(ctx context.Context, name string, ptr *typesv1.ProjectPointer, onGetProject GetProjectHydratedFn) error
+	getProjectHydrated(ctx context.Context, name string, ptr *typesv1.ProjectPointer, onGetProject GetProjectHydratedFn) error
+	getProject(ctx context.Context, name string, ptr *typesv1.ProjectPointer, onGetProject GetProjectFn) error
 	getDashboard(ctx context.Context, projectName string, ptr *typesv1.ProjectPointer, id string, onDashboard GetDashboardFn) error
 	getAlertGroup(ctx context.Context, projectName string, ptr *typesv1.ProjectPointer, groupName string, onAlertGroup GetAlertGroupFn) error
 	getAlertRule(ctx context.Context, projectName string, ptr *typesv1.ProjectPointer, groupName, ruleName string, onAlertRule GetAlertRuleFn) error
@@ -173,7 +174,7 @@ func (wt *watch) CreateProject(ctx context.Context, req *projectv1.CreateProject
 		if err != nil {
 			return nil
 		}
-		return storage.getProject(ctx, ptr.Name, ptr.Pointer, func(p *typesv1.Project, d []*typesv1.Dashboard, ag []*typesv1.AlertGroup) error {
+		return storage.getProjectHydrated(ctx, ptr.Name, ptr.Pointer, func(p *typesv1.Project, d []*typesv1.Dashboard, ag []*typesv1.AlertGroup) error {
 			out = p
 			return nil
 		})
@@ -230,7 +231,7 @@ func (wt *watch) UpdateProject(ctx context.Context, req *projectv1.UpdateProject
 		if err != nil {
 			return nil
 		}
-		return storage.getProject(ctx, ptr.Name, ptr.Pointer, func(p *typesv1.Project, d []*typesv1.Dashboard, ag []*typesv1.AlertGroup) error {
+		return storage.getProject(ctx, ptr.Name, ptr.Pointer, func(p *typesv1.Project) error {
 			out = p
 			return nil
 		})
@@ -271,7 +272,7 @@ func (wt *watch) GetProject(ctx context.Context, req *projectv1.GetProjectReques
 		if err != nil {
 			return nil
 		}
-		return storage.getProject(ctx, ptr.Name, ptr.Pointer, func(p *typesv1.Project, d []*typesv1.Dashboard, ag []*typesv1.AlertGroup) error {
+		return storage.getProjectHydrated(ctx, ptr.Name, ptr.Pointer, func(p *typesv1.Project, d []*typesv1.Dashboard, ag []*typesv1.AlertGroup) error {
 			project = p
 			dashboards = d
 			alertGroups = ag
@@ -298,7 +299,7 @@ func (wt *watch) ListProject(ctx context.Context, req *projectv1.ListProjectRequ
 				if err != nil {
 					return nil
 				}
-				return storage.getProject(ctx, sp.Name, sp.Pointer, func(p *typesv1.Project, d []*typesv1.Dashboard, ag []*typesv1.AlertGroup) error {
+				return storage.getProject(ctx, sp.Name, sp.Pointer, func(p *typesv1.Project) error {
 					out = append(out, &projectv1.ListProjectResponse_ListItem{Project: p})
 					return nil
 				})
@@ -340,7 +341,7 @@ func (wt *watch) ListDashboard(ctx context.Context, req *dashboardv1.ListDashboa
 		if err != nil {
 			return nil
 		}
-		return storage.getProject(ctx, ptr.Name, ptr.Pointer, func(p *typesv1.Project, items []*typesv1.Dashboard, ag []*typesv1.AlertGroup) error {
+		return storage.getProjectHydrated(ctx, ptr.Name, ptr.Pointer, func(p *typesv1.Project, items []*typesv1.Dashboard, ag []*typesv1.AlertGroup) error {
 			next, err = cursorForSlice(items, req.Cursor, req.Limit, 10, 100,
 				func(sp *typesv1.Dashboard) string { return sp.Id },
 				func(sp *typesv1.Dashboard) error {
@@ -385,7 +386,7 @@ func (wt *watch) ListAlertGroup(ctx context.Context, req *alertv1.ListAlertGroup
 		if err != nil {
 			return nil
 		}
-		return storage.getProject(ctx, ptr.Name, ptr.Pointer, func(p *typesv1.Project, d []*typesv1.Dashboard, items []*typesv1.AlertGroup) error {
+		return storage.getProjectHydrated(ctx, ptr.Name, ptr.Pointer, func(p *typesv1.Project, d []*typesv1.Dashboard, items []*typesv1.AlertGroup) error {
 			next, err = cursorForSlice(items, req.Cursor, req.Limit, 10, 100,
 				func(sp *typesv1.AlertGroup) string { return sp.Name },
 				func(sp *typesv1.AlertGroup) error {

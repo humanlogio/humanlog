@@ -54,7 +54,7 @@ func (store *localGitStorage) getOrCreateProject(ctx context.Context, name strin
 	return onGetProject(st)
 }
 
-func (store *localGitStorage) getProject(ctx context.Context, name string, ptr *typesv1.ProjectPointer, onGetProject GetProjectHydratedFn) error {
+func (store *localGitStorage) getProject(ctx context.Context, name string, ptr *typesv1.ProjectPointer, onGetProject GetProjectFn) error {
 	sch, ok := ptr.Scheme.(*typesv1.ProjectPointer_Localhost)
 	if !ok {
 		return errInvalid("local git can only operate with projectpointers for localhost, but got %T", ptr.Scheme)
@@ -67,16 +67,26 @@ func (store *localGitStorage) getProject(ctx context.Context, name string, ptr *
 	if !exists {
 		return errInvalid("no such project: %q", name)
 	}
+	return onGetProject(st)
+}
 
-	dashboards, err := parseProjectDashboards(ctx, store.fs, name, lh.Path, lh.DashboardDir)
-	if err != nil {
-		return errInternal("parsing project dashboards: %v", err)
-	}
-	alertGroups, err := parseProjectAlertGroups(ctx, store.fs, name, lh.Path, lh.AlertDir, store.logQlParser)
-	if err != nil {
-		return errInternal("parsing project alert groups: %v", err)
-	}
-	return onGetProject(st, dashboards, alertGroups)
+func (store *localGitStorage) getProjectHydrated(ctx context.Context, name string, ptr *typesv1.ProjectPointer, onGetProject GetProjectHydratedFn) error {
+	return store.getProject(ctx, name, ptr, func(p *typesv1.Project) error {
+		sch, ok := ptr.Scheme.(*typesv1.ProjectPointer_Localhost)
+		if !ok {
+			return errInvalid("local git can only operate with projectpointers for localhost, but got %T", ptr.Scheme)
+		}
+		lh := sch.Localhost
+		dashboards, err := parseProjectDashboards(ctx, store.fs, name, lh.Path, lh.DashboardDir)
+		if err != nil {
+			return errInternal("parsing project dashboards: %v", err)
+		}
+		alertGroups, err := parseProjectAlertGroups(ctx, store.fs, name, lh.Path, lh.AlertDir, store.logQlParser)
+		if err != nil {
+			return errInternal("parsing project alert groups: %v", err)
+		}
+		return onGetProject(p, dashboards, alertGroups)
+	})
 }
 
 func (store *localGitStorage) getDashboard(ctx context.Context, projectName string, ptr *typesv1.ProjectPointer, id string, onDashboard GetDashboardFn) error {
