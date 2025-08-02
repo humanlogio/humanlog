@@ -444,7 +444,7 @@ For more details:
 			cfgFromDir, err := config.ReadConfigFile(configFilepath, dfltCfg, true)
 			if err != nil {
 				logerror("invalid config file, falling back to use defaults. please fix the config file: %v", err)
-				cfg, _ = config.GetDefaultConfig(defaultReleaseChannel)
+				cfgFromDir, _ = config.GetDefaultConfig(defaultReleaseChannel)
 			}
 			cfg = cfgFromDir
 		}
