@@ -11,7 +11,7 @@ import (
 	"github.com/humanlogio/humanlog"
 	"github.com/humanlogio/humanlog/pkg/sink"
 	"github.com/stretchr/testify/require"
-	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.34.0"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
