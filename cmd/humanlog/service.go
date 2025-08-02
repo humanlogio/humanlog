@@ -49,7 +49,7 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	"go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.34.0"
 	"golang.org/x/sync/errgroup"
 
 	// imported for side-effect of `init()` registration
