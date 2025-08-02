@@ -46,7 +46,7 @@ var versioned = map[int]registeredVersion{
 		// after exposing via localhost api
 		constructor: func() any { return new(typesv1.LocalhostConfig) },
 		parse: func(p []byte, v any) error {
-			return protojson.Unmarshal(p, v.(*typesv1.LocalhostConfig))
+			return protojson.UnmarshalOptions{AllowPartial: true, DiscardUnknown: true}.Unmarshal(p, v.(*typesv1.LocalhostConfig))
 		},
 	},
 }
