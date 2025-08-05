@@ -10,6 +10,11 @@ goarch="${GOARCH:-$(go env GOARCH)}"
 is_prod_build="${HUMANLOG_IS_PROD_BUILD:-}"
 output_dir="${HUMANLOG_OUTDIR:-${root}/dist}"
 output_bin="${HUMANLOG_OUTBIN:-humanlog}"
+
+if [[ "${goos}" == "windows" ]]; then
+    output_bin="${output_bin}.exe"
+fi
+
 output_path="${output_dir}/${output_bin}"
 
 function latest_git_tag() {
@@ -113,7 +118,7 @@ function main() {
     eval go build ${flags} ./cmd/humanlog
 
     cd ${output_dir}
-    tar -zcvf ${tarname} humanlog
+    tar -zcvf ${tarname} ${output_bin}
 }
 
 main
