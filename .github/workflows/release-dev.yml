@@ -9,6 +9,10 @@ on:
 permissions:
   contents: write
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   build:
     strategy:
@@ -53,6 +57,7 @@ jobs:
       GH_ACCESS_TOKEN_FOR_HUMANLOGPRO: ${{ secrets.GH_ACCESS_TOKEN_FOR_HUMANLOGPRO }}
       CGO_ENABLED: 1
       GOBIN: ${{ matrix.targets.gobin }}
+      HUMANLOG_DEBUG: true
     steps:
       - name: Set up Go 1
         uses: actions/setup-go@v5
@@ -64,7 +69,14 @@ jobs:
           fetch-depth: 0
       - if: ${{ matrix.targets.preinstall != '' }}
         run: ${{ matrix.targets.preinstall }}
-      - run: echo "${HOME}/.humanlog/bin" >> $GITHUB_PATH
+      - run: |
+          # Linux/macOS install
+          echo "${HOME}/.humanlog/bin" >> $GITHUB_PATH
+
+          # Windows install lives under LOCALAPPDATA
+          if [ "${RUNNER_OS}" = "Windows" ]; then
+            echo "${LOCALAPPDATA}\\humanlog\\bin" >> $GITHUB_PATH
+          fi
       - run: curl https://humanlog.io/install_apictl.sh | bash
       - run: git config --global --add safe.directory '*'
       - run: git config --global url.https://$GH_ACCESS_TOKEN_FOR_HUMANLOGPRO@github.com/.insteadOf https://github.com/
@@ -92,6 +104,14 @@ jobs:
         with:
           fetch-depth: 0
       - run: echo "${HOME}/.humanlog/bin" >> $GITHUB_PATH
+      - run: |
+          # Linux/macOS install
+          echo "${HOME}/.humanlog/bin" >> $GITHUB_PATH
+
+          # Windows install lives under LOCALAPPDATA
+          if [ "${RUNNER_OS}" = "Windows" ]; then
+            echo "${LOCALAPPDATA}\\humanlog\\bin" >> $GITHUB_PATH
+          fi
       - run: curl https://humanlog.io/install_apictl.sh | bash
       - uses: actions/upload-artifact/merge@v4
         with:
