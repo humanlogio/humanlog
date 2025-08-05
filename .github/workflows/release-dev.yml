@@ -70,10 +70,7 @@ jobs:
       - if: ${{ matrix.targets.preinstall != '' }}
         run: ${{ matrix.targets.preinstall }}
       - run: |
-          # Linux/macOS install
           echo "${HOME}/.humanlog/bin" >> $GITHUB_PATH
-
-          # Windows install lives under LOCALAPPDATA
           if [ "${RUNNER_OS}" = "Windows" ]; then
             echo "${LOCALAPPDATA}\\humanlog\\bin" >> $GITHUB_PATH
           fi
@@ -148,10 +145,7 @@ jobs:
       HUMANLOG_CHANNEL: dev
     steps:
       - run: |
-          # Linux/macOS install
           echo "${HOME}/.humanlog/bin" >> $GITHUB_PATH
-
-          # Windows install lives under LOCALAPPDATA
           if [ "${RUNNER_OS}" = "Windows" ]; then
             echo "${LOCALAPPDATA}\\humanlog\\bin" >> $GITHUB_PATH
           fi
