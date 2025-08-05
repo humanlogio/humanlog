@@ -36,6 +36,11 @@ jobs:
           tags: pro
           goos: darwin
           goarch: arm64
+        - name: windows-amd64
+          runner: windows-latest
+          tags: pro
+          goos: windows
+          goarch: amd64
     name: ${{ matrix.targets.name }}
     runs-on: ${{ matrix.targets.runner }}
     env:
