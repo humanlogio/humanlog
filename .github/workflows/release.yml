@@ -75,7 +75,8 @@ jobs:
       GOPRIVATE: "github.com/humanlogio/humanlog-pro"
       GH_ACCESS_TOKEN_FOR_HUMANLOGPRO: ${{ secrets.GH_ACCESS_TOKEN_FOR_HUMANLOGPRO }}
       CGO_ENABLED: 1
-      GOBIN: /usr/local/bin/
+      GOBIN: ${{ matrix.targets.gobin }}
+      HUMANLOG_DEBUG: true
     steps:
       - name: Set up Go 1
         uses: actions/setup-go@v5
