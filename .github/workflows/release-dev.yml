@@ -129,3 +129,32 @@ jobs:
           HMAC_PRIVATE_KEY: ${{ secrets.DEV_HMAC_PRIVATE_KEY }}
           AWS_ACCESS_KEY_ID: ${{ secrets.S3_BINARIES_BUCKET_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_BINARIES_BUCKET_ACCESS_KEY }}
+
+  verify:
+    strategy:
+      matrix:
+        targets:
+        - name: linux-amd64
+          runner: ubuntu-latest
+        - name: darwin-amd64
+          runner: macos-latest
+        - name: windows-amd64
+          runner: windows-latest
+    name: ${{ matrix.targets.name }}
+    needs: publish
+    runs-on: ${{ matrix.targets.runner }}
+    env:
+      HUMANLOG_DEBUG: true
+      HUMANLOG_CHANNEL: dev
+    steps:
+      - run: |
+          # Linux/macOS install
+          echo "${HOME}/.humanlog/bin" >> $GITHUB_PATH
+
+          # Windows install lives under LOCALAPPDATA
+          if [ "${RUNNER_OS}" = "Windows" ]; then
+            echo "${LOCALAPPDATA}\\humanlog\\bin" >> $GITHUB_PATH
+          fi
+      - run: curl -sSL "https://humanlog.dev/install.sh" | bash
+      - run: humanlog version
+
