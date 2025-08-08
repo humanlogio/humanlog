@@ -51,7 +51,7 @@ func Open(ctx context.Context, name string, ll *slog.Logger, cfg map[string]inte
 type Storage interface {
 	Queryable
 	SinkFor(ctx context.Context, res *typesv1.Resource, scope *typesv1.Scope) (_ sink.Sink, _ error)
-	Stats(ctx context.Context) (*typesv1.Val, error)
+	Stats(ctx context.Context) (*typesv1.DatabaseStats, error)
 	Close() error
 
 	OTLPLogger

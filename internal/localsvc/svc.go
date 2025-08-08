@@ -175,7 +175,7 @@ func (svc *Service) SetConfig(ctx context.Context, req *connect.Request[lhv1.Set
 func (svc *Service) GetStats(ctx context.Context, req *connect.Request[lhv1.GetStatsRequest]) (*connect.Response[lhv1.GetStatsResponse], error) {
 	databaseStats, err := svc.storage.Stats(ctx)
 	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to set database stats: %v", err))
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to get database stats: %v", err))
 	}
 	out := &lhv1.GetStatsResponse{DatabaseStats: databaseStats}
 	return connect.NewResponse(out), nil
@@ -389,7 +389,7 @@ func (svc *Service) SummarizeEvents(ctx context.Context, req *connect.Request[qr
 								Groups: []*typesv1.SummarizeOperator_ByGroupExpression{
 									{
 										Scalar: typesv1.ExprFuncCall("bin",
-											typesv1.ExprIdentifier("ts"),
+											typesv1.ExprIdentifier("_indextime"),
 											typesv1.ExprLiteral(typesv1.ValDuration(bucketWidth)),
 										),
 									},
