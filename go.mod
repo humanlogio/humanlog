@@ -1,8 +1,6 @@
 module github.com/humanlogio/humanlog
 
-go 1.24.0
-
-toolchain go1.24.3
+go 1.25.0
 
 require (
 	connectrpc.com/connect v1.17.0
@@ -26,7 +24,7 @@ require (
 	github.com/go-logfmt/logfmt v0.6.0
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
-	github.com/humanlogio/api/go v0.0.0-20250809073055-dae175c55d57
+	github.com/humanlogio/api/go v0.0.0-20250818072645-3dd5fa1d32b9
 	github.com/humanlogio/humanlog-pro v0.0.0-20250819061049-74a66fef4f33
 	github.com/kardianos/service v1.2.2
 	github.com/kr/logfmt v0.0.0-20210122060352-19f9bcb100e6

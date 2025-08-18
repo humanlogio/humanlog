@@ -2,7 +2,6 @@ package localstorage
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -26,7 +25,7 @@ var (
 	})
 )
 
-func RunTest(t *testing.T, constructor func(t *testing.T, timeNow func() time.Time, newUlid func() string) Storage) {
+func RunTest(t *testing.T, constructor func(t *testing.T, timeNow func() time.Time, newUlid func() *typesv1.ULID) Storage) {
 	tests := []struct {
 		name  string
 		q     string
@@ -39,10 +38,10 @@ func RunTest(t *testing.T, constructor func(t *testing.T, timeNow func() time.Ti
 			q:     `{from==2006-01-02T15:04:06.00500000Z}`,
 			limit: 4,
 			input: []*typesv1.Log{
-				reallog(TestRes, TestScope, "1", ServiceName, musttime("2006-01-02T15:04:06.001"), `{"ts":"2006-01-02T15:04:06.001", "lvl": "info", "msg":"hello world 1"}`),
-				reallog(TestRes, TestScope, "2", ServiceName, musttime("2006-01-02T15:04:06.002"), `{"ts":"2006-01-02T15:04:06.002", "lvl": "info", "msg":"hello world 2"}`),
-				reallog(TestRes, TestScope, "3", ServiceName, musttime("2006-01-02T15:04:06.003"), `{"ts":"2006-01-02T15:04:06.003", "lvl": "info", "msg":"hello world 3"}`),
-				reallog(TestRes, TestScope, "4", ServiceName, musttime("2006-01-02T15:04:06.004"), `{"ts":"2006-01-02T15:04:06.004", "lvl": "info", "msg":"hello world 4"}`),
+				reallog(TestRes, TestScope, 1, ServiceName, musttime("2006-01-02T15:04:06.001"), `{"ts":"2006-01-02T15:04:06.001", "lvl": "info", "msg":"hello world 1"}`),
+				reallog(TestRes, TestScope, 2, ServiceName, musttime("2006-01-02T15:04:06.002"), `{"ts":"2006-01-02T15:04:06.002", "lvl": "info", "msg":"hello world 2"}`),
+				reallog(TestRes, TestScope, 3, ServiceName, musttime("2006-01-02T15:04:06.003"), `{"ts":"2006-01-02T15:04:06.003", "lvl": "info", "msg":"hello world 3"}`),
+				reallog(TestRes, TestScope, 4, ServiceName, musttime("2006-01-02T15:04:06.004"), `{"ts":"2006-01-02T15:04:06.004", "lvl": "info", "msg":"hello world 4"}`),
 			},
 			want: []*typesv1.Data{
 				dataLogs(nil),
@@ -53,17 +52,17 @@ func RunTest(t *testing.T, constructor func(t *testing.T, timeNow func() time.Ti
 			q:     `{to==2006-01-02T15:04:06.00500000Z}`,
 			limit: 5,
 			input: []*typesv1.Log{
-				reallog(TestRes, TestScope, "1", ServiceName, musttime("2006-01-02T15:04:06.001"), `{"ts":"2006-01-02T15:04:06.001", "lvl": "info", "msg":"hello world 1"}`),
-				reallog(TestRes, TestScope, "2", ServiceName, musttime("2006-01-02T15:04:06.002"), `{"ts":"2006-01-02T15:04:06.002", "lvl": "info", "msg":"hello world 2"}`),
-				reallog(TestRes, TestScope, "3", ServiceName, musttime("2006-01-02T15:04:06.003"), `{"ts":"2006-01-02T15:04:06.003", "lvl": "info", "msg":"hello world 3"}`),
-				reallog(TestRes, TestScope, "4", ServiceName, musttime("2006-01-02T15:04:06.004"), `{"ts":"2006-01-02T15:04:06.004", "lvl": "info", "msg":"hello world 4"}`),
+				reallog(TestRes, TestScope, 1, ServiceName, musttime("2006-01-02T15:04:06.001"), `{"ts":"2006-01-02T15:04:06.001", "lvl": "info", "msg":"hello world 1"}`),
+				reallog(TestRes, TestScope, 2, ServiceName, musttime("2006-01-02T15:04:06.002"), `{"ts":"2006-01-02T15:04:06.002", "lvl": "info", "msg":"hello world 2"}`),
+				reallog(TestRes, TestScope, 3, ServiceName, musttime("2006-01-02T15:04:06.003"), `{"ts":"2006-01-02T15:04:06.003", "lvl": "info", "msg":"hello world 3"}`),
+				reallog(TestRes, TestScope, 4, ServiceName, musttime("2006-01-02T15:04:06.004"), `{"ts":"2006-01-02T15:04:06.004", "lvl": "info", "msg":"hello world 4"}`),
 			},
 			want: []*typesv1.Data{
 				dataLogs([]*typesv1.Log{
-					reallog(TestRes, TestScope, "1", ServiceName, musttime("2006-01-02T15:04:06.001"), `{"ts":"2006-01-02T15:04:06.001", "lvl": "info", "msg":"hello world 1"}`),
-					reallog(TestRes, TestScope, "2", ServiceName, musttime("2006-01-02T15:04:06.002"), `{"ts":"2006-01-02T15:04:06.002", "lvl": "info", "msg":"hello world 2"}`),
-					reallog(TestRes, TestScope, "3", ServiceName, musttime("2006-01-02T15:04:06.003"), `{"ts":"2006-01-02T15:04:06.003", "lvl": "info", "msg":"hello world 3"}`),
-					reallog(TestRes, TestScope, "4", ServiceName, musttime("2006-01-02T15:04:06.004"), `{"ts":"2006-01-02T15:04:06.004", "lvl": "info", "msg":"hello world 4"}`),
+					reallog(TestRes, TestScope, 1, ServiceName, musttime("2006-01-02T15:04:06.001"), `{"ts":"2006-01-02T15:04:06.001", "lvl": "info", "msg":"hello world 1"}`),
+					reallog(TestRes, TestScope, 2, ServiceName, musttime("2006-01-02T15:04:06.002"), `{"ts":"2006-01-02T15:04:06.002", "lvl": "info", "msg":"hello world 2"}`),
+					reallog(TestRes, TestScope, 3, ServiceName, musttime("2006-01-02T15:04:06.003"), `{"ts":"2006-01-02T15:04:06.003", "lvl": "info", "msg":"hello world 3"}`),
+					reallog(TestRes, TestScope, 4, ServiceName, musttime("2006-01-02T15:04:06.004"), `{"ts":"2006-01-02T15:04:06.004", "lvl": "info", "msg":"hello world 4"}`),
 				}),
 			},
 		},
@@ -73,17 +72,17 @@ func RunTest(t *testing.T, constructor func(t *testing.T, timeNow func() time.Ti
 			q:     `{to==2006-01-02T15:04:06.00500000Z}`,
 			limit: 5,
 			input: []*typesv1.Log{
-				reallog(TestRes, TestScope, "1", ServiceName, musttime("2006-01-02T15:04:06.001"), `{"ts":"2006-01-02T15:04:06.001", "lvl": "info", "msg":"hello world 1"}`),
-				reallog(TestRes, TestScope, "2", ServiceName, musttime("2006-01-02T15:04:06.002"), `{"ts":"2006-01-02T15:04:06.002", "lvl": "info", "msg":"hello world 2"}`),
-				reallog(TestRes, TestScope, "3", ServiceName, musttime("2006-01-02T15:04:06.003"), `{"ts":"2006-01-02T15:04:06.003", "lvl": "info", "msg":"hello world 3"}`),
-				reallog(TestRes, TestScope, "4", ServiceName, musttime("2006-01-02T15:04:06.004"), `{"ts":"2006-01-02T15:04:06.004", "lvl": "info", "msg":"hello world 4"}`),
+				reallog(TestRes, TestScope, 1, ServiceName, musttime("2006-01-02T15:04:06.001"), `{"ts":"2006-01-02T15:04:06.001", "lvl": "info", "msg":"hello world 1"}`),
+				reallog(TestRes, TestScope, 2, ServiceName, musttime("2006-01-02T15:04:06.002"), `{"ts":"2006-01-02T15:04:06.002", "lvl": "info", "msg":"hello world 2"}`),
+				reallog(TestRes, TestScope, 3, ServiceName, musttime("2006-01-02T15:04:06.003"), `{"ts":"2006-01-02T15:04:06.003", "lvl": "info", "msg":"hello world 3"}`),
+				reallog(TestRes, TestScope, 4, ServiceName, musttime("2006-01-02T15:04:06.004"), `{"ts":"2006-01-02T15:04:06.004", "lvl": "info", "msg":"hello world 4"}`),
 			},
 			want: []*typesv1.Data{
 				dataLogs([]*typesv1.Log{
-					reallog(TestRes, TestScope, "1", ServiceName, musttime("2006-01-02T15:04:06.001"), `{"ts":"2006-01-02T15:04:06.001", "lvl": "info", "msg":"hello world 1"}`),
-					reallog(TestRes, TestScope, "2", ServiceName, musttime("2006-01-02T15:04:06.002"), `{"ts":"2006-01-02T15:04:06.002", "lvl": "info", "msg":"hello world 2"}`),
-					reallog(TestRes, TestScope, "3", ServiceName, musttime("2006-01-02T15:04:06.003"), `{"ts":"2006-01-02T15:04:06.003", "lvl": "info", "msg":"hello world 3"}`),
-					reallog(TestRes, TestScope, "4", ServiceName, musttime("2006-01-02T15:04:06.004"), `{"ts":"2006-01-02T15:04:06.004", "lvl": "info", "msg":"hello world 4"}`),
+					reallog(TestRes, TestScope, 1, ServiceName, musttime("2006-01-02T15:04:06.001"), `{"ts":"2006-01-02T15:04:06.001", "lvl": "info", "msg":"hello world 1"}`),
+					reallog(TestRes, TestScope, 2, ServiceName, musttime("2006-01-02T15:04:06.002"), `{"ts":"2006-01-02T15:04:06.002", "lvl": "info", "msg":"hello world 2"}`),
+					reallog(TestRes, TestScope, 3, ServiceName, musttime("2006-01-02T15:04:06.003"), `{"ts":"2006-01-02T15:04:06.003", "lvl": "info", "msg":"hello world 3"}`),
+					reallog(TestRes, TestScope, 4, ServiceName, musttime("2006-01-02T15:04:06.004"), `{"ts":"2006-01-02T15:04:06.004", "lvl": "info", "msg":"hello world 4"}`),
 				}),
 			},
 		},
@@ -92,19 +91,19 @@ func RunTest(t *testing.T, constructor func(t *testing.T, timeNow func() time.Ti
 			q:     `{to==2006-01-02T15:04:06.00500000Z}`,
 			limit: 3,
 			input: []*typesv1.Log{
-				reallog(TestRes, TestScope, "1", ServiceName, musttime("2006-01-02T15:04:06.001"), `{"ts":"2006-01-02T15:04:06.001", "lvl": "info", "msg":"hello world 1"}`),
-				reallog(TestRes, TestScope, "2", ServiceName, musttime("2006-01-02T15:04:06.002"), `{"ts":"2006-01-02T15:04:06.002", "lvl": "info", "msg":"hello world 2"}`),
-				reallog(TestRes, TestScope, "3", ServiceName, musttime("2006-01-02T15:04:06.003"), `{"ts":"2006-01-02T15:04:06.003", "lvl": "info", "msg":"hello world 3"}`),
-				reallog(TestRes, TestScope, "4", ServiceName, musttime("2006-01-02T15:04:06.004"), `{"ts":"2006-01-02T15:04:06.004", "lvl": "info", "msg":"hello world 4"}`),
+				reallog(TestRes, TestScope, 1, ServiceName, musttime("2006-01-02T15:04:06.001"), `{"ts":"2006-01-02T15:04:06.001", "lvl": "info", "msg":"hello world 1"}`),
+				reallog(TestRes, TestScope, 2, ServiceName, musttime("2006-01-02T15:04:06.002"), `{"ts":"2006-01-02T15:04:06.002", "lvl": "info", "msg":"hello world 2"}`),
+				reallog(TestRes, TestScope, 3, ServiceName, musttime("2006-01-02T15:04:06.003"), `{"ts":"2006-01-02T15:04:06.003", "lvl": "info", "msg":"hello world 3"}`),
+				reallog(TestRes, TestScope, 4, ServiceName, musttime("2006-01-02T15:04:06.004"), `{"ts":"2006-01-02T15:04:06.004", "lvl": "info", "msg":"hello world 4"}`),
 			},
 			want: []*typesv1.Data{
 				dataLogs([]*typesv1.Log{
-					reallog(TestRes, TestScope, "1", ServiceName, musttime("2006-01-02T15:04:06.001"), `{"ts":"2006-01-02T15:04:06.001", "lvl": "info", "msg":"hello world 1"}`),
-					reallog(TestRes, TestScope, "2", ServiceName, musttime("2006-01-02T15:04:06.002"), `{"ts":"2006-01-02T15:04:06.002", "lvl": "info", "msg":"hello world 2"}`),
-					reallog(TestRes, TestScope, "3", ServiceName, musttime("2006-01-02T15:04:06.003"), `{"ts":"2006-01-02T15:04:06.003", "lvl": "info", "msg":"hello world 3"}`),
+					reallog(TestRes, TestScope, 1, ServiceName, musttime("2006-01-02T15:04:06.001"), `{"ts":"2006-01-02T15:04:06.001", "lvl": "info", "msg":"hello world 1"}`),
+					reallog(TestRes, TestScope, 2, ServiceName, musttime("2006-01-02T15:04:06.002"), `{"ts":"2006-01-02T15:04:06.002", "lvl": "info", "msg":"hello world 2"}`),
+					reallog(TestRes, TestScope, 3, ServiceName, musttime("2006-01-02T15:04:06.003"), `{"ts":"2006-01-02T15:04:06.003", "lvl": "info", "msg":"hello world 3"}`),
 				}),
 				dataLogs([]*typesv1.Log{
-					reallog(TestRes, TestScope, "4", ServiceName, musttime("2006-01-02T15:04:06.004"), `{"ts":"2006-01-02T15:04:06.004", "lvl": "info", "msg":"hello world 4"}`),
+					reallog(TestRes, TestScope, 4, ServiceName, musttime("2006-01-02T15:04:06.004"), `{"ts":"2006-01-02T15:04:06.004", "lvl": "info", "msg":"hello world 4"}`),
 				}),
 			},
 		},
@@ -113,19 +112,19 @@ func RunTest(t *testing.T, constructor func(t *testing.T, timeNow func() time.Ti
 			q:     `{to==2006-01-02T15:04:06.00500000Z}`,
 			limit: 2,
 			input: []*typesv1.Log{
-				reallog(TestRes, TestScope, "1", ServiceName, musttime("2006-01-02T15:04:06.001"), `{"ts":"2006-01-02T15:04:06.001", "lvl": "info", "msg":"hello world 1"}`),
-				reallog(TestRes, TestScope, "2", ServiceName, musttime("2006-01-02T15:04:06.002"), `{"ts":"2006-01-02T15:04:06.002", "lvl": "info", "msg":"hello world 2"}`),
-				reallog(TestRes, TestScope, "3", ServiceName, musttime("2006-01-02T15:04:06.003"), `{"ts":"2006-01-02T15:04:06.003", "lvl": "info", "msg":"hello world 3"}`),
-				reallog(TestRes, TestScope, "4", ServiceName, musttime("2006-01-02T15:04:06.004"), `{"ts":"2006-01-02T15:04:06.004", "lvl": "info", "msg":"hello world 4"}`),
+				reallog(TestRes, TestScope, 1, ServiceName, musttime("2006-01-02T15:04:06.001"), `{"ts":"2006-01-02T15:04:06.001", "lvl": "info", "msg":"hello world 1"}`),
+				reallog(TestRes, TestScope, 2, ServiceName, musttime("2006-01-02T15:04:06.002"), `{"ts":"2006-01-02T15:04:06.002", "lvl": "info", "msg":"hello world 2"}`),
+				reallog(TestRes, TestScope, 3, ServiceName, musttime("2006-01-02T15:04:06.003"), `{"ts":"2006-01-02T15:04:06.003", "lvl": "info", "msg":"hello world 3"}`),
+				reallog(TestRes, TestScope, 4, ServiceName, musttime("2006-01-02T15:04:06.004"), `{"ts":"2006-01-02T15:04:06.004", "lvl": "info", "msg":"hello world 4"}`),
 			},
 			want: []*typesv1.Data{
 				dataLogs([]*typesv1.Log{
-					reallog(TestRes, TestScope, "1", ServiceName, musttime("2006-01-02T15:04:06.001"), `{"ts":"2006-01-02T15:04:06.001", "lvl": "info", "msg":"hello world 1"}`),
-					reallog(TestRes, TestScope, "2", ServiceName, musttime("2006-01-02T15:04:06.002"), `{"ts":"2006-01-02T15:04:06.002", "lvl": "info", "msg":"hello world 2"}`),
+					reallog(TestRes, TestScope, 1, ServiceName, musttime("2006-01-02T15:04:06.001"), `{"ts":"2006-01-02T15:04:06.001", "lvl": "info", "msg":"hello world 1"}`),
+					reallog(TestRes, TestScope, 2, ServiceName, musttime("2006-01-02T15:04:06.002"), `{"ts":"2006-01-02T15:04:06.002", "lvl": "info", "msg":"hello world 2"}`),
 				}),
 				dataLogs([]*typesv1.Log{
-					reallog(TestRes, TestScope, "3", ServiceName, musttime("2006-01-02T15:04:06.003"), `{"ts":"2006-01-02T15:04:06.003", "lvl": "info", "msg":"hello world 3"}`),
-					reallog(TestRes, TestScope, "4", ServiceName, musttime("2006-01-02T15:04:06.004"), `{"ts":"2006-01-02T15:04:06.004", "lvl": "info", "msg":"hello world 4"}`),
+					reallog(TestRes, TestScope, 3, ServiceName, musttime("2006-01-02T15:04:06.003"), `{"ts":"2006-01-02T15:04:06.003", "lvl": "info", "msg":"hello world 3"}`),
+					reallog(TestRes, TestScope, 4, ServiceName, musttime("2006-01-02T15:04:06.004"), `{"ts":"2006-01-02T15:04:06.004", "lvl": "info", "msg":"hello world 4"}`),
 				}),
 				dataLogs(nil),
 			},
@@ -135,16 +134,16 @@ func RunTest(t *testing.T, constructor func(t *testing.T, timeNow func() time.Ti
 			q:     `{to==2006-01-02T15:04:06.004000000Z}`,
 			limit: 4,
 			input: []*typesv1.Log{
-				reallog(TestRes, TestScope, "1", ServiceName, musttime("2006-01-02T15:04:06.001"), `{"ts":"2006-01-02T15:04:06.001", "lvl": "info", "msg":"hello world 1"}`),
-				reallog(TestRes, TestScope, "2", ServiceName, musttime("2006-01-02T15:04:06.002"), `{"ts":"2006-01-02T15:04:06.002", "lvl": "info", "msg":"hello world 2"}`),
-				reallog(TestRes, TestScope, "3", ServiceName, musttime("2006-01-02T15:04:06.003"), `{"ts":"2006-01-02T15:04:06.003", "lvl": "info", "msg":"hello world 3"}`),
-				reallog(TestRes, TestScope, "4", ServiceName, musttime("2006-01-02T15:04:06.004"), `{"ts":"2006-01-02T15:04:06.004", "lvl": "info", "msg":"hello world 4"}`),
+				reallog(TestRes, TestScope, 1, ServiceName, musttime("2006-01-02T15:04:06.001"), `{"ts":"2006-01-02T15:04:06.001", "lvl": "info", "msg":"hello world 1"}`),
+				reallog(TestRes, TestScope, 2, ServiceName, musttime("2006-01-02T15:04:06.002"), `{"ts":"2006-01-02T15:04:06.002", "lvl": "info", "msg":"hello world 2"}`),
+				reallog(TestRes, TestScope, 3, ServiceName, musttime("2006-01-02T15:04:06.003"), `{"ts":"2006-01-02T15:04:06.003", "lvl": "info", "msg":"hello world 3"}`),
+				reallog(TestRes, TestScope, 4, ServiceName, musttime("2006-01-02T15:04:06.004"), `{"ts":"2006-01-02T15:04:06.004", "lvl": "info", "msg":"hello world 4"}`),
 			},
 			want: []*typesv1.Data{
 				dataLogs([]*typesv1.Log{
-					reallog(TestRes, TestScope, "1", ServiceName, musttime("2006-01-02T15:04:06.001"), `{"ts":"2006-01-02T15:04:06.001", "lvl": "info", "msg":"hello world 1"}`),
-					reallog(TestRes, TestScope, "2", ServiceName, musttime("2006-01-02T15:04:06.002"), `{"ts":"2006-01-02T15:04:06.002", "lvl": "info", "msg":"hello world 2"}`),
-					reallog(TestRes, TestScope, "3", ServiceName, musttime("2006-01-02T15:04:06.003"), `{"ts":"2006-01-02T15:04:06.003", "lvl": "info", "msg":"hello world 3"}`),
+					reallog(TestRes, TestScope, 1, ServiceName, musttime("2006-01-02T15:04:06.001"), `{"ts":"2006-01-02T15:04:06.001", "lvl": "info", "msg":"hello world 1"}`),
+					reallog(TestRes, TestScope, 2, ServiceName, musttime("2006-01-02T15:04:06.002"), `{"ts":"2006-01-02T15:04:06.002", "lvl": "info", "msg":"hello world 2"}`),
+					reallog(TestRes, TestScope, 3, ServiceName, musttime("2006-01-02T15:04:06.003"), `{"ts":"2006-01-02T15:04:06.003", "lvl": "info", "msg":"hello world 3"}`),
 				}),
 			},
 		},
@@ -153,16 +152,16 @@ func RunTest(t *testing.T, constructor func(t *testing.T, timeNow func() time.Ti
 			q:     `{from==2006-01-02T15:04:06.002000000Z to==2006-01-02T15:04:06.005000000Z}`,
 			limit: 4,
 			input: []*typesv1.Log{
-				reallog(TestRes, TestScope, "1", ServiceName, musttime("2006-01-02T15:04:06.001"), `{"ts":"2006-01-02T15:04:06.001", "lvl": "info", "msg":"hello world 1"}`),
-				reallog(TestRes, TestScope, "2", ServiceName, musttime("2006-01-02T15:04:06.002"), `{"ts":"2006-01-02T15:04:06.002", "lvl": "info", "msg":"hello world 2"}`),
-				reallog(TestRes, TestScope, "3", ServiceName, musttime("2006-01-02T15:04:06.003"), `{"ts":"2006-01-02T15:04:06.003", "lvl": "info", "msg":"hello world 3"}`),
-				reallog(TestRes, TestScope, "4", ServiceName, musttime("2006-01-02T15:04:06.004"), `{"ts":"2006-01-02T15:04:06.004", "lvl": "info", "msg":"hello world 4"}`),
+				reallog(TestRes, TestScope, 1, ServiceName, musttime("2006-01-02T15:04:06.001"), `{"ts":"2006-01-02T15:04:06.001", "lvl": "info", "msg":"hello world 1"}`),
+				reallog(TestRes, TestScope, 2, ServiceName, musttime("2006-01-02T15:04:06.002"), `{"ts":"2006-01-02T15:04:06.002", "lvl": "info", "msg":"hello world 2"}`),
+				reallog(TestRes, TestScope, 3, ServiceName, musttime("2006-01-02T15:04:06.003"), `{"ts":"2006-01-02T15:04:06.003", "lvl": "info", "msg":"hello world 3"}`),
+				reallog(TestRes, TestScope, 4, ServiceName, musttime("2006-01-02T15:04:06.004"), `{"ts":"2006-01-02T15:04:06.004", "lvl": "info", "msg":"hello world 4"}`),
 			},
 			want: []*typesv1.Data{
 				dataLogs([]*typesv1.Log{
-					reallog(TestRes, TestScope, "2", ServiceName, musttime("2006-01-02T15:04:06.002"), `{"ts":"2006-01-02T15:04:06.002", "lvl": "info", "msg":"hello world 2"}`),
-					reallog(TestRes, TestScope, "3", ServiceName, musttime("2006-01-02T15:04:06.003"), `{"ts":"2006-01-02T15:04:06.003", "lvl": "info", "msg":"hello world 3"}`),
-					reallog(TestRes, TestScope, "4", ServiceName, musttime("2006-01-02T15:04:06.004"), `{"ts":"2006-01-02T15:04:06.004", "lvl": "info", "msg":"hello world 4"}`),
+					reallog(TestRes, TestScope, 2, ServiceName, musttime("2006-01-02T15:04:06.002"), `{"ts":"2006-01-02T15:04:06.002", "lvl": "info", "msg":"hello world 2"}`),
+					reallog(TestRes, TestScope, 3, ServiceName, musttime("2006-01-02T15:04:06.003"), `{"ts":"2006-01-02T15:04:06.003", "lvl": "info", "msg":"hello world 3"}`),
+					reallog(TestRes, TestScope, 4, ServiceName, musttime("2006-01-02T15:04:06.004"), `{"ts":"2006-01-02T15:04:06.004", "lvl": "info", "msg":"hello world 4"}`),
 				}),
 			},
 		},
@@ -171,16 +170,16 @@ func RunTest(t *testing.T, constructor func(t *testing.T, timeNow func() time.Ti
 			q:     `{from==2006-01-02T15:04:06.002000000Z}`,
 			limit: 4,
 			input: []*typesv1.Log{
-				reallog(TestRes, TestScope, "1", ServiceName, musttime("2006-01-02T15:04:06.001"), `{"ts":"2006-01-02T15:04:06.001", "lvl": "info", "msg":"hello world 1"}`),
-				reallog(TestRes, TestScope, "2", ServiceName, musttime("2006-01-02T15:04:06.002"), `{"ts":"2006-01-02T15:04:06.002", "lvl": "info", "msg":"hello world 2"}`),
-				reallog(TestRes, TestScope, "3", ServiceName, musttime("2006-01-02T15:04:06.003"), `{"ts":"2006-01-02T15:04:06.003", "lvl": "info", "msg":"hello world 3"}`),
-				reallog(TestRes, TestScope, "4", ServiceName, musttime("2006-01-02T15:04:06.004"), `{"ts":"2006-01-02T15:04:06.004", "lvl": "info", "msg":"hello world 4"}`),
+				reallog(TestRes, TestScope, 1, ServiceName, musttime("2006-01-02T15:04:06.001"), `{"ts":"2006-01-02T15:04:06.001", "lvl": "info", "msg":"hello world 1"}`),
+				reallog(TestRes, TestScope, 2, ServiceName, musttime("2006-01-02T15:04:06.002"), `{"ts":"2006-01-02T15:04:06.002", "lvl": "info", "msg":"hello world 2"}`),
+				reallog(TestRes, TestScope, 3, ServiceName, musttime("2006-01-02T15:04:06.003"), `{"ts":"2006-01-02T15:04:06.003", "lvl": "info", "msg":"hello world 3"}`),
+				reallog(TestRes, TestScope, 4, ServiceName, musttime("2006-01-02T15:04:06.004"), `{"ts":"2006-01-02T15:04:06.004", "lvl": "info", "msg":"hello world 4"}`),
 			},
 			want: []*typesv1.Data{
 				dataLogs([]*typesv1.Log{
-					reallog(TestRes, TestScope, "2", ServiceName, musttime("2006-01-02T15:04:06.002"), `{"ts":"2006-01-02T15:04:06.002", "lvl": "info", "msg":"hello world 2"}`),
-					reallog(TestRes, TestScope, "3", ServiceName, musttime("2006-01-02T15:04:06.003"), `{"ts":"2006-01-02T15:04:06.003", "lvl": "info", "msg":"hello world 3"}`),
-					reallog(TestRes, TestScope, "4", ServiceName, musttime("2006-01-02T15:04:06.004"), `{"ts":"2006-01-02T15:04:06.004", "lvl": "info", "msg":"hello world 4"}`),
+					reallog(TestRes, TestScope, 2, ServiceName, musttime("2006-01-02T15:04:06.002"), `{"ts":"2006-01-02T15:04:06.002", "lvl": "info", "msg":"hello world 2"}`),
+					reallog(TestRes, TestScope, 3, ServiceName, musttime("2006-01-02T15:04:06.003"), `{"ts":"2006-01-02T15:04:06.003", "lvl": "info", "msg":"hello world 3"}`),
+					reallog(TestRes, TestScope, 4, ServiceName, musttime("2006-01-02T15:04:06.004"), `{"ts":"2006-01-02T15:04:06.004", "lvl": "info", "msg":"hello world 4"}`),
 				}),
 			},
 		},
@@ -189,15 +188,15 @@ func RunTest(t *testing.T, constructor func(t *testing.T, timeNow func() time.Ti
 			q:     `{from==2006-01-02T15:04:06.002000000Z to==2006-01-02T15:04:06.004000000Z}`,
 			limit: 4,
 			input: []*typesv1.Log{
-				reallog(TestRes, TestScope, "1", ServiceName, musttime("2006-01-02T15:04:06.001"), `{"ts":"2006-01-02T15:04:06.001", "lvl": "info", "msg":"hello world 1"}`),
-				reallog(TestRes, TestScope, "2", ServiceName, musttime("2006-01-02T15:04:06.002"), `{"ts":"2006-01-02T15:04:06.002", "lvl": "info", "msg":"hello world 2"}`),
-				reallog(TestRes, TestScope, "3", ServiceName, musttime("2006-01-02T15:04:06.003"), `{"ts":"2006-01-02T15:04:06.003", "lvl": "info", "msg":"hello world 3"}`),
-				reallog(TestRes, TestScope, "4", ServiceName, musttime("2006-01-02T15:04:06.004"), `{"ts":"2006-01-02T15:04:06.004", "lvl": "info", "msg":"hello world 4"}`),
+				reallog(TestRes, TestScope, 1, ServiceName, musttime("2006-01-02T15:04:06.001"), `{"ts":"2006-01-02T15:04:06.001", "lvl": "info", "msg":"hello world 1"}`),
+				reallog(TestRes, TestScope, 2, ServiceName, musttime("2006-01-02T15:04:06.002"), `{"ts":"2006-01-02T15:04:06.002", "lvl": "info", "msg":"hello world 2"}`),
+				reallog(TestRes, TestScope, 3, ServiceName, musttime("2006-01-02T15:04:06.003"), `{"ts":"2006-01-02T15:04:06.003", "lvl": "info", "msg":"hello world 3"}`),
+				reallog(TestRes, TestScope, 4, ServiceName, musttime("2006-01-02T15:04:06.004"), `{"ts":"2006-01-02T15:04:06.004", "lvl": "info", "msg":"hello world 4"}`),
 			},
 			want: []*typesv1.Data{
 				dataLogs([]*typesv1.Log{
-					reallog(TestRes, TestScope, "2", ServiceName, musttime("2006-01-02T15:04:06.002"), `{"ts":"2006-01-02T15:04:06.002", "lvl": "info", "msg":"hello world 2"}`),
-					reallog(TestRes, TestScope, "3", ServiceName, musttime("2006-01-02T15:04:06.003"), `{"ts":"2006-01-02T15:04:06.003", "lvl": "info", "msg":"hello world 3"}`),
+					reallog(TestRes, TestScope, 2, ServiceName, musttime("2006-01-02T15:04:06.002"), `{"ts":"2006-01-02T15:04:06.002", "lvl": "info", "msg":"hello world 2"}`),
+					reallog(TestRes, TestScope, 3, ServiceName, musttime("2006-01-02T15:04:06.003"), `{"ts":"2006-01-02T15:04:06.003", "lvl": "info", "msg":"hello world 3"}`),
 				}),
 			},
 		},
@@ -206,16 +205,16 @@ func RunTest(t *testing.T, constructor func(t *testing.T, timeNow func() time.Ti
 			q:     `{from==2006-01-02T15:04:06.002000000Z to==2006-01-02T15:04:06.004000000Z} filter severity_text=="error"`,
 			limit: 4,
 			input: []*typesv1.Log{
-				reallog(TestRes, TestScope, "1", ServiceName, musttime("2006-01-02T15:04:06.001"), `{"ts":"2006-01-02T15:04:06.001", "lvl":"error", "msg":"some sort of problem"}`),
-				reallog(TestRes, TestScope, "2", ServiceName, musttime("2006-01-02T15:04:06.001"), `{"ts":"2006-01-02T15:04:06.001", "lvl":"info", "msg":"no problem, all is fine"}`),
-				reallog(TestRes, TestScope, "3", ServiceName, musttime("2006-01-02T15:04:06.003"), `{"ts":"2006-01-02T15:04:06.003", "lvl":"error", "msg":"some sort of problem a bit later"}`),
-				reallog(TestRes, TestScope, "4", ServiceName, musttime("2006-01-02T15:04:06.003"), `{"ts":"2006-01-02T15:04:06.003", "lvl":"info", "msg":"no problem, all is fine a bit later"}`),
-				reallog(TestRes, TestScope, "5", ServiceName, musttime("2006-01-02T15:04:06.006"), `{"ts":"2006-01-02T15:04:06.006", "lvl":"error", "msg":"some sort of problem too late"}`),
-				reallog(TestRes, TestScope, "6", ServiceName, musttime("2006-01-02T15:04:06.006"), `{"ts":"2006-01-02T15:04:06.006", "lvl":"info", "msg":"no problem, all is fine too late"}`),
+				reallog(TestRes, TestScope, 1, ServiceName, musttime("2006-01-02T15:04:06.001"), `{"ts":"2006-01-02T15:04:06.001", "lvl":"error", "msg":"some sort of problem"}`),
+				reallog(TestRes, TestScope, 2, ServiceName, musttime("2006-01-02T15:04:06.001"), `{"ts":"2006-01-02T15:04:06.001", "lvl":"info", "msg":"no problem, all is fine"}`),
+				reallog(TestRes, TestScope, 3, ServiceName, musttime("2006-01-02T15:04:06.003"), `{"ts":"2006-01-02T15:04:06.003", "lvl":"error", "msg":"some sort of problem a bit later"}`),
+				reallog(TestRes, TestScope, 4, ServiceName, musttime("2006-01-02T15:04:06.003"), `{"ts":"2006-01-02T15:04:06.003", "lvl":"info", "msg":"no problem, all is fine a bit later"}`),
+				reallog(TestRes, TestScope, 5, ServiceName, musttime("2006-01-02T15:04:06.006"), `{"ts":"2006-01-02T15:04:06.006", "lvl":"error", "msg":"some sort of problem too late"}`),
+				reallog(TestRes, TestScope, 6, ServiceName, musttime("2006-01-02T15:04:06.006"), `{"ts":"2006-01-02T15:04:06.006", "lvl":"info", "msg":"no problem, all is fine too late"}`),
 			},
 			want: []*typesv1.Data{
 				dataLogs([]*typesv1.Log{
-					reallog(TestRes, TestScope, "3", ServiceName, musttime("2006-01-02T15:04:06.003"), `{"ts":"2006-01-02T15:04:06.003", "lvl":"error", "msg":"some sort of problem a bit later"}`),
+					reallog(TestRes, TestScope, 3, ServiceName, musttime("2006-01-02T15:04:06.003"), `{"ts":"2006-01-02T15:04:06.003", "lvl":"error", "msg":"some sort of problem a bit later"}`),
 				}),
 			},
 		},
@@ -233,9 +232,9 @@ func RunTest(t *testing.T, constructor func(t *testing.T, timeNow func() time.Ti
 				return now
 			}
 			i := 0
-			newUlid := func() string {
+			newUlid := func() *typesv1.ULID {
 				i++
-				return fmt.Sprintf("ulid-%d", i)
+				return &typesv1.ULID{Low: uint64(i)}
 			}
 
 			db := constructor(t, timeNow, newUlid)
@@ -306,8 +305,8 @@ func dataLogs(logs []*typesv1.Log) *typesv1.Data {
 	}
 }
 
-func reallog(res *typesv1.Resource, scp *typesv1.Scope, ulid, svcname string, parsedAt time.Time, raw string) *typesv1.Log {
-	ev := &typesv1.Log{Ulid: ulid, ObservedTimestamp: timestamppb.New(parsedAt), Resource: res, Scope: scp, Raw: []byte(raw)}
+func reallog(res *typesv1.Resource, scp *typesv1.Scope, ulid uint64, svcname string, parsedAt time.Time, raw string) *typesv1.Log {
+	ev := &typesv1.Log{Ulid: &typesv1.ULID{Low: ulid}, ObservedTimestamp: timestamppb.New(parsedAt), Resource: res, Scope: scp, Raw: []byte(raw)}
 
 	opts := humanlog.DefaultOptions()
 	opts.DetectTimestamp = true

@@ -326,16 +326,16 @@ func (std *Stdio) ReceiveSpan(ctx context.Context, span *typesv1.Span) error {
 		duration      = spantheme.Duration.Render(span.Duration.AsDuration().String())
 		statusCode    = spantheme.StatusCode.Render(typesv1.Span_Status_Code_name[int32(span.Status.Code)])
 		statusMessage = spantheme.StatusMessage.Render(span.Status.Message)
-		traceID       = spantheme.TraceId.Render(span.TraceId)
-		spanID        = spantheme.SpanId.Render(span.SpanId)
+		traceID       = spantheme.TraceId.Render(typesv1.TraceIDToHex(span.TraceId))
+		spanID        = spantheme.SpanId.Render(typesv1.SpanIDToHex(span.SpanId))
 		parentSpanID  string
 		traceState    = spantheme.TraceState.Render(span.TraceState)
 		scopeName     = spantheme.ScopeName.Render(span.Scope.Name)
 		scopeVersion  = spantheme.ScopeVersion.Render(span.Scope.Version)
 	)
 
-	if len(span.ParentSpanId) > 0 {
-		parentSpanID = spantheme.ParentSpanId.Render(span.SpanId)
+	if span.ParentSpanId != nil {
+		parentSpanID = spantheme.ParentSpanId.Render(typesv1.SpanIDToHex(span.ParentSpanId))
 	} else {
 		parentSpanID = spantheme.ParentSpanIdAbsent.Render(std.opts.AbsentParentSpanContent)
 	}
@@ -440,8 +440,8 @@ func (std *Stdio) ReceiveSpan(ctx context.Context, span *typesv1.Span) error {
 	if len(span.Links) > 0 {
 		for _, link := range span.Links {
 			var (
-				traceID    = spantheme.LinkTraceID.Render(link.TraceId)
-				spanID     = spantheme.LinkSpanID.Render(link.SpanId)
+				traceID    = spantheme.LinkTraceID.Render(typesv1.TraceIDToHex(link.TraceId))
+				spanID     = spantheme.LinkSpanID.Render(typesv1.SpanIDToHex(link.SpanId))
 				traceState = spantheme.LinkTraceState.Render(link.TraceState)
 				kvs        string
 			)
