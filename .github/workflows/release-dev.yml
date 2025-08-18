@@ -53,6 +53,7 @@ jobs:
     name: ${{ matrix.targets.name }}
     runs-on: ${{ matrix.targets.runner }}
     env:
+      GOEXPERIMENT: jsonv2
       GOPRIVATE: "github.com/humanlogio/humanlog-pro"
       GH_ACCESS_TOKEN_FOR_HUMANLOGPRO: ${{ secrets.GH_ACCESS_TOKEN_FOR_HUMANLOGPRO }}
       CGO_ENABLED: 1

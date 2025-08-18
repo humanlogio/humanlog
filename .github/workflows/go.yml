@@ -17,6 +17,8 @@ jobs:
 
     name: test
     runs-on: ${{ matrix.os }}
+    env:
+      GOEXPERIMENT: jsonv2
     steps:
 
     - name: Set up Go 1.23

@@ -19,6 +19,7 @@ jobs:
       pull-requests: write
 
     env:
+      GOEXPERIMENT: jsonv2
       GOPRIVATE: "github.com/humanlogio/humanlog-pro"
       GH_ACCESS_TOKEN_FOR_HUMANLOGPRO: ${{ secrets.GH_ACCESS_TOKEN_FOR_HUMANLOGPRO }}
       GH_ACCESS_TOKEN_FOR_AUTO_PR: ${{ secrets.GH_ACCESS_TOKEN_FOR_AUTO_PR }}
