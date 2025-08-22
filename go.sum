@@ -250,8 +250,8 @@ github.com/hexops/gotextdiff v1.0.3 h1:gitA9+qJrrTCsiCl7+kh75nPqQt1cx4ZkudSTLoUq
 github.com/hexops/gotextdiff v1.0.3/go.mod h1:pSWU5MAI3yDq+fZBTazCSJysOMbxWL1BSow5/V2vxeg=
 github.com/humanlogio/api/go v0.0.0-20250821074956-512a3eb7365e h1:MeDSzezqcWZYHXv5cnZhA5ug0TyhYCu6J5AJKCdJ/so=
 github.com/humanlogio/api/go v0.0.0-20250821074956-512a3eb7365e/go.mod h1:v0dDxL6nmQ4G5jKilUj3PL5Owf5e5QNp1mrg9n9w7ww=
-github.com/humanlogio/humanlog-pro v0.0.0-20250822033248-1e326075f4c8 h1:ErPPNHwo2MhmcQYhTwXMxcalM9fl7bLgJ1SVM+LCgFs=
-github.com/humanlogio/humanlog-pro v0.0.0-20250822033248-1e326075f4c8/go.mod h1:/7aF6IdH8a70BpdfumpnfM6ip1HfRacaOcaN752N+QU=
+github.com/humanlogio/humanlog-pro v0.0.0-20250822033914-8983c042b140 h1:jO3hrV7n5sf/8ZP8PbxupZZMAa2UIB+va5ToMA6/GqY=
+github.com/humanlogio/humanlog-pro v0.0.0-20250822033914-8983c042b140/go.mod h1:/7aF6IdH8a70BpdfumpnfM6ip1HfRacaOcaN752N+QU=
 github.com/jpillora/backoff v1.0.0 h1:uvFg412JmmHBHw7iwprIxkPMI+sGQ4kzOWsMeHnm2EA=
 github.com/jpillora/backoff v1.0.0/go.mod h1:J/6gKK9jxlEcS3zixgDgUAsiuZ7yrSoa/FX5e0EB2j4=
 github.com/kardianos/service v1.2.2 h1:ZvePhAHfvo0A7Mftk/tEzqEZ7Q4lgnR8sGz4xu1YX60=
