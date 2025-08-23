@@ -248,10 +248,10 @@ github.com/gsterjov/go-libsecret v0.0.0-20161001094733-a6f4afe4910c h1:6rhixN/i8
 github.com/gsterjov/go-libsecret v0.0.0-20161001094733-a6f4afe4910c/go.mod h1:NMPJylDgVpX0MLRlPy15sqSwOFv/U1GZ2m21JhFfek0=
 github.com/hexops/gotextdiff v1.0.3 h1:gitA9+qJrrTCsiCl7+kh75nPqQt1cx4ZkudSTLoUqJM=
 github.com/hexops/gotextdiff v1.0.3/go.mod h1:pSWU5MAI3yDq+fZBTazCSJysOMbxWL1BSow5/V2vxeg=
-github.com/humanlogio/api/go v0.0.0-20250821074956-512a3eb7365e h1:MeDSzezqcWZYHXv5cnZhA5ug0TyhYCu6J5AJKCdJ/so=
-github.com/humanlogio/api/go v0.0.0-20250821074956-512a3eb7365e/go.mod h1:v0dDxL6nmQ4G5jKilUj3PL5Owf5e5QNp1mrg9n9w7ww=
-github.com/humanlogio/humanlog-pro v0.0.0-20250822033914-8983c042b140 h1:jO3hrV7n5sf/8ZP8PbxupZZMAa2UIB+va5ToMA6/GqY=
-github.com/humanlogio/humanlog-pro v0.0.0-20250822033914-8983c042b140/go.mod h1:/7aF6IdH8a70BpdfumpnfM6ip1HfRacaOcaN752N+QU=
+github.com/humanlogio/api/go v0.0.0-20250823024631-21e62b0f8e15 h1:cYbHEddayHnMbU8+T/JsKjDtM5b3FRULE8T5aR4vUdk=
+github.com/humanlogio/api/go v0.0.0-20250823024631-21e62b0f8e15/go.mod h1:u/wSFkJHWfvtqnKKS2YUBE2YX/XTeYKN+OysEXx2Fnk=
+github.com/humanlogio/humanlog-pro v0.0.0-20250823083959-3660541e48a8 h1:Ke3kOBBqEsrdYOXSX6uPxbVAj57Z6+jd4Jyf+FhFJA0=
+github.com/humanlogio/humanlog-pro v0.0.0-20250823083959-3660541e48a8/go.mod h1:ULbdQuqY58XQq2gxXCDhflEnp9m3wiO/+fGBMxDdSQw=
 github.com/jpillora/backoff v1.0.0 h1:uvFg412JmmHBHw7iwprIxkPMI+sGQ4kzOWsMeHnm2EA=
 github.com/jpillora/backoff v1.0.0/go.mod h1:J/6gKK9jxlEcS3zixgDgUAsiuZ7yrSoa/FX5e0EB2j4=
 github.com/kardianos/service v1.2.2 h1:ZvePhAHfvo0A7Mftk/tEzqEZ7Q4lgnR8sGz4xu1YX60=
