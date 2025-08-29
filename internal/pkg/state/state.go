@@ -10,6 +10,7 @@ import (
 
 	"github.com/blang/semver"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
+	"github.com/mitchellh/go-homedir"
 )
 
 var DefaultState = State{
@@ -17,11 +18,11 @@ var DefaultState = State{
 }
 
 func GetDefaultStateDirpath() (string, error) {
-	home, err := os.UserHomeDir()
+	_, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("$HOME not set, can't determine a state dir path")
 	}
-	stateDirpath := filepath.Join(home, ".state", "humanlog")
+	stateDirpath := filepath.Join("~", ".state", "humanlog")
 	return stateDirpath, nil
 }
 
@@ -30,31 +31,40 @@ func GetDefaultStateFilepath() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	stateFilepath := filepath.Join(stateDirpath, "state.json")
-	dfi, err := os.Stat(stateDirpath)
+	stateDirpathExpanded, err := homedir.Expand(stateDirpath)
+	if err != nil {
+		return "", err
+	}
+	dfi, err := os.Stat(stateDirpathExpanded)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return "", fmt.Errorf("state dir %q can't be read: %v", stateDirpath, err)
+		return "", fmt.Errorf("state dir %q can't be read: %v", stateDirpathExpanded, err)
 	}
 	if errors.Is(err, os.ErrNotExist) {
-		if err := os.MkdirAll(stateDirpath, 0700); err != nil {
-			return "", fmt.Errorf("state dir %q can't be created: %v", stateDirpath, err)
+		if err := os.MkdirAll(stateDirpathExpanded, 0700); err != nil {
+			return "", fmt.Errorf("state dir %q can't be created: %v", stateDirpathExpanded, err)
 		}
 	} else if !dfi.IsDir() {
-		return "", fmt.Errorf("state dir %q isn't a directory", stateDirpath)
+		return "", fmt.Errorf("state dir %q isn't a directory", stateDirpathExpanded)
 	}
-	ffi, err := os.Stat(stateFilepath)
+	stateFilepath := filepath.Join(stateDirpath, "state.json")
+	stateFilepathExpanded := filepath.Join(stateDirpathExpanded, "state.json")
+	ffi, err := os.Stat(stateFilepathExpanded)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return "", fmt.Errorf("can't stat state file: %v", err)
 	}
 	if errors.Is(err, os.ErrNotExist) {
 		// do nothing
 	} else if !ffi.Mode().IsRegular() {
-		return "", fmt.Errorf("state file %q isn't a regular file", stateFilepath)
+		return "", fmt.Errorf("state file %q isn't a regular file", stateFilepathExpanded)
 	}
 	return stateFilepath, nil
 }
 
 func ReadStateFile(path string, dflt *State) (*State, error) {
+	path, err := homedir.Expand(path)
+	if err != nil {
+		return nil, err
+	}
 	stateFile, err := os.Open(path)
 	if err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
@@ -77,7 +87,10 @@ func WriteStateFile(path string, state *State) error {
 	if err != nil {
 		return fmt.Errorf("marshaling state file: %v", err)
 	}
-
+	path, err = homedir.Expand(path)
+	if err != nil {
+		return err
+	}
 	newf, err := os.CreateTemp(filepath.Dir(path), "humanlog_statefile")
 	if err != nil {
 		return fmt.Errorf("creating temporary file for statefile: %w", err)

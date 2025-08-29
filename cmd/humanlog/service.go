@@ -37,6 +37,7 @@ import (
 	"github.com/humanlogio/humanlog/pkg/auth"
 	"github.com/humanlogio/humanlog/pkg/localstorage"
 	ksvc "github.com/kardianos/service"
+	"github.com/mitchellh/go-homedir"
 	"github.com/rs/cors"
 	"github.com/urfave/cli"
 	"go.opentelemetry.io/contrib/propagators/b3"
@@ -503,12 +504,23 @@ func (hdl *serviceHandler) runLocalhost(
 			return db.Parse(ctx, s)
 		}), nil
 	}
+	engineConfig := localhostCfg.EngineConfig.AsMap()
+	dbpath, ok := engineConfig["path"].(string)
+	if !ok {
+		return fmt.Errorf("invalid db path")
+	}
+	dbpath, err := homedir.Expand(dbpath)
+	if err != nil {
+		return fmt.Errorf("invalid db path: %v", err)
+	}
+	engineConfig["path"] = dbpath
+
 	openStorage := func(ctx context.Context) (localstorage.Storage, error) {
 		return localstorage.Open(
 			ctx,
 			localhostCfg.Engine,
 			ll.WithGroup("storage"),
-			localhostCfg.EngineConfig.AsMap(),
+			engineConfig,
 			app,
 		)
 	}
