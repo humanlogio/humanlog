@@ -32,6 +32,7 @@ require (
 	github.com/matoous/go-nanoid v1.5.0
 	github.com/mattn/go-colorable v0.1.14
 	github.com/mattn/go-isatty v0.0.20
+	github.com/mitchellh/go-homedir v1.1.0
 	github.com/oklog/ulid/v2 v2.1.1
 	github.com/perses/perses v0.51.1
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
