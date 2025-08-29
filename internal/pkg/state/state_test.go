@@ -3,6 +3,7 @@ package state
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -12,7 +13,11 @@ func TestGetDefaultStateFilepath(t *testing.T) {
 	tmp, err := os.MkdirTemp(os.TempDir(), "*")
 	require.NoError(t, err)
 
-	err = os.Setenv("HOME", tmp) // set HOME env value to tmp for this test
+	if runtime.GOOS == "windows" {
+		err = os.Setenv("USERPROFILE", tmp)
+	} else {
+		err = os.Setenv("HOME", tmp) // set HOME env value to tmp for this test
+	}
 	require.NoError(t, err)
 
 	home, err := os.UserHomeDir()
