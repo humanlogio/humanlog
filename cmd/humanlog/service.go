@@ -37,6 +37,7 @@ import (
 	"github.com/humanlogio/humanlog/pkg/auth"
 	"github.com/humanlogio/humanlog/pkg/localstorage"
 	ksvc "github.com/kardianos/service"
+	"github.com/mitchellh/go-homedir"
 	"github.com/rs/cors"
 	"github.com/urfave/cli"
 	"go.opentelemetry.io/contrib/propagators/b3"
@@ -914,5 +915,5 @@ func defaultLogDir(cfg *config.Config, st *state.State) (string, error) {
 		}
 		logdir = filepath.Join(stateDir, "logs")
 	}
-	return logdir, nil
+	return homedir.Expand(logdir)
 }
