@@ -64,4 +64,4 @@ Need more help or want to give feedback? Join our [community channels](https://h
 
 # License
 
-The core CLI is MIT licensed (everything in this repo). Official releases are available at [humanlog.io](https://humanlog.io) and include proprietary code that is inserted at build time (the query engine).
+The core CLI is Apache 2 licensed (everything in this repo). Official releases are available at [humanlog.io](https://humanlog.io) and include proprietary code that is inserted at build time (the query engine).
