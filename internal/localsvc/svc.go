@@ -20,7 +20,6 @@ import (
 	projectpb "github.com/humanlogio/api/go/svc/project/v1/projectv1connect"
 	qrv1 "github.com/humanlogio/api/go/svc/query/v1"
 	qrsvcpb "github.com/humanlogio/api/go/svc/query/v1/queryv1connect"
-	userv1 "github.com/humanlogio/api/go/svc/user/v1"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
 	"github.com/humanlogio/humanlog/internal/localstate"
 	"github.com/humanlogio/humanlog/pkg/localstorage"
@@ -45,7 +44,6 @@ type Service struct {
 	doRestart  func(ctx context.Context) error
 	getConfig  func(ctx context.Context) (*typesv1.LocalhostConfig, error)
 	setConfig  func(ctx context.Context, cfg *typesv1.LocalhostConfig) error
-	whoami     func(ctx context.Context) (*userv1.WhoamiResponse, error)
 
 	db localstate.DB
 }
@@ -61,7 +59,6 @@ func New(
 	doRestart func(ctx context.Context) error,
 	getConfig func(ctx context.Context) (*typesv1.LocalhostConfig, error),
 	setConfig func(ctx context.Context, cfg *typesv1.LocalhostConfig) error,
-	whoami func(ctx context.Context) (*userv1.WhoamiResponse, error),
 ) *Service {
 	return &Service{
 		ll:         ll,
@@ -74,7 +71,6 @@ func New(
 		doRestart:  doRestart,
 		getConfig:  getConfig,
 		setConfig:  setConfig,
-		whoami:     whoami,
 		db:         state,
 	}
 }
@@ -100,21 +96,6 @@ func (svc *Service) Ping(ctx context.Context, req *connect.Request[lhv1.PingRequ
 		OperatingSystem: runtime.GOOS,
 		Meta:            &typesv1.ResMeta{},
 	}
-	whoami, err := svc.whoami(ctx)
-	if err != nil {
-		if cerr, ok := err.(*connect.Error); ok {
-			return nil, cerr
-		}
-		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("checking logged in status: %v", err))
-	}
-	if whoami != nil {
-		res.LoggedInUser = &lhv1.PingResponse_UserDetails{
-			User:                whoami.User,
-			CurrentOrganization: whoami.CurrentOrganization,
-			DefaultOrganization: whoami.DefaultOrganization,
-		}
-	}
-
 	return connect.NewResponse(res), nil
 }
 
@@ -124,21 +105,6 @@ func (svc *Service) PingStream(ctx context.Context, req *connect.Request[lhv1.Pi
 		Architecture:    runtime.GOARCH,
 		OperatingSystem: runtime.GOOS,
 		Meta:            &typesv1.ResMeta{},
-	}
-
-	whoami, err := svc.whoami(ctx)
-	if err != nil {
-		if cerr, ok := err.(*connect.Error); ok {
-			return cerr
-		}
-		return connect.NewError(connect.CodeInternal, fmt.Errorf("checking logged in status: %v", err))
-	}
-	if whoami != nil {
-		res.LoggedInUser = &lhv1.PingResponse_UserDetails{
-			User:                whoami.User,
-			CurrentOrganization: whoami.CurrentOrganization,
-			DefaultOrganization: whoami.DefaultOrganization,
-		}
 	}
 
 	ticker := time.NewTicker(5 * time.Second)

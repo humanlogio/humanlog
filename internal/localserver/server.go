@@ -156,7 +156,6 @@ func ServeLocalhost(
 		doRestart,
 		getConfig,
 		setConfig,
-		whoami,
 	)
 
 	otelIctpr, err := otelconnect.NewInterceptor()
