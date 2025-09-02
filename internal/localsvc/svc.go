@@ -84,7 +84,6 @@ var (
 	_ igsvcpb.IngestServiceHandler        = (*Service)(nil)
 	_ qrsvcpb.QueryServiceHandler         = (*Service)(nil)
 	_ qrsvcpb.TraceServiceHandler         = (*Service)(nil)
-	_ qrsvcpb.TraceServiceHandler         = (*Service)(nil)
 	_ projectpb.ProjectServiceHandler     = (*Service)(nil)
 	_ dashboardpb.DashboardServiceHandler = (*Service)(nil)
 	_ alertpb.AlertServiceHandler         = (*Service)(nil)
@@ -117,6 +116,43 @@ func (svc *Service) Ping(ctx context.Context, req *connect.Request[lhv1.PingRequ
 	}
 
 	return connect.NewResponse(res), nil
+}
+
+func (svc *Service) PingStream(ctx context.Context, req *connect.Request[lhv1.PingRequest], srv *connect.ServerStream[lhv1.PingResponse]) error {
+	res := &lhv1.PingResponse{
+		ClientVersion:   svc.ownVersion,
+		Architecture:    runtime.GOARCH,
+		OperatingSystem: runtime.GOOS,
+		Meta:            &typesv1.ResMeta{},
+	}
+
+	whoami, err := svc.whoami(ctx)
+	if err != nil {
+		if cerr, ok := err.(*connect.Error); ok {
+			return cerr
+		}
+		return connect.NewError(connect.CodeInternal, fmt.Errorf("checking logged in status: %v", err))
+	}
+	if whoami != nil {
+		res.LoggedInUser = &lhv1.PingResponse_UserDetails{
+			User:                whoami.User,
+			CurrentOrganization: whoami.CurrentOrganization,
+			DefaultOrganization: whoami.DefaultOrganization,
+		}
+	}
+
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-ticker.C:
+			if err := srv.Send(res); err != nil {
+				return connect.NewError(connect.CodeInternal, fmt.Errorf("can't sent to client: %v", err))
+			}
+		}
+	}
 }
 
 func (svc *Service) DoLogin(ctx context.Context, req *connect.Request[lhv1.DoLoginRequest]) (*connect.Response[lhv1.DoLoginResponse], error) {
@@ -613,6 +649,12 @@ func (svc *Service) GetSpan(ctx context.Context, req *connect.Request[qrv1.GetSp
 }
 
 func (svc *Service) ListSymbols(ctx context.Context, req *connect.Request[qrv1.ListSymbolsRequest]) (*connect.Response[qrv1.ListSymbolsResponse], error) {
+	if req.Msg.Limit < 1 {
+		req.Msg.Limit = 1000 // default is 1000
+	}
+	if req.Msg.Limit < 10 {
+		req.Msg.Limit = 10 // minimum is 10
+	}
 	symbols, next, err := svc.storage.ListSymbols(ctx, nil, req.Msg.Cursor, int(req.Msg.Limit))
 	if err != nil {
 		if cerr, ok := err.(*connect.Error); ok {
