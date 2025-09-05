@@ -136,8 +136,9 @@ type State struct {
 	LastPromptedToSignupAt          *time.Time `json:"last_prompted_to_signup_at"`
 	LastPromptedToEnableLocalhostAt *time.Time `json:"last_prompted_to_enable_localhost_at"`
 
+	LoggedInUsername *string `json:"logged_in_username"`
+
 	// preferences set in the CLI/TUI when querying
-	CurrentOrgID         *int64 `json:"current_org_id,omitempty"`
 	CurrentEnvironmentID *int64 `json:"current_environment_id,omitempty"`
 	CurrentMachineID     *int64 `json:"current_machine_id,omitempty"`
 
@@ -160,9 +161,6 @@ func (cfg State) populateEmpty(other *State) *State {
 	}
 	if out.LastestKnownVersionUpdatedAt == nil && other.LastestKnownVersionUpdatedAt != nil {
 		out.LastestKnownVersionUpdatedAt = other.LastestKnownVersionUpdatedAt
-	}
-	if out.CurrentOrgID == nil && other.CurrentOrgID != nil {
-		out.CurrentOrgID = other.CurrentOrgID
 	}
 	if out.CurrentEnvironmentID == nil && other.CurrentEnvironmentID != nil {
 		out.CurrentEnvironmentID = other.CurrentEnvironmentID

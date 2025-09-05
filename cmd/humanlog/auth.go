@@ -8,7 +8,6 @@ import (
 	"os"
 
 	"connectrpc.com/connect"
-	"github.com/humanlogio/api/go/svc/auth/v1/authv1connect"
 	userpb "github.com/humanlogio/api/go/svc/user/v1"
 	"github.com/humanlogio/api/go/svc/user/v1/userv1connect"
 	"github.com/humanlogio/humanlog/internal/pkg/config"
@@ -43,8 +42,7 @@ func authCmd(
 					tokenSource := getTokenSource(cctx)
 					apiURL := getAPIUrl(cctx)
 					httpClient := getHTTPClient(cctx, apiURL)
-					authClient := authv1connect.NewAuthServiceClient(httpClient, apiURL, getConnectOpts(cctx)...)
-					_, err := performLoginFlow(ctx, state, authClient, tokenSource, "")
+					_, err := ensureLoggedIn(ctx, cctx, state, tokenSource, apiURL, httpClient, getConnectOpts(cctx))
 					return err
 				},
 			},
@@ -77,6 +75,7 @@ func authCmd(
 						return fmt.Errorf("looking up who you are: %v", err)
 					}
 
+					printFact("username", res.Msg.User.Username)
 					printFact("email", res.Msg.User.Email)
 					printFact("verified", res.Msg.User.EmailVerified)
 					printFact("first name", res.Msg.User.FirstName)
