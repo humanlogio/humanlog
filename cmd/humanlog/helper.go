@@ -18,6 +18,8 @@ import (
 	"github.com/humanlogio/api/go/svc/auth/v1/authv1connect"
 	organizationv1 "github.com/humanlogio/api/go/svc/organization/v1"
 	"github.com/humanlogio/api/go/svc/organization/v1/organizationv1connect"
+	productv1 "github.com/humanlogio/api/go/svc/product/v1"
+	"github.com/humanlogio/api/go/svc/product/v1/productv1connect"
 	tokenv1 "github.com/humanlogio/api/go/svc/token/v1"
 	"github.com/humanlogio/api/go/svc/token/v1/tokenv1connect"
 	userpb "github.com/humanlogio/api/go/svc/user/v1"
@@ -60,8 +62,20 @@ func ensureLoggedIn(
 		if !confirms {
 			return nil, fmt.Errorf("aborting")
 		}
+
+		if state.LoggedInUsername == nil || *state.LoggedInUsername == "" {
+			state.LoggedInUsername = ptr("")
+			err := huh.NewInput().Title("Pick a username").Value(state.LoggedInUsername).Run()
+			if err != nil {
+				return nil, err
+			}
+			if err := state.WriteBack(); err != nil {
+				return nil, err
+			}
+		}
+
 		// no user auth, perform login flow
-		t, err := performLoginFlow(ctx, state, authClient, tokenSource, "")
+		t, err := performLoginFlow(ctx, state, authClient, tokenSource, *state.LoggedInUsername, 0, "")
 		if err != nil {
 			return nil, fmt.Errorf("performing login: %v", err)
 		}
@@ -89,7 +103,17 @@ func ensureLoggedIn(
 			if !confirms {
 				return nil, fmt.Errorf("aborting")
 			}
-			t, err := performLoginFlow(ctx, state, authClient, tokenSource, "")
+			if state.LoggedInUsername == nil || *state.LoggedInUsername == "" {
+				state.LoggedInUsername = ptr("")
+				err := huh.NewInput().Title("Pick a username").Value(state.LoggedInUsername).Run()
+				if err != nil {
+					return nil, err
+				}
+				if err := state.WriteBack(); err != nil {
+					return nil, err
+				}
+			}
+			t, err := performLoginFlow(ctx, state, authClient, tokenSource, *state.LoggedInUsername, 0, "")
 			if err != nil {
 				return nil, fmt.Errorf("performing login: %v", err)
 			}
@@ -120,11 +144,18 @@ func performLoginFlow(
 	state *state.State,
 	authClient authv1connect.AuthServiceClient,
 	tokenSource *auth.UserRefreshableTokenSource,
+	username string,
+	organizationID int64,
 	returnToURL string,
 ) (*typesv1.UserToken, error) {
-	res, err := authClient.BeginDeviceAuth(ctx, connect.NewRequest(&authv1.BeginDeviceAuthRequest{
+	req := &authv1.BeginDeviceAuthRequest{
 		ReturnToUrl: returnToURL,
-	}))
+		Username:    username,
+	}
+	if organizationID != 0 {
+		req.Organization = &authv1.BeginDeviceAuthRequest_ById{ById: organizationID}
+	}
+	res, err := authClient.BeginDeviceAuth(ctx, connect.NewRequest(req))
 	if err != nil {
 		return nil, fmt.Errorf("requesting auth URL: %v", err)
 	}
@@ -212,9 +243,7 @@ func ensureOrgSelected(
 	httpClient *http.Client,
 	clOpts []connect.ClientOption,
 ) (int64, error) {
-	if state.CurrentOrgID != nil {
-		return *state.CurrentOrgID, nil
-	}
+
 	clOpts = append(clOpts, connect.WithInterceptors(
 		auth.Interceptors(ll, tokenSource)...,
 	))
@@ -224,7 +253,6 @@ func ensureOrgSelected(
 	if err != nil {
 		return -1, err
 	}
-	state.CurrentOrgID = &orgID
 	return orgID, state.WriteBack()
 }
 
@@ -257,6 +285,59 @@ func huhSelectOrganizations(ctx context.Context, client userv1connect.UserServic
 	return selected.Id, nil
 }
 
+func huhSelectProduct(ctx context.Context, category string, scope *typesv1.Product_Scope, client productv1connect.ProductServiceClient, title string) (*typesv1.Product, []*typesv1.Price, error) {
+	var options []huh.Option[*productv1.ListProductResponse_ListItem]
+	iter := ListProduct(ctx, category, scope, client)
+	for iter.Next() {
+		item := iter.Current()
+		options = append(options, huh.NewOption(item.Product.Name, item))
+	}
+	if err := iter.Err(); err != nil {
+		return nil, nil, fmt.Errorf("couldn't list products: %v", err)
+	}
+	if len(options) == 0 {
+		return nil, nil, fmt.Errorf("no product exists, this is a bug. please contact support at hi@humanlog.io")
+	}
+	if len(options) == 1 {
+		return options[0].Value.Product, options[0].Value.Prices, nil
+	}
+	var selected *productv1.ListProductResponse_ListItem
+	err := huh.NewSelect[*productv1.ListProductResponse_ListItem]().
+		Title(title).
+		Options(options...).
+		Value(&selected).
+		WithTheme(huhTheme).
+		Run()
+	if err != nil {
+		return nil, nil, fmt.Errorf("prompting for product selection: %v", err)
+	}
+	return selected.Product, selected.Prices, nil
+}
+
+func huhSelectPrice(ctx context.Context, prices []*typesv1.Price, title string) (*typesv1.Price, error) {
+	var options []huh.Option[*typesv1.Price]
+	for _, price := range prices {
+		options = append(options, huh.NewOption(price.Recurring.Interval, price))
+	}
+	if len(options) == 0 {
+		return nil, fmt.Errorf("no price exists, this is a bug. please contact support at hi@humanlog.io")
+	}
+	if len(options) == 1 {
+		return options[0].Value, nil
+	}
+	var selected *typesv1.Price
+	err := huh.NewSelect[*typesv1.Price]().
+		Title(title).
+		Options(options...).
+		Value(&selected).
+		WithTheme(huhTheme).
+		Run()
+	if err != nil {
+		return nil, fmt.Errorf("prompting for price selection: %v", err)
+	}
+	return selected, nil
+}
+
 func ensureEnvironmentSelected(
 	ctx context.Context,
 	ll *slog.Logger,
@@ -266,7 +347,6 @@ func ensureEnvironmentSelected(
 	apiURL string,
 	httpClient *http.Client,
 	clOpts []connect.ClientOption,
-	orgID int64,
 ) (int64, error) {
 	if state.CurrentEnvironmentID != nil {
 		return *state.CurrentEnvironmentID, nil
@@ -287,7 +367,7 @@ func ensureEnvironmentSelected(
 	}
 
 	if len(options) == 0 {
-		environmentID, err := promptCreateEnvironment(ctx, ll, cctx, state, tokenSource, apiURL, httpClient, orgID)
+		environmentID, err := promptCreateEnvironment(ctx, ll, cctx, state, tokenSource, apiURL, httpClient)
 		if err != nil {
 			return -1, err
 		}
@@ -312,8 +392,8 @@ func ensureEnvironmentSelected(
 		return -1, fmt.Errorf("prompting for environment selection: %v", err)
 	}
 
-	state.CurrentOrgID = &selected.Id
-	return *state.CurrentOrgID, state.WriteBack()
+	state.CurrentEnvironmentID = &selected.Id
+	return *state.CurrentEnvironmentID, state.WriteBack()
 }
 
 func ListOrganizations(ctx context.Context, client userv1connect.UserServiceClient) *iterapi.Iter[*userv1.ListOrganizationResponse_ListItem] {
@@ -361,6 +441,21 @@ func ListEnvironmentTokens(ctx context.Context, environmentID int64, client toke
 			Cursor:        cursor,
 			Limit:         limit,
 			EnvironmentId: environmentID,
+		}))
+		if err != nil {
+			return nil, nil, err
+		}
+		return list.Msg.Items, list.Msg.Next, nil
+	})
+}
+
+func ListProduct(ctx context.Context, category string, scope *typesv1.Product_Scope, client productv1connect.ProductServiceClient) *iterapi.Iter[*productv1.ListProductResponse_ListItem] {
+	return iterapi.New(ctx, 100, func(ctx context.Context, cursor *typesv1.Cursor, limit int32) ([]*productv1.ListProductResponse_ListItem, *typesv1.Cursor, error) {
+		list, err := client.ListProduct(ctx, connect.NewRequest(&productv1.ListProductRequest{
+			Cursor:   cursor,
+			Limit:    limit,
+			Category: category,
+			Scope:    scope,
 		}))
 		if err != nil {
 			return nil, nil, err

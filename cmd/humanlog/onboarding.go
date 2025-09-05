@@ -186,7 +186,13 @@ Bye! <3`
 				wantsSignup              = !isSignedUp
 				askedAboutQueryEngine    = state != nil && state.LastPromptedToEnableLocalhostAt != nil
 				askedAboutSignup         = state != nil && state.LastPromptedToSignupAt != nil
+
+				username string
 			)
+
+			if userToken != nil {
+				username = userToken.Username
+			}
 
 			// we only prompt about the query engine if a user previously refused it.
 			// new installs get the query engine by default
@@ -251,6 +257,16 @@ Bye! <3`
 			} else {
 				logdebug("not prompting about signing up")
 			}
+
+			if username == "" {
+				fields = append(fields,
+					huh.NewInput().
+						Title("Select a username").
+						Description("It should match the regexp `^[a-zA-Z0-9][a-zA-Z0-9-]+$`").
+						Value(&username),
+				)
+			}
+
 			if len(fields) > 0 {
 				err := huh.NewForm(huh.NewGroup(fields...)).WithTheme(huhTheme).Run()
 				if err != nil {
@@ -286,7 +302,7 @@ Bye! <3`
 					redirectURL = baseURL.JoinPath("/onboarding").String()
 				}
 
-				_, err := performLoginFlow(ctx, state, authClient, tokenSource, redirectURL)
+				_, err := performLoginFlow(ctx, state, authClient, tokenSource, username, 0, redirectURL)
 				if err != nil {
 					logerror("failed to sign up or sign in: %v", err)
 				}
