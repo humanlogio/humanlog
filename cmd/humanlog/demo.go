@@ -151,7 +151,7 @@ func demoCmd(
 
 			return localserver.ServeLocalhost(ctx, ll, localhostCfg, ownVersion, app, openStorage, openState, registerOnCloseServer,
 				func(ctx context.Context, returnToURL string) error {
-					if _, err := performLoginFlow(ctx, state, authSvc, tokenSource, returnToURL); err != nil {
+					if _, err := performLoginFlow(ctx, state, authSvc, tokenSource, "", 0, returnToURL); err != nil {
 						return err
 					}
 					return nil

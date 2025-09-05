@@ -3,15 +3,19 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"log/slog"
 	"net/http"
 	"strconv"
 
 	"connectrpc.com/connect"
+	"github.com/charmbracelet/huh"
 	organizationv1 "github.com/humanlogio/api/go/svc/organization/v1"
 	"github.com/humanlogio/api/go/svc/organization/v1/organizationv1connect"
+	"github.com/humanlogio/api/go/svc/product/v1/productv1connect"
 	tokenv1 "github.com/humanlogio/api/go/svc/token/v1"
 	"github.com/humanlogio/api/go/svc/token/v1/tokenv1connect"
+	typesv1 "github.com/humanlogio/api/go/types/v1"
 	"github.com/humanlogio/humanlog/internal/pkg/config"
 	"github.com/humanlogio/humanlog/internal/pkg/iterapi"
 	"github.com/humanlogio/humanlog/internal/pkg/state"
@@ -35,9 +39,10 @@ func environmentCmd(
 	getConnectOpts func(cctx *cli.Context) []connect.ClientOption,
 ) cli.Command {
 	return cli.Command{
-		Hidden: hideUnreleasedFeatures == "true",
-		Name:   environmentCmdName,
-		Usage:  "Manage environments for the current user or org.",
+		Hidden:    hideUnreleasedFeatures == "true",
+		Name:      environmentCmdName,
+		ShortName: "env",
+		Usage:     "Manage environments for the current user or org.",
 		Before: func(cctx *cli.Context) error {
 			ctx := getCtx(cctx)
 			state := getState(cctx)
@@ -89,11 +94,8 @@ func environmentCmd(
 					apiURL := getAPIUrl(cctx)
 					httpClient := getHTTPClient(cctx, apiURL)
 					clOpts := getConnectOpts(cctx)
-					orgID, err := ensureOrgSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient, clOpts)
-					if err != nil {
-						return err
-					}
-					environmentID, err := ensureEnvironmentSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient, clOpts, orgID)
+
+					environmentID, err := ensureEnvironmentSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient, clOpts)
 					if err != nil {
 						return err
 					}
@@ -123,22 +125,46 @@ func environmentCmd(
 				Action: func(cctx *cli.Context) error {
 					ctx := getCtx(cctx)
 					ll := getLogger(cctx)
-					state := getState(cctx)
 					tokenSource := getTokenSource(cctx)
 					apiURL := getAPIUrl(cctx)
 					httpClient := getHTTPClient(cctx, apiURL)
 					clOpts := getConnectOpts(cctx)
-					_, err := ensureOrgSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient, clOpts)
-					if err != nil {
-						return err
-					}
 
 					clOpts = append(clOpts, connect.WithInterceptors(
 						auth.Interceptors(ll, tokenSource)...,
 					))
+					productClient := productv1connect.NewProductServiceClient(httpClient, apiURL, clOpts...)
 					orgClient := organizationv1connect.NewOrganizationServiceClient(httpClient, apiURL, clOpts...)
 
-					res, err := orgClient.CreateEnvironment(ctx, connect.NewRequest(&organizationv1.CreateEnvironmentRequest{}))
+					var (
+						confirmToken string
+					)
+
+					_, prices, err := huhSelectProduct(ctx, "", typesv1.Product_Environment.Enum(), productClient, "Select a plan for the environment")
+					if err != nil {
+						return err
+					}
+					price, err := huhSelectPrice(ctx, prices, "Select a price for that plan")
+					if err != nil {
+						return err
+					}
+
+					payment := &organizationv1.CreateEnvironmentRequest_Stripe_{
+						Stripe: &organizationv1.CreateEnvironmentRequest_Stripe{
+							ConfirmationToken: confirmToken,
+							PriceId:           price.StripeId,
+						},
+					}
+					req := &organizationv1.CreateEnvironmentRequest{Payment: payment}
+					if err := huh.NewForm(
+						huh.NewGroup(
+							huh.NewInput().Title("Pick a name").Value(&req.EnvironmentName),
+						),
+					).RunWithContext(ctx); err != nil {
+						return err
+					}
+
+					res, err := orgClient.CreateEnvironment(ctx, connect.NewRequest(req))
 					if err != nil {
 						return err
 					}
@@ -195,7 +221,6 @@ func environmentCmd(
 				Action: func(cctx *cli.Context) error {
 					ctx := getCtx(cctx)
 					ll := getLogger(cctx)
-					state := getState(cctx)
 					tokenSource := getTokenSource(cctx)
 					apiURL := getAPIUrl(cctx)
 					httpClient := getHTTPClient(cctx, apiURL)
@@ -204,22 +229,20 @@ func environmentCmd(
 						auth.Interceptors(ll, tokenSource)...,
 					))
 					orgClient := organizationv1connect.NewOrganizationServiceClient(httpClient, apiURL, clOpts...)
-					_, err := ensureOrgSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient, clOpts)
-					if err != nil {
-						return err
-					}
 
 					iter := ListEnvironments(ctx, orgClient)
 
+					count := 0
 					for iter.Next() {
+						count++
 						li := iter.Current()
 						environment := li.Environment
 						printFact("environment name", environment.Name)
-						return nil
 					}
 					if err := iter.Err(); err != nil {
 						return err
 					}
+					log.Printf("%d environments", count)
 					return nil
 				},
 			},
@@ -234,11 +257,8 @@ func environmentCmd(
 					apiURL := getAPIUrl(cctx)
 					httpClient := getHTTPClient(cctx, apiURL)
 					clOpts := getConnectOpts(cctx)
-					orgID, err := ensureOrgSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient, clOpts)
-					if err != nil {
-						return err
-					}
-					environmentID, err := ensureEnvironmentSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient, clOpts, orgID)
+
+					environmentID, err := ensureEnvironmentSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient, clOpts)
 					if err != nil {
 						return err
 					}
@@ -285,11 +305,8 @@ func environmentCmd(
 					apiURL := getAPIUrl(cctx)
 					httpClient := getHTTPClient(cctx, apiURL)
 					clOpts := getConnectOpts(cctx)
-					orgID, err := ensureOrgSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient, clOpts)
-					if err != nil {
-						return err
-					}
-					environmentID, err := ensureEnvironmentSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient, clOpts, orgID)
+
+					environmentID, err := ensureEnvironmentSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient, clOpts)
 					if err != nil {
 						return err
 					}
@@ -336,11 +353,8 @@ func environmentCmd(
 					apiURL := getAPIUrl(cctx)
 					httpClient := getHTTPClient(cctx, apiURL)
 					clOpts := getConnectOpts(cctx)
-					orgID, err := ensureOrgSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient, clOpts)
-					if err != nil {
-						return err
-					}
-					environmentID, err := ensureEnvironmentSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient, clOpts, orgID)
+
+					environmentID, err := ensureEnvironmentSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient, clOpts)
 					if err != nil {
 						return err
 					}
@@ -398,11 +412,8 @@ func environmentCmd(
 					apiURL := getAPIUrl(cctx)
 					httpClient := getHTTPClient(cctx, apiURL)
 					clOpts := getConnectOpts(cctx)
-					orgID, err := ensureOrgSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient, clOpts)
-					if err != nil {
-						return err
-					}
-					environmentID, err := ensureEnvironmentSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient, clOpts, orgID)
+
+					environmentID, err := ensureEnvironmentSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient, clOpts)
 					if err != nil {
 						return err
 					}
@@ -441,6 +452,6 @@ func promptCreateEnvironment(ctx context.Context,
 	tokenSource *auth.UserRefreshableTokenSource,
 	apiURL string,
 	httpClient *http.Client,
-	orgID int64) (int64, error) {
+) (int64, error) {
 	panic("todo")
 }

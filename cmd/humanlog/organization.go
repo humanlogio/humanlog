@@ -8,6 +8,8 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/charmbracelet/huh"
+	"github.com/humanlogio/api/go/svc/auth/v1/authv1connect"
+	organizationv1 "github.com/humanlogio/api/go/svc/organization/v1"
 	"github.com/humanlogio/api/go/svc/organization/v1/organizationv1connect"
 	userv1 "github.com/humanlogio/api/go/svc/user/v1"
 	"github.com/humanlogio/api/go/svc/user/v1/userv1connect"
@@ -76,6 +78,7 @@ func organizationCmd(
 						logerror("missing argument: <name>")
 						return cli.ShowSubcommandHelp(cctx)
 					}
+					authClient := authv1connect.NewAuthServiceClient(httpClient, apiURL, getConnectOpts(cctx)...)
 
 					clOpts = append(clOpts, connect.WithInterceptors(
 						auth.Interceptors(ll, tokenSource)...,
@@ -90,8 +93,8 @@ func organizationCmd(
 							continue
 						}
 
-						state.CurrentOrgID = &li.Organization.Id
-						return state.WriteBack()
+						_, err := performLoginFlow(ctx, state, authClient, tokenSource, *state.LoggedInUsername, li.Organization.Id, "")
+						return err
 					}
 					if err := iter.Err(); err != nil {
 						return err
@@ -105,39 +108,26 @@ func organizationCmd(
 				Action: func(cctx *cli.Context) error {
 					ctx := getCtx(cctx)
 					ll := getLogger(cctx)
-					state := getState(cctx)
 					tokenSource := getTokenSource(cctx)
 					apiURL := getAPIUrl(cctx)
 					httpClient := getHTTPClient(cctx, apiURL)
 					clOpts := getConnectOpts(cctx)
 
-					if state.CurrentOrgID == nil {
-						return fmt.Errorf("no org is currently set")
-					}
-
 					clOpts = append(clOpts, connect.WithInterceptors(
 						auth.Interceptors(ll, tokenSource)...,
 					))
 					userClient := userv1connect.NewUserServiceClient(httpClient, apiURL, clOpts...)
-
-					iter := ListOrganizations(ctx, userClient)
-
-					for iter.Next() {
-						li := iter.Current()
-						if li.Organization.Id != *state.CurrentOrgID {
-							continue
-						}
-						org := li.Organization
-
-						printFact("org id", org.Id)
-						printFact("org name", org.Name)
-						printFact("created on", org.CreatedAt.AsTime())
-						return nil
+					whoamiRes, err := userClient.Whoami(ctx, connect.NewRequest(&userv1.WhoamiRequest{}))
+					if err != nil {
+						return fmt.Errorf("unable to check who you are: %v", err)
 					}
-					if err := iter.Err(); err != nil {
-						return err
-					}
-					return fmt.Errorf("current org not found")
+					org := whoamiRes.Msg.CurrentOrganization
+
+					printFact("org id", org.Id)
+					printFact("org name", org.Name)
+					printFact("created on", org.CreatedAt.AsTime())
+					return nil
+
 				},
 			},
 			{
@@ -156,12 +146,16 @@ func organizationCmd(
 						auth.Interceptors(ll, tokenSource)...,
 					))
 					userClient := userv1connect.NewUserServiceClient(httpClient, apiURL, clOpts...)
+					authClient := authv1connect.NewAuthServiceClient(httpClient, apiURL, clOpts...)
+
 					orgID, err := huhSelectOrganizations(ctx, userClient, "Which org do you want to switch to?")
 					if err != nil {
 						return err
 					}
-					state.CurrentOrgID = &orgID
-					return state.WriteBack()
+
+					_, err = performLoginFlow(ctx, state, authClient, tokenSource, *state.LoggedInUsername, orgID, "")
+
+					return err
 				},
 			},
 			{
@@ -301,8 +295,9 @@ func organizationCmd(
 				},
 			},
 			{
-				Name:  "invite",
-				Usage: "invite someone to access an org",
+				Name:      "invite",
+				Usage:     "invite someone to access an org",
+				ArgsUsage: `<email>`,
 				Action: func(cctx *cli.Context) error {
 					ctx := getCtx(cctx)
 					ll := getLogger(cctx)
@@ -317,11 +312,22 @@ func organizationCmd(
 					_ = apiURL
 					_ = httpClient
 
+					email := cctx.Args().First()
+					if email == "" {
+						return fmt.Errorf("an email is required")
+					}
+
 					clOpts = append(clOpts, connect.WithInterceptors(
 						auth.Interceptors(ll, tokenSource)...,
 					))
 					organizationClient := organizationv1connect.NewOrganizationServiceClient(httpClient, apiURL, clOpts...)
-					_ = organizationClient
+					res, err := organizationClient.InviteUser(ctx, connect.NewRequest(&organizationv1.InviteUserRequest{
+						UserEmail: email,
+					}))
+					if err != nil {
+						return fmt.Errorf("inviting user: %v", err)
+					}
+					_ = res
 					return nil
 				},
 			},

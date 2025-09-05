@@ -651,7 +651,7 @@ func (hdl *serviceHandler) DoLogout(ctx context.Context, returnToURL string) err
 
 func (hdl *serviceHandler) DoLogin(ctx context.Context, returnToURL string) error {
 	hdl.ll.InfoContext(ctx, "DoLogin", slog.String("return_to_url", returnToURL))
-	if _, err := performLoginFlow(ctx, hdl.state, hdl.authSvc, hdl.tokenSource, returnToURL); err != nil {
+	if _, err := performLoginFlow(ctx, hdl.state, hdl.authSvc, hdl.tokenSource, *hdl.state.LoggedInUsername, 0, returnToURL); err != nil {
 		return err
 	}
 	return hdl.checkAuth(ctx)
