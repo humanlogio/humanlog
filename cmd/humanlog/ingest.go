@@ -54,11 +54,6 @@ func ingest(
 		}
 	}
 
-	if state.MachineID == nil || *state.MachineID <= 0 {
-		//lint:ignore ST1005 "user facing call-to-action"
-		return nil, fmt.Errorf("It looks like this machine isn't associated with this environment. Try to login again, or register with humanlog.io.")
-	}
-
 	resource := getResource(cctx)
 	scope := getScope(cctx)
 

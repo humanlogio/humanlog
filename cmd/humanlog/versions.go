@@ -53,18 +53,11 @@ func reqMeta(st *state.State) *types.ReqMeta {
 	if st == nil {
 		return req
 	}
-	if st.MachineID != nil {
-		req.MachineId = *st.MachineID
-	}
 	return req
 }
 
 func updateFromResMeta(st *state.State, res *types.ResMeta, latestKnownVersion *semver.Version, latestKnownVersionUpdatedAt *time.Time) error {
 	changed := false
-	if st.MachineID == nil || res.MachineId != *st.MachineID {
-		st.MachineID = &res.MachineId
-		changed = true
-	}
 	if st.LatestKnownVersion == nil && latestKnownVersion != nil {
 		st.LatestKnownVersion = latestKnownVersion
 		changed = true
