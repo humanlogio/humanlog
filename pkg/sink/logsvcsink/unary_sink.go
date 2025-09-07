@@ -113,6 +113,7 @@ func (snk *ConnectUnarySink) connectAndHandleBuffer(
 		select {
 		case ev, more := <-snk.eventsc:
 			if !more {
+				ll.DebugContext(ctx, "no more events coming, flushing buffer (while waiting)")
 				flushing = true
 			}
 			if ev != nil {
@@ -124,18 +125,22 @@ func (snk *ConnectUnarySink) connectAndHandleBuffer(
 		ticker.Reset(drainBufferFor)
 
 		// try to drain the channel for 100ms
+		ll.DebugContext(ctx, "draining for a bit before sending", slog.Duration("drain_for", drainBufferFor))
 	drain_buffered_events_loop:
 		for len(req.Msg.Logs) < bufferSize {
 			select {
 			case ev, more := <-snk.eventsc:
-				if !more {
-					flushing = true
-				}
 				if ev != nil {
 					req.Msg.Logs = append(req.Msg.Logs, ev)
 				}
+				if !more {
+					ll.DebugContext(ctx, "no more events coming, flushing buffer (while draining)")
+					flushing = true
+					break drain_buffered_events_loop
+				}
 			case <-ticker.C:
 				ticker.Stop()
+				ll.DebugContext(ctx, "done draining")
 				break drain_buffered_events_loop
 			}
 		}
