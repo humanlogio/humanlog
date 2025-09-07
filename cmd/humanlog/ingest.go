@@ -14,14 +14,106 @@ import (
 	tokenv1 "github.com/humanlogio/api/go/svc/token/v1"
 	"github.com/humanlogio/api/go/svc/token/v1/tokenv1connect"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
+	"github.com/humanlogio/humanlog"
 	"github.com/humanlogio/humanlog/internal/pkg/config"
 	"github.com/humanlogio/humanlog/internal/pkg/state"
 	"github.com/humanlogio/humanlog/pkg/auth"
 	"github.com/humanlogio/humanlog/pkg/sink"
 	"github.com/humanlogio/humanlog/pkg/sink/logsvcsink"
+	"github.com/mattn/go-isatty"
 	"github.com/urfave/cli"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
+
+func ingestCmd(
+	getCtx func(cctx *cli.Context) context.Context,
+	getLogger func(cctx *cli.Context) *slog.Logger,
+	getCfg func(cctx *cli.Context) *config.Config,
+	getState func(cctx *cli.Context) *state.State,
+	getTokenSource func(cctx *cli.Context) *auth.UserRefreshableTokenSource,
+	getAPIUrl func(cctx *cli.Context) string,
+	getHTTPClient func(cctx *cli.Context, apiURL string) *http.Client,
+	getConnectOpts func(cctx *cli.Context) []connect.ClientOption,
+	getResource func(cctx *cli.Context) *typesv1.Resource,
+	getScope func(*cli.Context) *typesv1.Scope,
+) cli.Command {
+	return cli.Command{
+		Hidden:    hideUnreleasedFeatures == "true",
+		Name:      environmentCmdName,
+		ShortName: "ingest",
+		Usage:     "Ingest logs into an environments.",
+		Before: func(cctx *cli.Context) error {
+			ctx := getCtx(cctx)
+			state := getState(cctx)
+			tokenSource := getTokenSource(cctx)
+			apiURL := getAPIUrl(cctx)
+			httpClient := getHTTPClient(cctx, apiURL)
+			clOpts := getConnectOpts(cctx)
+			_, err := ensureLoggedIn(ctx, cctx, state, tokenSource, apiURL, httpClient, clOpts)
+			if err != nil {
+				return err
+			}
+			return nil
+		},
+		Action: func(cctx *cli.Context) error {
+			ctx := getCtx(cctx)
+			ll := getLogger(cctx)
+			apiURL := getAPIUrl(cctx)
+			cfg := getCfg(cctx)
+
+			flushTimeout := 300 * time.Millisecond
+			ingestctx, ingestcancel := context.WithCancel(context.WithoutCancel(ctx))
+			go func() {
+				<-ctx.Done()
+				time.Sleep(2 * flushTimeout) // give it 2x timeout to flush before nipping the ctx entirely
+				ingestcancel()
+			}()
+			notifyUnableToIngest := func(err error) {
+				logerror("unable to ingest: %v", err)
+				ingestcancel()
+			}
+			remotesink, err := ingest(ingestctx, ll, cctx, apiURL, getCfg, getState, getResource, getScope, getTokenSource, getHTTPClient, getConnectOpts, notifyUnableToIngest)
+			if err != nil {
+				return fmt.Errorf("can't send logs: %v", err)
+			}
+			defer func() {
+				ctx, cancel := context.WithTimeout(context.Background(), flushTimeout)
+				defer cancel()
+				ll.DebugContext(ctx, "flushing remote ingestion sink for up to 300ms")
+				if err := remotesink.Close(ctx); err != nil {
+					ll.ErrorContext(ctx, "couldn't flush buffered log", slog.Any("err", err))
+				} else {
+					ll.DebugContext(ctx, "done sending all logs")
+				}
+			}()
+			loginfo("saving to %s", apiURL)
+
+			in := os.Stdin
+			if isatty.IsTerminal(in.Fd()) {
+				loginfo("reading stdin...")
+			}
+			go func() {
+				<-ctx.Done()
+				logdebug("requested to stop scanning")
+				time.Sleep(500 * time.Millisecond)
+				if isatty.IsTerminal(in.Fd()) {
+					loginfo("Patiently waiting for stdin to send EOF (Ctrl+D). This is you! I'm reading from a TTY!")
+				} else {
+					// forcibly stop scanning if stuck on stdin
+					logdebug("forcibly closing stdin")
+					in.Close()
+				}
+			}()
+
+			handlerOpts := humanlog.HandlerOptionsFrom(cfg.Parser)
+			if err := humanlog.Scan(ctx, in, remotesink, handlerOpts); err != nil {
+				logerror("scanning caught an error: %v", err)
+			}
+
+			return nil
+		},
+	}
+}
 
 func ingest(
 	ctx context.Context,
@@ -90,10 +182,9 @@ func createIngestionToken(
 	if err != nil {
 		return nil, fmt.Errorf("ensuring you're logged in: %v", err)
 	}
-
-	if state.CurrentEnvironmentID == nil {
-		//lint:ignore ST1005 "user facing call-to-action"
-		return nil, fmt.Errorf("It looks like no environment is associated with this user. Try to login again, or register with humanlog.io.")
+	envID, err := ensureEnvironmentSelected(ctx, ll, cctx, state, tokenSource, apiURL, httpClient, clOpts)
+	if err != nil {
+		return nil, fmt.Errorf("ensuring you've selected an environment: %v", err)
 	}
 
 	// userToken is most likely valid and unexpired, use it
@@ -108,7 +199,7 @@ func createIngestionToken(
 		return nil, err
 	}
 	req := &tokenv1.GenerateEnvironmentTokenRequest{
-		EnvironmentId: *state.CurrentEnvironmentID,
+		EnvironmentId: envID,
 		ExpiresAt:     timestamppb.New(expiresAt),
 		Roles:         []typesv1.EnvironmentRole{typesv1.EnvironmentRole_EnvironmentRole_Ingestor},
 	}
@@ -133,7 +224,6 @@ func hubAskTokenExpiry(title string) (time.Time, error) {
 			huh.NewOption("in a month", now.AddDate(0, 1, 0)),
 			huh.NewOption("in 6 months", now.AddDate(0, 6, 0)),
 			huh.NewOption("in a year", now.AddDate(1, 0, 0)),
-			huh.NewOption("a thousand years from now =3", now.AddDate(1000, 0, 0)),
 		).
 		Value(&expiresAt).
 		Run()
