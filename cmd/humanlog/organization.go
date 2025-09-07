@@ -92,8 +92,7 @@ func organizationCmd(
 						if li.Organization.Name != organizationName {
 							continue
 						}
-
-						_, err := performLoginFlow(ctx, state, authClient, tokenSource, *state.LoggedInUsername, li.Organization.Id, "")
+						_, err := performLoginFlow(ctx, state, authClient, tokenSource, "", li.Organization.Id, "")
 						return err
 					}
 					if err := iter.Err(); err != nil {
@@ -153,7 +152,7 @@ func organizationCmd(
 						return err
 					}
 
-					_, err = performLoginFlow(ctx, state, authClient, tokenSource, *state.LoggedInUsername, orgID, "")
+					_, err = performLoginFlow(ctx, state, authClient, tokenSource, "", orgID, "")
 
 					return err
 				},

@@ -125,7 +125,6 @@ type State struct {
 	Version int `json:"version"`
 
 	// set for ingestion purpose
-	MachineID      *int64                    `json:"machine_id"`
 	IngestionToken *typesv1.EnvironmentToken `json:"ingestion_token,omitempty"`
 
 	// update mechanism
@@ -137,10 +136,10 @@ type State struct {
 	LastPromptedToEnableLocalhostAt *time.Time `json:"last_prompted_to_enable_localhost_at"`
 
 	LoggedInUsername *string `json:"logged_in_username"`
+	LoggedInOrgID    *int64  `json:"logged_in_org_id"`
 
 	// preferences set in the CLI/TUI when querying
 	CurrentEnvironmentID *int64 `json:"current_environment_id,omitempty"`
-	CurrentMachineID     *int64 `json:"current_machine_id,omitempty"`
 
 	// unexported, the filepath where the `State` get's serialized and saved to
 	path string
@@ -153,9 +152,6 @@ func (cfg *State) WriteBack() error {
 func (cfg State) populateEmpty(other *State) *State {
 	ptr := &cfg
 	out := *ptr
-	if out.MachineID == nil && other.MachineID != nil {
-		out.MachineID = other.MachineID
-	}
 	if out.LatestKnownVersion == nil && other.LatestKnownVersion != nil {
 		out.LatestKnownVersion = other.LatestKnownVersion
 	}
@@ -164,9 +160,6 @@ func (cfg State) populateEmpty(other *State) *State {
 	}
 	if out.CurrentEnvironmentID == nil && other.CurrentEnvironmentID != nil {
 		out.CurrentEnvironmentID = other.CurrentEnvironmentID
-	}
-	if out.CurrentMachineID == nil && other.CurrentMachineID != nil {
-		out.CurrentMachineID = other.CurrentMachineID
 	}
 	return &out
 }

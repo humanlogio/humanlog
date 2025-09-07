@@ -63,19 +63,8 @@ func ensureLoggedIn(
 			return nil, fmt.Errorf("aborting")
 		}
 
-		if state.LoggedInUsername == nil || *state.LoggedInUsername == "" {
-			state.LoggedInUsername = ptr("")
-			err := huh.NewInput().Title("Pick a username").Value(state.LoggedInUsername).Run()
-			if err != nil {
-				return nil, err
-			}
-			if err := state.WriteBack(); err != nil {
-				return nil, err
-			}
-		}
-
 		// no user auth, perform login flow
-		t, err := performLoginFlow(ctx, state, authClient, tokenSource, *state.LoggedInUsername, 0, "")
+		t, err := performLoginFlow(ctx, state, authClient, tokenSource, "", 0, "")
 		if err != nil {
 			return nil, fmt.Errorf("performing login: %v", err)
 		}
@@ -103,17 +92,8 @@ func ensureLoggedIn(
 			if !confirms {
 				return nil, fmt.Errorf("aborting")
 			}
-			if state.LoggedInUsername == nil || *state.LoggedInUsername == "" {
-				state.LoggedInUsername = ptr("")
-				err := huh.NewInput().Title("Pick a username").Value(state.LoggedInUsername).Run()
-				if err != nil {
-					return nil, err
-				}
-				if err := state.WriteBack(); err != nil {
-					return nil, err
-				}
-			}
-			t, err := performLoginFlow(ctx, state, authClient, tokenSource, *state.LoggedInUsername, 0, "")
+
+			t, err := performLoginFlow(ctx, state, authClient, tokenSource, "", 0, "")
 			if err != nil {
 				return nil, fmt.Errorf("performing login: %v", err)
 			}
@@ -148,6 +128,12 @@ func performLoginFlow(
 	organizationID int64,
 	returnToURL string,
 ) (*typesv1.UserToken, error) {
+
+	username, err := ensureUsername(ctx, state, tokenSource, username)
+	if err != nil {
+		return nil, fmt.Errorf("ensuring a username is specified")
+	}
+
 	req := &authv1.BeginDeviceAuthRequest{
 		ReturnToUrl: returnToURL,
 		Username:    username,
@@ -180,7 +166,6 @@ func performLoginFlow(
 
 	var (
 		userToken *typesv1.UserToken
-		machineID int64
 	)
 poll_for_tokens:
 	for {
@@ -206,18 +191,19 @@ poll_for_tokens:
 			}
 			return nil, fmt.Errorf("waiting for user to be authenticated: %v", err)
 		}
+
 		userToken = res.Msg.Token
 		break poll_for_tokens
-
 	}
 
 	err = tokenSource.SetUserToken(ctx, userToken)
 	if err != nil {
 		return nil, fmt.Errorf("saving credentials to keyring: %v", err)
 	}
-	state.MachineID = &machineID
+	state.LoggedInUsername = &userToken.Username
+	state.LoggedInOrgID = &userToken.OrgId
 	if err := state.WriteBack(); err != nil {
-		return nil, fmt.Errorf("saving state")
+		return nil, fmt.Errorf("saving user info: %v", err)
 	}
 	return userToken, nil
 }
@@ -254,6 +240,33 @@ func ensureOrgSelected(
 		return -1, err
 	}
 	return orgID, state.WriteBack()
+}
+
+func ensureUsername(ctx context.Context, state *state.State, tokenSource *auth.UserRefreshableTokenSource, hintedUsername string) (string, error) {
+	ut, err := tokenSource.GetUserToken(ctx)
+	if err != nil {
+		return "", nil
+	}
+	var username string
+	switch {
+	case ut != nil && state.LoggedInUsername == nil:
+		username = ut.Username
+		state.LoggedInUsername = &username
+		err = state.WriteBack()
+	case state.LoggedInUsername != nil:
+		username = *state.LoggedInUsername
+	default:
+		username = hintedUsername
+	}
+	if username == "" {
+		username, err = huhPickUsername(ctx)
+	}
+	return username, err
+}
+
+func huhPickUsername(ctx context.Context) (string, error) {
+	var username string
+	return username, huh.NewInput().Title("Pick a username").Value(&username).Run()
 }
 
 func huhSelectOrganizations(ctx context.Context, client userv1connect.UserServiceClient, title string) (int64, error) {
