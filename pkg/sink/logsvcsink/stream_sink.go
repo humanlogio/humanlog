@@ -45,7 +45,7 @@ func StartStreamSink(
 	snk := &ConnectStreamSink{
 		ll:           ll.With(slog.String("sink", name)),
 		name:         name,
-		eventsc:      make(chan *typesv1.Log, bufferSize),
+		eventsc:      make(chan *typesv1.Log, bufferSize/10),
 		dropIfFull:   dropIfFull,
 		doneFlushing: make(chan struct{}),
 	}
@@ -186,7 +186,7 @@ func (snk *ConnectStreamSink) connectAndHandleBuffer(
 		ll.DebugContext(ctx, "sent logs",
 			slog.String("sink", snk.name),
 			slog.Int64("send_ms", dur.Milliseconds()),
-			slog.Any("err", err),
+			slog.Any("err", sendErr),
 			slog.Int("ev_count", len(req.Logs)),
 			slog.Int("buffer_size", bufferSize),
 			slog.Int64("drain_for_ms", drainBufferFor.Milliseconds()),

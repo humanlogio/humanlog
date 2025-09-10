@@ -61,7 +61,7 @@ func ingestCmd(
 			apiURL := getAPIUrl(cctx)
 			cfg := getCfg(cctx)
 
-			flushTimeout := 300 * time.Millisecond
+			flushTimeout := 10 * time.Second
 			ingestctx, ingestcancel := context.WithCancel(context.WithoutCancel(ctx))
 			go func() {
 				<-ctx.Done()
@@ -79,7 +79,7 @@ func ingestCmd(
 			defer func() {
 				ctx, cancel := context.WithTimeout(context.Background(), flushTimeout)
 				defer cancel()
-				ll.DebugContext(ctx, "flushing remote ingestion sink for up to 300ms")
+				ll.DebugContext(ctx, "flushing remote ingestion sink for up to "+flushTimeout.String())
 				if err := remotesink.Close(ctx); err != nil {
 					ll.ErrorContext(ctx, "couldn't flush buffered log", slog.Any("err", err))
 				} else {
@@ -158,11 +158,11 @@ func ingest(
 	var snk sink.Sink
 	switch sinkType := os.Getenv("HUMANLOG_SINK_TYPE"); sinkType {
 	case "unary":
-		snk = logsvcsink.StartUnarySink(ctx, ll, client, "api", resource, scope, 1<<20, 100*time.Millisecond, true, notifyUnableToIngest)
+		snk = logsvcsink.StartUnarySink(ctx, ll, client, "api", resource, scope, 10_000, 100*time.Millisecond, false, notifyUnableToIngest)
 	case "stream":
 		fallthrough // use the stream sink as default, it's the best tradeoff for performance and compatibility
 	default:
-		snk = logsvcsink.StartStreamSink(ctx, ll, client, "api", resource, scope, 1<<20, 100*time.Millisecond, true, notifyUnableToIngest)
+		snk = logsvcsink.StartStreamSink(ctx, ll, client, "api", resource, scope, 10_000, 100*time.Millisecond, false, notifyUnableToIngest)
 	}
 
 	return snk, nil
