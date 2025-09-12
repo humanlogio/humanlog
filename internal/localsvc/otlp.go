@@ -2,7 +2,9 @@ package localsvc
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
+	"time"
 
 	otlplogssvcpb "go.opentelemetry.io/proto/otlp/collector/logs/v1"
 	otlpmetricssvcpb "go.opentelemetry.io/proto/otlp/collector/metrics/v1"
@@ -26,13 +28,19 @@ func newLoggingOTLP(svc *Service) *LoggingOTLP {
 }
 
 func (otlp *LoggingOTLP) Export(ctx context.Context, req *otlplogssvcpb.ExportLogsServiceRequest) (*otlplogssvcpb.ExportLogsServiceResponse, error) {
-	otlp.svc.ll.DebugContext(ctx, "OTLP.Logging.Export")
+	ll := otlp.svc.ll.WithGroup("OTLP.Logging.Export")
+	ll.InfoContext(ctx, "starting")
+	start := time.Now()
+	defer func() { ll.InfoContext(ctx, "done", slog.Duration("duration", time.Since(start))) }()
 	return otlp.svc.storage.ExportLogs(ctx, req)
 }
 
 func (otlp *LoggingOTLP) ExportHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	otlp.svc.ll.DebugContext(ctx, "OTLP.Logging.ExportHTTP")
+	ll := otlp.svc.ll.WithGroup("OTLP.Logging.ExportHTTP")
+	ll.InfoContext(ctx, "starting")
+	start := time.Now()
+	defer func() { ll.InfoContext(ctx, "done", slog.Duration("duration", time.Since(start))) }()
 
 	enc, ok := readContentType(w, r)
 	if !ok {
@@ -75,13 +83,19 @@ func newMetricsOTLP(svc *Service) *MetricsOTLP {
 }
 
 func (otlp *MetricsOTLP) Export(ctx context.Context, req *otlpmetricssvcpb.ExportMetricsServiceRequest) (*otlpmetricssvcpb.ExportMetricsServiceResponse, error) {
-	otlp.svc.ll.DebugContext(ctx, "OTLP.Metrics.Export")
+	ll := otlp.svc.ll.WithGroup("OTLP.Metrics.Export")
+	ll.InfoContext(ctx, "starting")
+	start := time.Now()
+	defer func() { ll.InfoContext(ctx, "done", slog.Duration("duration", time.Since(start))) }()
 	return otlp.svc.storage.ExportMetrics(ctx, req)
 }
 
 func (otlp *MetricsOTLP) ExportHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	otlp.svc.ll.DebugContext(ctx, "OTLP.Metrics.ExportHTTP")
+	ll := otlp.svc.ll.WithGroup("OTLP.Metrics.ExportHTTP")
+	ll.InfoContext(ctx, "starting")
+	start := time.Now()
+	defer func() { ll.InfoContext(ctx, "done", slog.Duration("duration", time.Since(start))) }()
 
 	enc, ok := readContentType(w, r)
 	if !ok {
@@ -123,13 +137,19 @@ func newTracingOTLP(svc *Service) *TracingOTLP {
 }
 
 func (otlp *TracingOTLP) Export(ctx context.Context, req *otlptracesvcpb.ExportTraceServiceRequest) (*otlptracesvcpb.ExportTraceServiceResponse, error) {
-	otlp.svc.ll.DebugContext(ctx, "OTLP.Tracing.Export")
+	ll := otlp.svc.ll.WithGroup("OTLP.Tracing.Export")
+	ll.InfoContext(ctx, "starting")
+	start := time.Now()
+	defer func() { ll.InfoContext(ctx, "done", slog.Duration("duration", time.Since(start))) }()
 	return otlp.svc.storage.ExportTraces(ctx, req)
 }
 
 func (otlp *TracingOTLP) ExportHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	otlp.svc.ll.DebugContext(ctx, "OTLP.Tracing.ExportHTTP")
+	ll := otlp.svc.ll.WithGroup("OTLP.Tracing.ExportHTTP")
+	ll.InfoContext(ctx, "starting")
+	start := time.Now()
+	defer func() { ll.InfoContext(ctx, "done", slog.Duration("duration", time.Since(start))) }()
 
 	enc, ok := readContentType(w, r)
 	if !ok {
