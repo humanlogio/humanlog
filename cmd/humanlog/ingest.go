@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"time"
 
@@ -20,8 +21,12 @@ import (
 	"github.com/humanlogio/humanlog/pkg/auth"
 	"github.com/humanlogio/humanlog/pkg/sink"
 	"github.com/humanlogio/humanlog/pkg/sink/logsvcsink"
+	otlpsink "github.com/humanlogio/humanlog/pkg/sink/otlpsink"
 	"github.com/mattn/go-isatty"
 	"github.com/urfave/cli"
+	collogpb "go.opentelemetry.io/proto/otlp/collector/logs/v1"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -32,6 +37,8 @@ func ingestCmd(
 	getState func(cctx *cli.Context) *state.State,
 	getTokenSource func(cctx *cli.Context) *auth.UserRefreshableTokenSource,
 	getAPIUrl func(cctx *cli.Context) string,
+	getOTLPGRPCAPIUrl func(cctx *cli.Context) string,
+	getOTLPHTTPAPIUrl func(cctx *cli.Context) string,
 	getHTTPClient func(cctx *cli.Context, apiURL string) *http.Client,
 	getConnectOpts func(cctx *cli.Context) []connect.ClientOption,
 	getResource func(cctx *cli.Context) *typesv1.Resource,
@@ -61,7 +68,7 @@ func ingestCmd(
 			apiURL := getAPIUrl(cctx)
 			cfg := getCfg(cctx)
 
-			flushTimeout := 10 * time.Second
+			flushTimeout := 1 * time.Second
 			ingestctx, ingestcancel := context.WithCancel(context.WithoutCancel(ctx))
 			go func() {
 				<-ctx.Done()
@@ -72,7 +79,7 @@ func ingestCmd(
 				logerror("unable to ingest: %v", err)
 				ingestcancel()
 			}
-			remotesink, err := ingest(ingestctx, ll, cctx, apiURL, getCfg, getState, getResource, getScope, getTokenSource, getHTTPClient, getConnectOpts, notifyUnableToIngest)
+			remotesink, err := ingest(ingestctx, ll, cctx, apiURL, getOTLPGRPCAPIUrl, getOTLPHTTPAPIUrl, getCfg, getState, getResource, getScope, getTokenSource, getHTTPClient, getConnectOpts, notifyUnableToIngest)
 			if err != nil {
 				return fmt.Errorf("can't send logs: %v", err)
 			}
@@ -120,6 +127,8 @@ func ingest(
 	ll *slog.Logger,
 	cctx *cli.Context,
 	apiURL string,
+	getOTLPGRPCAPIAddr func(cctx *cli.Context) string,
+	getOTLPHTTPAPIUrl func(cctx *cli.Context) string,
 	getCfg func(*cli.Context) *config.Config,
 	getState func(*cli.Context) *state.State,
 	getResource func(*cli.Context) *typesv1.Resource,
@@ -146,22 +155,51 @@ func ingest(
 		}
 	}
 
+	getIngestClient := func() ingestv1connect.IngestServiceClient {
+		clOpts = append(clOpts,
+			connect.WithInterceptors(auth.NewEnvironmentAuthInterceptor(ll, state.IngestionToken)),
+			connect.WithGRPC(),
+		)
+		return ingestv1connect.NewIngestServiceClient(httpClient, apiURL, clOpts...)
+	}
+	getOTLPGRPCClient := func() (collogpb.LogsServiceClient, error) {
+		addr := getOTLPGRPCAPIAddr(cctx)
+		isLocalhost := false
+		if u, err := url.Parse(addr); err == nil {
+			isLocalhost = u.Host == "localhost" || u.Host == "127.0.0.1"
+		}
+		userAgent := "humanlog OTLP GRPC logs exporter/" + semverVersion.String()
+		dialOpts := []grpc.DialOption{
+			grpc.WithUserAgent(userAgent),
+			grpc.WithTransportCredentials(credentials.NewTLS(nil)),
+			grpc.WithPerRPCCredentials(newBearerPerRPCCreds(state.IngestionToken.Token, isLocalhost)),
+		}
+		ll.DebugContext(ctx, "dialing otlp-grpc", slog.String("target", addr))
+		conn, err := grpc.NewClient(addr, dialOpts...)
+		if err != nil {
+			return nil, err
+		}
+		return collogpb.NewLogsServiceClient(conn), nil
+	}
+
 	resource := getResource(cctx)
 	scope := getScope(cctx)
 
-	clOpts = append(clOpts,
-		connect.WithInterceptors(auth.NewEnvironmentAuthInterceptor(ll, state.IngestionToken)),
-		connect.WithGRPC(),
-	)
-
-	client := ingestv1connect.NewIngestServiceClient(httpClient, apiURL, clOpts...)
 	var snk sink.Sink
 	switch sinkType := os.Getenv("HUMANLOG_SINK_TYPE"); sinkType {
+	case "otlp-grpc":
+		client, err := getOTLPGRPCClient()
+		if err != nil {
+			return nil, err
+		}
+		snk = otlpsink.StartOTLPSink(ctx, ll, client, "api", resource, scope, 10_000, 100*time.Millisecond, false, notifyUnableToIngest)
 	case "unary":
+		client := getIngestClient()
 		snk = logsvcsink.StartUnarySink(ctx, ll, client, "api", resource, scope, 10_000, 100*time.Millisecond, false, notifyUnableToIngest)
 	case "stream":
 		fallthrough // use the stream sink as default, it's the best tradeoff for performance and compatibility
 	default:
+		client := getIngestClient()
 		snk = logsvcsink.StartStreamSink(ctx, ll, client, "api", resource, scope, 10_000, 100*time.Millisecond, false, notifyUnableToIngest)
 	}
 
@@ -248,3 +286,19 @@ func hubAskTokenRoles(title string) ([]typesv1.EnvironmentRole, error) {
 	}
 	return roles, nil
 }
+
+type BearerPerRPCCreds struct {
+	headers       map[string]string
+	allowInsecure bool
+}
+
+func newBearerPerRPCCreds(token string, allowInsecure bool) credentials.PerRPCCredentials {
+	headers := map[string]string{"authorization": "Bearer " + token}
+	return &BearerPerRPCCreds{headers: headers, allowInsecure: allowInsecure}
+}
+
+func (bpr *BearerPerRPCCreds) GetRequestMetadata(ctx context.Context, _ ...string) (map[string]string, error) {
+	return bpr.headers, nil
+}
+
+func (c *BearerPerRPCCreds) RequireTransportSecurity() bool { return !c.allowInsecure }
