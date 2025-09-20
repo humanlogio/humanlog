@@ -46,6 +46,7 @@ import (
 	"golang.org/x/net/http2/h2c"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
 )
 
 func ServeLocalhost(
@@ -212,6 +213,7 @@ func ServeLocalhost(
 		otlplogssvcpb.RegisterLogsServiceServer(gsrv, localhostsvc.AsLoggingOTLP())
 		otlpmetricssvcpb.RegisterMetricsServiceServer(gsrv, localhostsvc.AsMetricsOTLP())
 		otlptracesvcpb.RegisterTraceServiceServer(gsrv, localhostsvc.AsTracingOTLP())
+		reflection.Register(gsrv)
 		eg.Go(func() error {
 			ll.InfoContext(ctx, "OTLP gRPC server starting")
 			if err := gsrv.Serve(otlpGrpcL); err != nil {

@@ -71,8 +71,10 @@ var (
 		}
 		return v
 	}()
-	defaultApiAddr         = "https://api.humanlog.io"
-	defaultBaseSiteAddr    = "https://humanlog.io"
+	defaultApiURL          = "https://api.humanlog.io"
+	defaultBaseSiteURL     = "https://humanlog.io"
+	defaultOtlpGrpcApiAddr = "otlp-grpc.humanlog.io:443"
+	defaultOtlpHttpApiURL  = "https://otlp-http.humanlog.io"
 	defaultReleaseChannel  = "main"
 	hideUnreleasedFeatures = ""
 
@@ -191,18 +193,32 @@ func newApp() *cli.App {
 		Value:  &levelFields,
 	}
 
-	apiServerAddr := cli.StringFlag{
+	apiServerURL := cli.StringFlag{
 		Name:   "api",
-		Value:  defaultApiAddr,
+		Value:  defaultApiURL,
 		Usage:  "address of the api server",
 		EnvVar: "HUMANLOG_API_URL",
 		Hidden: true,
 	}
-	baseSiteServerAddr := cli.StringFlag{
+	baseSiteServerURL := cli.StringFlag{
 		Name:   "basesite",
-		Value:  defaultBaseSiteAddr,
+		Value:  defaultBaseSiteURL,
 		Usage:  "address of the base site server",
 		EnvVar: "HUMANLOG_BASE_SITE_URL",
+		Hidden: true,
+	}
+	otlpGrpcApiServerAddr := cli.StringFlag{
+		Name:   "otlp.grpc",
+		Value:  defaultOtlpGrpcApiAddr,
+		Usage:  "address of the OTLP GRPC server",
+		EnvVar: "HUMANLOG_OTLP_GRPC_ADDR",
+		Hidden: true,
+	}
+	otlpHttpApiServerURL := cli.StringFlag{
+		Name:   "otlp.http",
+		Value:  defaultOtlpHttpApiURL,
+		Usage:  "address of the OTLP HTTP server",
+		EnvVar: "HUMANLOG_OTLP_HTTP_URL",
 		Hidden: true,
 	}
 
@@ -225,7 +241,7 @@ func newApp() *cli.App {
 
 	app := cli.NewApp()
 	app.Author = "humanlog.io"
-	app.Email = defaultBaseSiteAddr + `/support`
+	app.Email = defaultBaseSiteURL + `/support`
 	app.Name = "humanlog"
 	app.Version = semverVersion.String()
 	app.Usage = "reads logs from stdin (and traces!), makes them pretty on stdout!"
@@ -301,8 +317,8 @@ If your application integrates twith **OpenTelemetry** you can point it to:
 ## Getting more help
 
 For more details:
-- read [our documentation](` + defaultBaseSiteAddr + `/docs/get-started/introduction).
-- join [our community](` + defaultBaseSiteAddr + `/link/discord).
+- read [our documentation](` + defaultBaseSiteURL + `/docs/get-started/introduction).
+- join [our community](` + defaultBaseSiteURL + `/link/discord).
 	`)
 
 	var (
@@ -337,6 +353,8 @@ For more details:
 		updateRes        <-chan *checkForUpdateRes
 		apiURL           = ""
 		baseSiteURL      = ""
+		otlpGrpcApiAddr  = ""
+		otlpHttpApiURL   = ""
 		keyringName      = "humanlog"
 
 		resource = &types.Resource{}
@@ -393,14 +411,28 @@ For more details:
 		}
 		getAPIUrl = func(*cli.Context) string {
 			if apiURL == "" {
-				apiURL = defaultApiAddr
+				apiURL = defaultApiURL
 			}
 			logdebug("using api at %q", apiURL)
 			return apiURL
 		}
+		getOTLPGRPCAPIAddr = func(*cli.Context) string {
+			if otlpGrpcApiAddr == "" {
+				otlpGrpcApiAddr = defaultOtlpGrpcApiAddr
+			}
+			logdebug("using otlp grpc at %q", otlpGrpcApiAddr)
+			return otlpGrpcApiAddr
+		}
+		getOTLPHTTPAPIUrl = func(*cli.Context) string {
+			if otlpHttpApiURL == "" {
+				otlpHttpApiURL = defaultOtlpHttpApiURL
+			}
+			logdebug("using otlp http at %q", otlpHttpApiURL)
+			return otlpHttpApiURL
+		}
 		getBaseSiteURL = func(*cli.Context) string {
 			if baseSiteURL == "" {
-				baseSiteURL = defaultBaseSiteAddr
+				baseSiteURL = defaultBaseSiteURL
 			}
 			logdebug("using basesite at %q", baseSiteURL)
 			return baseSiteURL
@@ -448,13 +480,21 @@ For more details:
 			}
 			cfg = cfgFromDir
 		}
-		if c.String(apiServerAddr.Name) != "" {
-			apiURL = c.String(apiServerAddr.Name)
-			logdebug("api URL set to %q (due to --%s flag or $%s env var)", apiURL, apiServerAddr.Name, apiServerAddr.EnvVar)
+		if c.String(apiServerURL.Name) != "" {
+			apiURL = c.String(apiServerURL.Name)
+			logdebug("api URL set to %q (due to --%s flag or $%s env var)", apiURL, apiServerURL.Name, apiServerURL.EnvVar)
 		}
-		if c.String(baseSiteServerAddr.Name) != "" {
-			baseSiteURL = c.String(baseSiteServerAddr.Name)
-			logdebug("base site URL set to %q (due to --%s flag or $%s env var)", baseSiteURL, baseSiteServerAddr.Name, baseSiteServerAddr.EnvVar)
+		if c.String(otlpGrpcApiServerAddr.Name) != "" {
+			otlpGrpcApiAddr = c.String(otlpGrpcApiServerAddr.Name)
+			logdebug("otlp grpc addr set to %q (due to --%s flag or $%s env var)", otlpGrpcApiAddr, otlpGrpcApiServerAddr.Name, otlpGrpcApiServerAddr.EnvVar)
+		}
+		if c.String(otlpHttpApiServerURL.Name) != "" {
+			otlpHttpApiURL = c.String(otlpHttpApiServerURL.Name)
+			logdebug("otlp http URL set to %q (due to --%s flag or $%s env var)", otlpHttpApiURL, otlpHttpApiServerURL.Name, otlpHttpApiServerURL.EnvVar)
+		}
+		if c.String(baseSiteServerURL.Name) != "" {
+			baseSiteURL = c.String(baseSiteServerURL.Name)
+			logdebug("base site URL set to %q (due to --%s flag or $%s env var)", baseSiteURL, baseSiteServerURL.Name, baseSiteServerURL.EnvVar)
 		}
 
 		if c.IsSet(useHTTP1.Name) && c.Bool(useHTTP1.Name) {
@@ -610,12 +650,12 @@ For more details:
 		stateCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getBaseSiteURL, getHTTPClient, getConnectOpts),
 		organizationCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getHTTPClient, getConnectOpts),
 		environmentCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getHTTPClient, getConnectOpts),
-		ingestCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getHTTPClient, getConnectOpts, getResource, getScope),
+		ingestCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getOTLPGRPCAPIAddr, getOTLPHTTPAPIUrl, getHTTPClient, getConnectOpts, getResource, getScope),
 		queryCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getBaseSiteURL, getHTTPClient, getConnectOpts),
 		streamCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getBaseSiteURL, getHTTPClient, getConnectOpts),
 		gennyCmd(getCtx, getLogger, getCfg, getState),
 	)
-	app.Flags = []cli.Flag{configFlag, skipFlag, keepFlag, sortLongest, skipUnchanged, truncates, truncateLength, colorFlag, timeFormat, ignoreInterrupts, messageFieldsFlag, timeFieldsFlag, levelFieldsFlag, apiServerAddr, baseSiteServerAddr, debug, useHTTP1, useProtocol}
+	app.Flags = []cli.Flag{configFlag, skipFlag, keepFlag, sortLongest, skipUnchanged, truncates, truncateLength, colorFlag, timeFormat, ignoreInterrupts, messageFieldsFlag, timeFieldsFlag, levelFieldsFlag, apiServerURL, otlpGrpcApiServerAddr, otlpHttpApiServerURL, baseSiteServerURL, debug, useHTTP1, useProtocol}
 	app.Action = func(cctx *cli.Context) error {
 		// flags overwrite config file
 		if cfg.CurrentConfig == nil {
@@ -754,7 +794,7 @@ For more details:
 					time.Sleep(2 * flushTimeout) // give it 2x timeout to flush before nipping the ctx entirely
 					ingestcancel()
 				}()
-				remotesink, err := ingest(ingestctx, ll, cctx, apiURL, getCfg, getState, getResource, getScope, getTokenSource, getHTTPClient, getConnectOpts, notifyUnableToIngest)
+				remotesink, err := ingest(ingestctx, ll, cctx, apiURL, getOTLPGRPCAPIAddr, getOTLPHTTPAPIUrl, getCfg, getState, getResource, getScope, getTokenSource, getHTTPClient, getConnectOpts, notifyUnableToIngest)
 				if err != nil {
 					return fmt.Errorf("can't send logs: %v", err)
 				}
