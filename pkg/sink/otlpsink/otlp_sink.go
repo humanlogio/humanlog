@@ -10,6 +10,8 @@ import (
 	"connectrpc.com/connect"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
 	"github.com/humanlogio/humanlog/pkg/sink"
+	"github.com/oklog/ulid/v2"
+	semconv "go.opentelemetry.io/otel/semconv/v1.34.0"
 	collogpb "go.opentelemetry.io/proto/otlp/collector/logs/v1"
 	otlpcommon "go.opentelemetry.io/proto/otlp/common/v1"
 	otellogpb "go.opentelemetry.io/proto/otlp/logs/v1"
@@ -102,13 +104,27 @@ func StartOTLPSink(
 }
 
 func internalToOTLPLog(in *typesv1.Log) *otellogpb.LogRecord {
+	attrs := typesv1.ToOTLPKVs(in.Attributes)
+	if in.Ulid != nil {
+		ulidStr := ulid.ULID(typesv1.ULIDToBytes(nil, in.Ulid)).String()
+		ulidAttr := &otlpcommon.KeyValue{
+			Key: string(semconv.LogRecordUIDKey),
+			Value: &otlpcommon.AnyValue{
+				Value: &otlpcommon.AnyValue_StringValue{StringValue: ulidStr},
+			},
+		}
+		attrs = append(attrs, ulidAttr)
+	}
+	rawAttr := &otlpcommon.KeyValue{Key: string(semconv.LogRecordOriginalKey), Value: &otlpcommon.AnyValue{Value: &otlpcommon.AnyValue_BytesValue{BytesValue: in.Raw}}}
+	attrs = append(attrs, rawAttr)
+
 	out := &otellogpb.LogRecord{
 		TimeUnixNano:           uint64(in.Timestamp.AsTime().UnixNano()),
 		ObservedTimeUnixNano:   uint64(in.ObservedTimestamp.AsTime().UnixNano()),
 		SeverityNumber:         otellogpb.SeverityNumber(in.SeverityNumber),
 		SeverityText:           in.SeverityText,
 		Body:                   &otlpcommon.AnyValue{Value: &otlpcommon.AnyValue_StringValue{StringValue: in.Body}},
-		Attributes:             typesv1.ToOTLPKVs(in.Attributes),
+		Attributes:             attrs,
 		DroppedAttributesCount: 0,
 		Flags:                  in.TraceFlags,
 	}

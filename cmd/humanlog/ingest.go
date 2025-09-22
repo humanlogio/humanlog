@@ -192,7 +192,7 @@ func ingest(
 		if err != nil {
 			return nil, err
 		}
-		snk = otlpsink.StartOTLPSink(ctx, ll, client, "api", resource, scope, 10_000, 100*time.Millisecond, false, notifyUnableToIngest)
+		snk = otlpsink.StartOTLPSink(ctx, ll, client, "api", resource, scope, 1_000, 100*time.Millisecond, false, notifyUnableToIngest)
 	case "unary":
 		client := getIngestClient()
 		snk = logsvcsink.StartUnarySink(ctx, ll, client, "api", resource, scope, 10_000, 100*time.Millisecond, false, notifyUnableToIngest)
