@@ -71,6 +71,7 @@ func Scan(ctx context.Context, src io.Reader, sink sink.Sink, opts *HandlerOptio
 
 		ev.Reset()
 		ev.Raw = lineData
+		ev.Ulid = opts.newULID()
 		ev.ObservedTimestamp = timestamppb.New(opts.timeNow())
 
 		// remove that pesky syslog crap

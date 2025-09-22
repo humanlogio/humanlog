@@ -6,6 +6,7 @@ import (
 	typesv1 "github.com/humanlogio/api/go/types/v1"
 	"github.com/humanlogio/humanlog/internal/pkg/config"
 	"github.com/kr/logfmt"
+	"github.com/oklog/ulid/v2"
 )
 
 // Handler can recognize it's log lines, parse them and prettify them.
@@ -23,6 +24,10 @@ var DefaultOptions = func() *HandlerOptions {
 		MessageFields: []string{"message", "msg", "Body"},
 		LevelFields:   []string{"level", "lvl", "loglevel", "severity", "SeverityText"},
 		timeNow:       time.Now,
+		newULID: func() *typesv1.ULID {
+			u := ulid.Make()
+			return typesv1.ULIDFromBytes(nil, u)
+		},
 	}
 	return opts
 }
@@ -35,6 +40,7 @@ type HandlerOptions struct {
 	DetectDuration  bool
 
 	timeNow func() time.Time
+	newULID func() *typesv1.ULID
 }
 
 var _ = func() *HandlerOptions {

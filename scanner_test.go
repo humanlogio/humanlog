@@ -133,6 +133,7 @@ time="2022/09/11 16:31:21.198136" do_all_electric_sheeps="dream"`,
 			ctx := context.Background()
 			src := strings.NewReader(tt.input)
 			opts := DefaultOptions()
+			opts.newULID = func() *typesv1.ULID { return nil }
 			opts.timeNow = func() time.Time {
 				return now
 			}
@@ -167,6 +168,7 @@ func TestScannerLongLine(t *testing.T) {
 	}
 
 	opts := DefaultOptions()
+	opts.newULID = func() *typesv1.ULID { return nil }
 	opts.timeNow = func() time.Time {
 		return now
 	}
@@ -206,6 +208,7 @@ func TestLargePayload(t *testing.T) {
 	src := strings.NewReader(payload)
 
 	opts := DefaultOptions()
+	opts.newULID = func() *typesv1.ULID { return nil }
 	opts.timeNow = func() time.Time {
 		return now
 	}
@@ -244,6 +247,7 @@ func TestFlatteningNestedObjects_with_a_big_number(t *testing.T) {
 
 	src := strings.NewReader(payload)
 	opts := DefaultOptions()
+	opts.newULID = func() *typesv1.ULID { return nil }
 	opts.timeNow = func() time.Time {
 		return now
 	}
@@ -296,6 +300,7 @@ func TestFlatteningNestedObjects_simple(t *testing.T) {
 	src := strings.NewReader(payload)
 	opts := DefaultOptions()
 	opts.DetectTimestamp = true
+	opts.newULID = func() *typesv1.ULID { return nil }
 	opts.timeNow = func() time.Time {
 		return now
 	}
@@ -372,6 +377,7 @@ func TestFlatteningNestedObjects_with_arrays(t *testing.T) {
 
 	src := strings.NewReader(payload)
 	opts := DefaultOptions()
+	opts.newULID = func() *typesv1.ULID { return nil }
 	opts.timeNow = func() time.Time {
 		return now
 	}
@@ -469,6 +475,7 @@ func TestFlatteningNestedObjects_with_nested_arrays(t *testing.T) {
 
 	src := strings.NewReader(payload)
 	opts := DefaultOptions()
+	opts.newULID = func() *typesv1.ULID { return nil }
 	opts.timeNow = func() time.Time {
 		return now
 	}
