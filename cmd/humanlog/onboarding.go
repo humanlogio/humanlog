@@ -272,6 +272,11 @@ Bye! <3`
 				if err != nil {
 					return err
 				}
+				if state.LoggedInUsername == nil {
+					state.LoggedInUsername = &username
+				} else if state.LoggedInUsername != nil && len(username) > 0 {
+					state.LoggedInUsername = &username
+				}
 				if err := state.WriteBack(); err != nil {
 					logwarn("failed to record your answer: %v", err)
 				}
