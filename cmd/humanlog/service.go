@@ -20,6 +20,7 @@ import (
 	connectcors "connectrpc.com/cors"
 	otelconnect "connectrpc.com/otelconnect"
 	"github.com/blang/semver"
+	"github.com/go-git/go-billy/v6/osfs"
 	"github.com/humanlogio/api/go/svc/auth/v1/authv1connect"
 	cliupdatepb "github.com/humanlogio/api/go/svc/cliupdate/v1"
 	"github.com/humanlogio/api/go/svc/cliupdate/v1/cliupdatev1connect"
@@ -30,7 +31,6 @@ import (
 	"github.com/humanlogio/humanlog/internal/localproject"
 	"github.com/humanlogio/humanlog/internal/localserver"
 	"github.com/humanlogio/humanlog/internal/localstate"
-	"github.com/humanlogio/humanlog/internal/pkg/absfs"
 	"github.com/humanlogio/humanlog/internal/pkg/config"
 	"github.com/humanlogio/humanlog/internal/pkg/selfupdate"
 	"github.com/humanlogio/humanlog/internal/pkg/state"
@@ -500,9 +500,10 @@ func (hdl *serviceHandler) runLocalhost(
 	registerOnCloseServer func(srv *http.Server),
 ) error {
 	openState := func(ctx context.Context, db localstorage.Storage) (localstate.DB, error) {
-		return localproject.Watch(ctx, absfs.New("/"), cfg, db, func(s string) (*typesv1.Query, error) {
+		fs := osfs.New("/")
+		return localproject.Watch(ctx, fs, cfg, db, func(s string) (*typesv1.Query, error) {
 			return db.Parse(ctx, s)
-		}), nil
+		})
 	}
 	openStorage := func(ctx context.Context) (localstorage.Storage, error) {
 		return localstorage.Open(

@@ -2,13 +2,13 @@ package localproject
 
 import (
 	"context"
-	"io/fs"
 	"net/url"
 	"slices"
 	"testing"
 	"testing/fstest"
 	"time"
 
+	"github.com/go-git/go-billy/v6/memfs"
 	"github.com/google/go-cmp/cmp"
 	dashboardv1 "github.com/humanlogio/api/go/svc/dashboard/v1"
 	projectv1 "github.com/humanlogio/api/go/svc/project/v1"
@@ -50,14 +50,23 @@ spec:
 	mkAlertGroupData := func() []byte {
 		return []byte(alertGroup)
 	}
+	now := time.Date(2025, 9, 25, 17, 24, 19, 0, time.UTC)
+	timeNow := func() time.Time { return now }
+
+	cmpOpts := []cmp.Option{
+		protocmp.Transform(),
+		protocmp.IgnoreFields(&typesv1.Dashboard{}, "created_at", "updated_at"),
+		protocmp.IgnoreFields(&typesv1.Project{}, "created_at", "updated_at"),
+	}
 
 	type subtest struct {
 		name  string
 		check func(context.Context, *testing.T, localstate.DB)
 	}
+
 	tests := []struct {
 		name    string
-		fs      fs.FS
+		fs      fstest.MapFS
 		cfg     *typesv1.ProjectsConfig
 		subtest []subtest
 	}{
@@ -102,8 +111,8 @@ spec:
 										DashboardDir: "dashdir",
 									},
 								}},
-								CreatedAt: timestamppb.New(time.Time{}),
-								UpdatedAt: timestamppb.New(time.Time{}),
+								CreatedAt: timestamppb.New(now),
+								UpdatedAt: timestamppb.New(now),
 							}},
 							{Project: &typesv1.Project{
 								Name: "my other project",
@@ -114,14 +123,15 @@ spec:
 										DashboardDir: "nested/dashdir",
 									},
 								}},
-								CreatedAt: timestamppb.New(time.Time{}),
-								UpdatedAt: timestamppb.New(time.Time{}),
+								CreatedAt: timestamppb.New(now),
+								UpdatedAt: timestamppb.New(now),
 							}},
 						}
 						res, err := d.ListProject(ctx, &projectv1.ListProjectRequest{})
 						require.NoError(t, err)
 						got := res.Items
-						diff := cmp.Diff(want, got, protocmp.Transform())
+
+						diff := cmp.Diff(want, got, cmpOpts...)
 						require.Empty(t, diff)
 					},
 				},
@@ -138,8 +148,8 @@ spec:
 										DashboardDir: "dashdir",
 									},
 								}},
-								CreatedAt: timestamppb.New(time.Time{}),
-								UpdatedAt: timestamppb.New(time.Time{}),
+								CreatedAt: timestamppb.New(now),
+								UpdatedAt: timestamppb.New(now),
 							},
 							Dashboards: []*typesv1.Dashboard{
 								{
@@ -147,8 +157,8 @@ spec:
 									Name:        "my dashboard",
 									Description: "it's a nice dashboard",
 									IsReadonly:  true,
-									CreatedAt:   timestamppb.New(time.Time{}),
-									UpdatedAt:   timestamppb.New(time.Time{}),
+									CreatedAt:   timestamppb.New(now),
+									UpdatedAt:   timestamppb.New(now),
 									PersesJson:  mkDashboardDataJSON(),
 									Source:      &typesv1.Dashboard_File{File: "project1dir/dashdir/dash1.json"},
 								},
@@ -157,8 +167,8 @@ spec:
 									Name:        "my dashboard",
 									Description: "it's a nice dashboard",
 									IsReadonly:  true,
-									CreatedAt:   timestamppb.New(time.Time{}),
-									UpdatedAt:   timestamppb.New(time.Time{}),
+									CreatedAt:   timestamppb.New(now),
+									UpdatedAt:   timestamppb.New(now),
 									PersesJson:  mkDashboardDataYAML(),
 									Source:      &typesv1.Dashboard_File{File: "project1dir/dashdir/dash2.yaml"},
 								},
@@ -167,8 +177,8 @@ spec:
 									Name:        "my dashboard",
 									Description: "it's a nice dashboard",
 									IsReadonly:  true,
-									CreatedAt:   timestamppb.New(time.Time{}),
-									UpdatedAt:   timestamppb.New(time.Time{}),
+									CreatedAt:   timestamppb.New(now),
+									UpdatedAt:   timestamppb.New(now),
 									PersesJson:  mkDashboardDataYAML(),
 									Source:      &typesv1.Dashboard_File{File: "project1dir/dashdir/dash3.yml"},
 								},
@@ -250,7 +260,7 @@ spec:
 						}
 						got, err := d.GetProject(ctx, &projectv1.GetProjectRequest{Name: "my project"})
 						require.NoError(t, err)
-						diff := cmp.Diff(want, got, protocmp.Transform())
+						diff := cmp.Diff(want, got, cmpOpts...)
 						require.Empty(t, diff)
 					},
 				},
@@ -262,8 +272,8 @@ spec:
 							Name:        "my dashboard",
 							Description: "it's a nice dashboard",
 							IsReadonly:  true,
-							CreatedAt:   timestamppb.New(time.Time{}),
-							UpdatedAt:   timestamppb.New(time.Time{}),
+							CreatedAt:   timestamppb.New(now),
+							UpdatedAt:   timestamppb.New(now),
 							PersesJson:  mkDashboardDataJSON(),
 							Source:      &typesv1.Dashboard_File{File: "project1dir/dashdir/dash1.json"},
 						}
@@ -274,7 +284,7 @@ spec:
 						})
 						require.NoError(t, err)
 						got := res.Dashboard
-						diff := cmp.Diff(want, got, protocmp.Transform())
+						diff := cmp.Diff(want, got, cmpOpts...)
 						require.Empty(t, diff)
 					},
 				},
@@ -296,8 +306,8 @@ spec:
 							Name:        "my dashboard",
 							Description: "it's a nice dashboard",
 							IsReadonly:  true,
-							CreatedAt:   timestamppb.New(time.Time{}),
-							UpdatedAt:   timestamppb.New(time.Time{}),
+							CreatedAt:   timestamppb.New(now),
+							UpdatedAt:   timestamppb.New(now),
 							PersesJson:  mkDashboardDataJSON(),
 							Source:      &typesv1.Dashboard_File{File: "project1dir/dashdir/dash1.json"},
 						}
@@ -308,7 +318,8 @@ spec:
 						})
 						require.NoError(t, err)
 						got := res.Dashboard
-						diff := cmp.Diff(want, got, protocmp.Transform())
+
+						diff := cmp.Diff(want, got, cmpOpts...)
 						require.Empty(t, diff)
 					},
 				},
@@ -326,7 +337,21 @@ spec:
 					},
 				},
 			}}
-			db := Watch(ctx, tt.fs, cfg, alertState, parseQuery)
+
+			fs := memfs.New()
+			for name, f := range tt.fs {
+				ff, err := fs.Create(name)
+				require.NoError(t, err)
+				_, err = ff.Write(f.Data)
+				require.NoError(t, err)
+				err = ff.Close()
+
+				require.NoError(t, err)
+
+			}
+
+			db, err := internalWatch(ctx, fs, cfg, alertState, parseQuery, timeNow)
+			require.NoError(t, err)
 			for _, tt := range tt.subtest {
 				t.Run(tt.name, func(t *testing.T) {
 					tt.check(t.Context(), t, db)

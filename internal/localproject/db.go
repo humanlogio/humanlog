@@ -3,6 +3,7 @@ package localproject
 import (
 	"context"
 	"io/fs"
+	"time"
 
 	typesv1 "github.com/humanlogio/api/go/types/v1"
 )
@@ -10,10 +11,11 @@ import (
 type dbStorage struct {
 	fs          fs.FS
 	logQlParser func(string) (*typesv1.Query, error)
+	timeNow     func() time.Time
 }
 
-func newDBStorage(projectSource ProjectSource, fs fs.FS, logQlParser func(string) (*typesv1.Query, error)) *dbStorage {
-	return &dbStorage{fs: fs, logQlParser: logQlParser}
+func newDBStorage(projectSource ProjectSource, fs fs.FS, logQlParser func(string) (*typesv1.Query, error), timeNow func() time.Time) *dbStorage {
+	return &dbStorage{fs: fs, logQlParser: logQlParser, timeNow: timeNow}
 }
 func (store *dbStorage) getOrCreateProject(ctx context.Context, name string, ptr *typesv1.ProjectPointer, onCreate CreateProjectFn, onGetProject GetProjectFn) error {
 	panic("todo")

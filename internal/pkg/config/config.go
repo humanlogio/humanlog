@@ -13,6 +13,7 @@ import (
 	typesv1 "github.com/humanlogio/api/go/types/v1"
 	"github.com/humanlogio/humanlog/internal/pkg/state"
 	"github.com/humanlogio/humanlog/pkg/sink/stdiosink"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	structpb "google.golang.org/protobuf/types/known/structpb"
 )
@@ -154,16 +155,17 @@ func ReadConfigFile(path string, dflt *Config, writebackIfMigrated bool) (*Confi
 	if dflt != nil && dflt.path == "" {
 		dflt.path = path
 	}
-	configFile, err := os.Open(path)
+
+	configFile, err := os.ReadFile(path)
 	if err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
 			return nil, fmt.Errorf("opening config file %q: %v", path, err)
 		}
 		return dflt, nil
 	}
-	defer configFile.Close()
-	var cfg Config
-	if err := json.NewDecoder(configFile).Decode(&cfg); err != nil {
+
+	cfg := Config{CurrentConfig: new(CurrentConfig)}
+	if err := protojson.Unmarshal(configFile, &cfg); err != nil {
 		return nil, fmt.Errorf("decoding config file: %v", err)
 	}
 	cfg.path = path
@@ -177,7 +179,8 @@ func ReadConfigFile(path string, dflt *Config, writebackIfMigrated bool) (*Confi
 }
 
 func WriteConfigFile(path string, config *Config) error {
-	content, err := json.MarshalIndent(config, "", "\t")
+	mrsl := protojson.MarshalOptions{Multiline: true, Indent: "\t"}
+	content, err := mrsl.Marshal(config)
 	if err != nil {
 		return fmt.Errorf("marshaling config file: %v", err)
 	}

@@ -652,11 +652,15 @@ For more details:
 		environmentCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getHTTPClient, getConnectOpts),
 		ingestCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getOTLPGRPCAPIAddr, getOTLPHTTPAPIUrl, getHTTPClient, getConnectOpts, getResource, getScope),
 		queryCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getBaseSiteURL, getHTTPClient, getConnectOpts),
+		projectCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getHTTPClient, getConnectOpts),
 		streamCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getBaseSiteURL, getHTTPClient, getConnectOpts),
 		gennyCmd(getCtx, getLogger, getCfg, getState),
 	)
 	app.Flags = []cli.Flag{configFlag, skipFlag, keepFlag, sortLongest, skipUnchanged, truncates, truncateLength, colorFlag, timeFormat, ignoreInterrupts, messageFieldsFlag, timeFieldsFlag, levelFieldsFlag, apiServerURL, otlpGrpcApiServerAddr, otlpHttpApiServerURL, baseSiteServerURL, debug, useHTTP1, useProtocol}
 	app.Action = func(cctx *cli.Context) error {
+		if len(cctx.Args()) > 0 {
+			return fmt.Errorf("unknown command: %s", strings.Join(cctx.Args(), " "))
+		}
 		// flags overwrite config file
 		if cfg.CurrentConfig == nil {
 			cfg.CurrentConfig = &types.LocalhostConfig{}
