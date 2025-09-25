@@ -20,6 +20,8 @@ import (
 	"github.com/humanlogio/api/go/svc/organization/v1/organizationv1connect"
 	productv1 "github.com/humanlogio/api/go/svc/product/v1"
 	"github.com/humanlogio/api/go/svc/product/v1/productv1connect"
+	projectv1 "github.com/humanlogio/api/go/svc/project/v1"
+	"github.com/humanlogio/api/go/svc/project/v1/projectv1connect"
 	tokenv1 "github.com/humanlogio/api/go/svc/token/v1"
 	"github.com/humanlogio/api/go/svc/token/v1/tokenv1connect"
 	userpb "github.com/humanlogio/api/go/svc/user/v1"
@@ -469,6 +471,20 @@ func ListProduct(ctx context.Context, category string, scope *typesv1.Product_Sc
 			Limit:    limit,
 			Category: category,
 			Scope:    scope,
+		}))
+		if err != nil {
+			return nil, nil, err
+		}
+		return list.Msg.Items, list.Msg.Next, nil
+	})
+}
+
+func ListProjects(ctx context.Context, environmentID int64, client projectv1connect.ProjectServiceClient) *iterapi.Iter[*projectv1.ListProjectResponse_ListItem] {
+	return iterapi.New(ctx, 100, func(ctx context.Context, cursor *typesv1.Cursor, limit int32) ([]*projectv1.ListProjectResponse_ListItem, *typesv1.Cursor, error) {
+		list, err := client.ListProject(ctx, connect.NewRequest(&projectv1.ListProjectRequest{
+			Cursor:        cursor,
+			Limit:         limit,
+			EnvironmentId: environmentID,
 		}))
 		if err != nil {
 			return nil, nil, err

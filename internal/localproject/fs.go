@@ -5,13 +5,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/fs"
+	"io"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"connectrpc.com/connect"
+	"github.com/go-git/go-billy/v6"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
 	"github.com/humanlogio/humanlog/internal/compat/alertmanager"
 	persesv1 "github.com/perses/perses/pkg/model/api/v1"
@@ -20,12 +22,13 @@ import (
 )
 
 type localGitStorage struct {
-	fs          fs.FS
+	fs          billy.Filesystem
 	logQlParser func(string) (*typesv1.Query, error)
+	timeNow     func() time.Time
 }
 
-func newLocalGitStorage(projectSource ProjectSource, fs fs.FS, logQlParser func(string) (*typesv1.Query, error)) *localGitStorage {
-	return &localGitStorage{fs: fs, logQlParser: logQlParser}
+func newLocalGitStorage(projectSource ProjectSource, fs billy.Filesystem, logQlParser func(string) (*typesv1.Query, error), timeNow func() time.Time) *localGitStorage {
+	return &localGitStorage{fs: fs, logQlParser: logQlParser, timeNow: timeNow}
 }
 
 func (store *localGitStorage) getOrCreateProject(ctx context.Context, name string, ptr *typesv1.ProjectPointer, onCreate CreateProjectFn, onGetProject GetProjectFn) error {
@@ -151,7 +154,7 @@ func (store *localGitStorage) getAlertRule(ctx context.Context, projectName stri
 	return errNotFound("no alert group with this name: %q", groupName)
 }
 
-func createProjectFromPointer(ctx context.Context, ffs fs.FS, projectName string, project *typesv1.Project, ptr *typesv1.ProjectPointer_LocalGit) error {
+func createProjectFromPointer(ctx context.Context, ffs billy.Filesystem, projectName string, project *typesv1.Project, ptr *typesv1.ProjectPointer_LocalGit) error {
 	panic("todo")
 }
 
@@ -162,7 +165,7 @@ func (store *localGitStorage) validateProjectPointer(ctx context.Context, ptr *t
 	}
 	lh := sch.Localhost
 	ensureIsDir := func(path string) error {
-		fi, err := fs.Stat(store.fs, path)
+		fi, err := store.fs.Stat(path)
 		if err != nil {
 			if errors.Is(err, os.ErrNotExist) {
 				return connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("the path %q doesn't exist", path))
@@ -202,8 +205,8 @@ func (store *localGitStorage) validateProjectPointer(ctx context.Context, ptr *t
 	return nil
 }
 
-func parseProjectPointer(ctx context.Context, ffs fs.FS, projectName string, ptr *typesv1.ProjectPointer_LocalGit) (*typesv1.Project, bool, error) {
-	projectDir, err := fs.Stat(ffs, ptr.Path)
+func parseProjectPointer(ctx context.Context, ffs billy.Filesystem, projectName string, ptr *typesv1.ProjectPointer_LocalGit) (*typesv1.Project, bool, error) {
+	projectDir, err := ffs.Stat(ptr.Path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil, false, nil
@@ -223,10 +226,13 @@ func parseProjectPointer(ctx context.Context, ffs fs.FS, projectName string, ptr
 	return st, true, nil
 }
 
-func parseProjectDashboards(ctx context.Context, ffs fs.FS, projectName, projectPath, dashboardDir string) ([]*typesv1.Dashboard, error) {
+func parseProjectDashboards(ctx context.Context, ffs billy.Filesystem, projectName, projectPath, dashboardDir string) ([]*typesv1.Dashboard, error) {
 	dashboardPath := path.Join(projectPath, dashboardDir)
-	files, err := fs.ReadDir(ffs, dashboardPath)
+	files, err := ffs.ReadDir(dashboardPath)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
 		return nil, fmt.Errorf("looking up dashboard directory on filesystem: %v", err)
 	}
 	var out []*typesv1.Dashboard
@@ -255,7 +261,7 @@ func parseProjectDashboards(ctx context.Context, ffs fs.FS, projectName, project
 	return out, nil
 }
 
-func parseProjectDashboard(ctx context.Context, ffs fs.FS, projectName, dashboardPath, filename string) (*typesv1.Dashboard, error) {
+func parseProjectDashboard(ctx context.Context, ffs billy.Filesystem, projectName, dashboardPath, filename string) (*typesv1.Dashboard, error) {
 	persesToProto := func(in *persesv1.Dashboard, projectName, filepath string, data []byte) (*typesv1.Dashboard, error) {
 
 		return &typesv1.Dashboard{
@@ -269,11 +275,17 @@ func parseProjectDashboard(ctx context.Context, ffs fs.FS, projectName, dashboar
 			PersesJson:  data,
 		}, nil
 	}
-	parseFile := func(ctx context.Context, ffs fs.FS, projectName, dirpath, filename string, parser func(ctx context.Context, data []byte) (*persesv1.Dashboard, error)) (*typesv1.Dashboard, error) {
+	parseFile := func(ctx context.Context, ffs billy.Filesystem, projectName, dirpath, filename string, parser func(ctx context.Context, data []byte) (*persesv1.Dashboard, error)) (*typesv1.Dashboard, error) {
 		fpath := path.Join(dirpath, filename)
-		data, err := fs.ReadFile(ffs, fpath)
+		f, err := ffs.Open(fpath)
 		if err != nil {
 			return nil, fmt.Errorf("opening dashboard file at %q: %v", fpath, err)
+		}
+		defer f.Close()
+
+		data, err := io.ReadAll(f)
+		if err != nil {
+			return nil, fmt.Errorf("reading dashboard file at %q: %v", fpath, err)
 		}
 		out, err := parser(ctx, data)
 		if err != nil {
@@ -302,10 +314,13 @@ func parseProjectDashboard(ctx context.Context, ffs fs.FS, projectName, dashboar
 	}
 }
 
-func parseProjectAlertGroups(ctx context.Context, ffs fs.FS, projectName, projectPath, alertGroupDir string, logQlParser func(string) (*typesv1.Query, error)) ([]*typesv1.AlertGroup, error) {
+func parseProjectAlertGroups(ctx context.Context, ffs billy.Filesystem, projectName, projectPath, alertGroupDir string, logQlParser func(string) (*typesv1.Query, error)) ([]*typesv1.AlertGroup, error) {
 	alertGroupPath := path.Join(projectPath, alertGroupDir)
-	files, err := fs.ReadDir(ffs, alertGroupPath)
+	files, err := ffs.ReadDir(alertGroupPath)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
 		return nil, fmt.Errorf("looking up alert group directory on filesystem: %v", err)
 	}
 	var out []*typesv1.AlertGroup
@@ -334,7 +349,7 @@ func parseProjectAlertGroups(ctx context.Context, ffs fs.FS, projectName, projec
 	return out, nil
 }
 
-func parseProjectAlertGroupsFromFile(ctx context.Context, ffs fs.FS, alertGroupPath, filename string, logQlParser func(string) (*typesv1.Query, error)) ([]*typesv1.AlertGroup, error) {
+func parseProjectAlertGroupsFromFile(ctx context.Context, ffs billy.Filesystem, alertGroupPath, filename string, logQlParser func(string) (*typesv1.Query, error)) ([]*typesv1.AlertGroup, error) {
 	filepath := path.Join(alertGroupPath, filename)
 	file, err := ffs.Open(filepath)
 	if err != nil {

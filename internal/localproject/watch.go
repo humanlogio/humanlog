@@ -5,12 +5,14 @@ import (
 	"encoding/base32"
 	"encoding/json"
 	"fmt"
-	"io/fs"
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"connectrpc.com/connect"
+	"github.com/go-git/go-billy/v6"
+	"github.com/go-git/go-billy/v6/memfs"
 	alertv1 "github.com/humanlogio/api/go/svc/alert/v1"
 	dashboardv1 "github.com/humanlogio/api/go/svc/dashboard/v1"
 	projectv1 "github.com/humanlogio/api/go/svc/project/v1"
@@ -72,23 +74,42 @@ type watch struct {
 	cfg         *config.Config
 	alertState  localstorage.Alertable
 	logQlParser func(string) (*typesv1.Query, error)
+
+	timeNow func() time.Time
 }
 
 func Watch(
 	ctx context.Context,
-	fs fs.FS,
+	fs billy.Filesystem,
 	cfg *config.Config,
 	alertState localstorage.Alertable,
 	logQlParser func(string) (*typesv1.Query, error),
-) localstate.DB {
+) (localstate.DB, error) {
+	return internalWatch(ctx, fs, cfg, alertState, logQlParser, time.Now)
+}
+
+func internalWatch(
+	ctx context.Context,
+	fs billy.Filesystem,
+	cfg *config.Config,
+	alertState localstorage.Alertable,
+	logQlParser func(string) (*typesv1.Query, error),
+	timeNow func() time.Time,
+) (localstate.DB, error) {
+	gitfs := memfs.New()
+	remote, err := newRemoteGitStorage(nil, gitfs, logQlParser, timeNow)
+	if err != nil {
+		return nil, err
+	}
 	return &watch{
-		db:          newDBStorage(nil, nil, logQlParser),
-		remote:      newRemoteGitStorage(nil, nil, logQlParser),
-		local:       newLocalGitStorage(nil, fs, logQlParser),
+		db:          newDBStorage(nil, nil, logQlParser, timeNow),
+		remote:      remote,
+		local:       newLocalGitStorage(nil, fs, logQlParser, timeNow),
 		cfg:         cfg,
 		alertState:  alertState,
 		logQlParser: logQlParser,
-	}
+		timeNow:     timeNow,
+	}, nil
 }
 
 func (wt *watch) storageForPointer(ptr *typesv1.ProjectPointer) (projectStorage, error) {
@@ -105,12 +126,6 @@ func (wt *watch) storageForPointer(ptr *typesv1.ProjectPointer) (projectStorage,
 
 func (wt *watch) CreateProject(ctx context.Context, req *projectv1.CreateProjectRequest) (*projectv1.CreateProjectResponse, error) {
 	name := req.Name
-	pointer := req.Pointer
-
-	lh := pointer.GetLocalhost()
-	if lh == nil {
-		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("localhost projects must refer to the local filesystem"))
-	}
 
 	err := func() error {
 		wt.mu.Lock()
@@ -174,7 +189,7 @@ func (wt *watch) CreateProject(ctx context.Context, req *projectv1.CreateProject
 		if err != nil {
 			return nil
 		}
-		return storage.getProjectHydrated(ctx, ptr.Name, ptr.Pointer, func(p *typesv1.Project, d []*typesv1.Dashboard, ag []*typesv1.AlertGroup) error {
+		return storage.getProject(ctx, ptr.Name, ptr.Pointer, func(p *typesv1.Project) error {
 			out = p
 			return nil
 		})
@@ -297,7 +312,7 @@ func (wt *watch) ListProject(ctx context.Context, req *projectv1.ListProjectRequ
 			func(sp *typesv1.ProjectsConfig_Project) error {
 				storage, err := wt.storageForPointer(sp.Pointer)
 				if err != nil {
-					return nil
+					return err
 				}
 				return storage.getProject(ctx, sp.Name, sp.Pointer, func(p *typesv1.Project) error {
 					out = append(out, &projectv1.ListProjectResponse_ListItem{Project: p})
