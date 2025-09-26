@@ -2,6 +2,7 @@ package localproject
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -112,12 +113,13 @@ func (store *remoteGitStorage) checkout(ctx context.Context, name string, ptr *t
 	if err != nil {
 		return nil, fmt.Errorf("resolving revision %q in repository: %v", ptr.Ref, err)
 	}
-
 	rem.r = r
 	w, err := r.Worktree()
 	if err != nil {
 		return nil, fmt.Errorf("obtaining repository worktree: %v", err)
 	}
+	rem.w = w
+	rem.project.UpdatedAt = timestamppb.New(store.timeNow())
 	err = w.Checkout(&git.CheckoutOptions{
 		Hash: *commit,
 		SparseCheckoutDirectories: []string{
@@ -125,11 +127,9 @@ func (store *remoteGitStorage) checkout(ctx context.Context, name string, ptr *t
 			ptr.AlertDir,
 		},
 	})
-	if err != nil {
+	if err != nil && !errors.Is(err, git.ErrSparseResetDirectoryNotFound) {
 		return nil, fmt.Errorf("doing sparse checkout of dashboards and alerts dir: %v", err)
 	}
-	rem.w = w
-	rem.project.UpdatedAt = timestamppb.New(store.timeNow())
 
 	return rem, nil
 }
