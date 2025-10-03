@@ -55,8 +55,8 @@ spec:
 
 	cmpOpts := []cmp.Option{
 		protocmp.Transform(),
-		protocmp.IgnoreFields(&typesv1.Dashboard{}, "created_at", "updated_at"),
-		protocmp.IgnoreFields(&typesv1.Project{}, "created_at", "updated_at"),
+		protocmp.IgnoreFields(&typesv1.DashboardStatus{}, "created_at", "updated_at"),
+		protocmp.IgnoreFields(&typesv1.ProjectStatus{}, "created_at", "updated_at"),
 	}
 
 	type subtest struct {
@@ -107,6 +107,7 @@ spec:
 					check: func(ctx context.Context, t *testing.T, d localstate.DB) {
 						want := []*projectv1.ListProjectResponse_ListItem{
 							{Project: &typesv1.Project{
+								Meta: &typesv1.ProjectMeta{},
 								Spec: &typesv1.ProjectSpec{
 									Name: "my project",
 									Pointer: &typesv1.ProjectPointer{Scheme: &typesv1.ProjectPointer_Localhost{
@@ -114,6 +115,7 @@ spec:
 											Path:         "project1dir",
 											AlertDir:     "alertdir",
 											DashboardDir: "dashdir",
+											ReadOnly:     true,
 										},
 									}},
 								},
@@ -123,6 +125,7 @@ spec:
 								},
 							}},
 							{Project: &typesv1.Project{
+								Meta: &typesv1.ProjectMeta{},
 								Spec: &typesv1.ProjectSpec{
 									Name: "my other project",
 									Pointer: &typesv1.ProjectPointer{Scheme: &typesv1.ProjectPointer_Localhost{
@@ -130,6 +133,7 @@ spec:
 											Path:         "project2dir",
 											AlertDir:     "nested/alertdir",
 											DashboardDir: "nested/dashdir",
+											ReadOnly:     true,
 										},
 									}},
 								},
@@ -153,7 +157,7 @@ spec:
 						want := &projectv1.GetProjectResponse{
 							Project: project(
 								"my project",
-								localProjectPointer("project1dir", "alertdir", "dashdir", true),
+								localProjectPointer("project1dir", "dashdir", "alertdir", true),
 								now, now,
 							),
 							Dashboards: dashboards(
@@ -507,5 +511,14 @@ func alertGroups(in ...*typesv1.AlertGroup) []*typesv1.AlertGroup {
 }
 
 func alertGroup(name string, interval time.Duration, labels *typesv1.Obj, rules []*typesv1.AlertRule) *typesv1.AlertGroup {
-	return &typesv1.AlertGroup{}
+	return &typesv1.AlertGroup{
+		Meta: &typesv1.AlertGroupMeta{},
+		Spec: &typesv1.AlertGroupSpec{
+			Name:     name,
+			Interval: durationpb.New(interval),
+			Labels:   labels,
+			Rules:    rules,
+		},
+		Status: &typesv1.AlertGroupStatus{},
+	}
 }

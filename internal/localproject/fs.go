@@ -237,6 +237,7 @@ func parseProjectPointer(ctx context.Context, ffs billy.Filesystem, projectName 
 			Path:         ptr.Path,
 			DashboardDir: ptr.DashboardDir,
 			AlertDir:     ptr.AlertDir,
+			ReadOnly:     ptr.ReadOnly,
 		}}},
 	}
 	st.Status = &typesv1.ProjectStatus{
