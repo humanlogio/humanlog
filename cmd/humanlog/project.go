@@ -119,8 +119,10 @@ func projectCmd(
 
 					createRes, err := projectClient.CreateProject(ctx, connect.NewRequest(&projectv1.CreateProjectRequest{
 						EnvironmentId: envID,
-						Name:          projectName,
-						Pointer:       pointer,
+						Spec: &typesv1.ProjectSpec{
+							Name:    projectName,
+							Pointer: pointer,
+						},
 					}))
 					if err != nil {
 						return fmt.Errorf("creating project: %v", err)
@@ -175,8 +177,10 @@ func projectCmd(
 
 					createRes, err := projectClient.CreateProject(ctx, connect.NewRequest(&projectv1.CreateProjectRequest{
 						EnvironmentId: envID,
-						Name:          projectName,
-						Pointer:       pointer,
+						Spec: &typesv1.ProjectSpec{
+							Name:    projectName,
+							Pointer: pointer,
+						},
 					}))
 					if err != nil {
 						return fmt.Errorf("creating project: %v", err)
@@ -279,8 +283,8 @@ func projectCmd(
 }
 
 func printProject(project *typesv1.Project) {
-	printFact("name", project.Name)
-	switch scheme := project.Pointer.Scheme.(type) {
+	printFact("name", project.Spec.Name)
+	switch scheme := project.Spec.Pointer.Scheme.(type) {
 	case *typesv1.ProjectPointer_Remote:
 		printFact("type", "remote")
 		printFact("type.remote.ref", scheme.Remote.Ref)
@@ -302,28 +306,28 @@ func printProject(project *typesv1.Project) {
 }
 
 func printDashboard(dashboard *typesv1.Dashboard) {
-	printFact("id", dashboard.Id)
-	printFact("name", dashboard.Name)
-	printFact("description", dashboard.Description)
-	printFact("is_readonly", dashboard.IsReadonly)
-	printFact("created_at", dashboard.CreatedAt)
-	printFact("updated_at", dashboard.UpdatedAt)
+	printFact("id", dashboard.Meta.Id)
+	printFact("name", dashboard.Spec.Name)
+	printFact("description", dashboard.Spec.Description)
+	printFact("is_readonly", dashboard.Spec.IsReadonly)
+	printFact("created_at", dashboard.Status.CreatedAt)
+	printFact("updated_at", dashboard.Status.UpdatedAt)
 }
 
 func printAlertGroup(alertGroup *typesv1.AlertGroup) {
-	printFact("name", alertGroup.Name)
-	if alertGroup.Interval == nil {
+	printFact("name", alertGroup.Spec.Name)
+	if alertGroup.Spec.Interval == nil {
 		printFact("interval", "<none>")
 	} else {
-		printFact("interval", alertGroup.Interval.AsDuration())
+		printFact("interval", alertGroup.Spec.Interval.AsDuration())
 	}
-	if alertGroup.QueryOffset == nil {
+	if alertGroup.Spec.QueryOffset == nil {
 		printFact("query_offset", "<none>")
 	} else {
-		printFact("query_offset", alertGroup.QueryOffset.AsDuration())
+		printFact("query_offset", alertGroup.Spec.QueryOffset.AsDuration())
 	}
 
-	printFact("limit", alertGroup.Limit)
-	printFact("len(rules)", len(alertGroup.Rules))
-	printFact("labels", alertGroup.Labels)
+	printFact("limit", alertGroup.Spec.Limit)
+	printFact("len(rules)", len(alertGroup.Spec.Rules))
+	printFact("labels", alertGroup.Spec.Labels)
 }

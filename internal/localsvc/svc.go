@@ -658,6 +658,15 @@ func (svc *Service) GetProject(ctx context.Context, req *connect.Request[project
 	return connect.NewResponse(out), nil
 }
 
+func (svc *Service) SyncProject(ctx context.Context, req *connect.Request[projectv1.SyncProjectRequest]) (*connect.Response[projectv1.SyncProjectResponse], error) {
+	msg := req.Msg
+	out, err := svc.db.SyncProject(ctx, msg)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(out), nil
+}
+
 func (svc *Service) UpdateProject(ctx context.Context, req *connect.Request[projectv1.UpdateProjectRequest]) (*connect.Response[projectv1.UpdateProjectResponse], error) {
 	msg := req.Msg
 	out, err := svc.db.UpdateProject(ctx, msg)

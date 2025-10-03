@@ -36,22 +36,28 @@ func ToGroups(groups []rulefmt.RuleGroup, parser func(string) (*typesv1.Query, e
 }
 
 func ToGroup(g rulefmt.RuleGroup, parser func(string) (*typesv1.Query, error)) (*typesv1.AlertGroup, error) {
-	out := &typesv1.AlertGroup{
+	spec := &typesv1.AlertGroupSpec{
 		Name:     g.Name,
 		Interval: durationpb.New(time.Duration(g.Interval)),
 		Limit:    int32(g.Limit),
 		Labels:   mapToObj(g.Labels),
 		Rules:    make([]*typesv1.AlertRule, 0, len(g.Rules)),
 	}
+	status := &typesv1.AlertGroupStatus{}
+	out := &typesv1.AlertGroup{
+		Meta:   &typesv1.AlertGroupMeta{},
+		Spec:   spec,
+		Status: status,
+	}
 	if g.QueryOffset != nil {
-		out.QueryOffset = durationpb.New(time.Duration(*g.QueryOffset))
+		spec.QueryOffset = durationpb.New(time.Duration(*g.QueryOffset))
 	}
 	for _, a := range g.Rules {
 		ar, err := ToAlert(a, parser)
 		if err != nil {
-			return nil, fmt.Errorf("alert %q: %v", a.Alert, err)
+			status.Errors = append(status.Errors, fmt.Sprintf("alert %q: %v", a.Alert, err))
 		}
-		out.Rules = append(out.Rules, ar)
+		spec.Rules = append(spec.Rules, ar)
 	}
 	return out, nil
 }

@@ -48,7 +48,7 @@ spec:
         description: "it's a nice dashboard"`)
 	}
 	mkAlertGroupData := func() []byte {
-		return []byte(alertGroup)
+		return []byte(alertGroupYAML)
 	}
 	now := time.Date(2025, 9, 25, 17, 24, 19, 0, time.UTC)
 	timeNow := func() time.Time { return now }
@@ -92,10 +92,14 @@ spec:
 				"project2dir/nested/ignored":              &fstest.MapFile{},
 			},
 			cfg: &typesv1.ProjectsConfig{
-				Projects: []*typesv1.ProjectsConfig_Project{
-					localProjectPointer("my project", "project1dir", "dashdir", "alertdir", true),
-					localProjectPointer("my other project", "project2dir", "nested/dashdir", "nested/alertdir", true),
-				},
+				Projects: projectConfigs(
+					projectConfig("my project",
+						localProjectPointer("project1dir", "dashdir", "alertdir", true),
+					),
+					projectConfig("my other project",
+						localProjectPointer("project2dir", "nested/dashdir", "nested/alertdir", true),
+					),
+				),
 			},
 			subtest: []subtest{
 				{
@@ -103,28 +107,36 @@ spec:
 					check: func(ctx context.Context, t *testing.T, d localstate.DB) {
 						want := []*projectv1.ListProjectResponse_ListItem{
 							{Project: &typesv1.Project{
-								Name: "my project",
-								Pointer: &typesv1.ProjectPointer{Scheme: &typesv1.ProjectPointer_Localhost{
-									Localhost: &typesv1.ProjectPointer_LocalGit{
-										Path:         "project1dir",
-										AlertDir:     "alertdir",
-										DashboardDir: "dashdir",
-									},
-								}},
-								CreatedAt: timestamppb.New(now),
-								UpdatedAt: timestamppb.New(now),
+								Spec: &typesv1.ProjectSpec{
+									Name: "my project",
+									Pointer: &typesv1.ProjectPointer{Scheme: &typesv1.ProjectPointer_Localhost{
+										Localhost: &typesv1.ProjectPointer_LocalGit{
+											Path:         "project1dir",
+											AlertDir:     "alertdir",
+											DashboardDir: "dashdir",
+										},
+									}},
+								},
+								Status: &typesv1.ProjectStatus{
+									CreatedAt: timestamppb.New(now),
+									UpdatedAt: timestamppb.New(now),
+								},
 							}},
 							{Project: &typesv1.Project{
-								Name: "my other project",
-								Pointer: &typesv1.ProjectPointer{Scheme: &typesv1.ProjectPointer_Localhost{
-									Localhost: &typesv1.ProjectPointer_LocalGit{
-										Path:         "project2dir",
-										AlertDir:     "nested/alertdir",
-										DashboardDir: "nested/dashdir",
-									},
-								}},
-								CreatedAt: timestamppb.New(now),
-								UpdatedAt: timestamppb.New(now),
+								Spec: &typesv1.ProjectSpec{
+									Name: "my other project",
+									Pointer: &typesv1.ProjectPointer{Scheme: &typesv1.ProjectPointer_Localhost{
+										Localhost: &typesv1.ProjectPointer_LocalGit{
+											Path:         "project2dir",
+											AlertDir:     "nested/alertdir",
+											DashboardDir: "nested/dashdir",
+										},
+									}},
+								},
+								Status: &typesv1.ProjectStatus{
+									CreatedAt: timestamppb.New(now),
+									UpdatedAt: timestamppb.New(now),
+								},
 							}},
 						}
 						res, err := d.ListProject(ctx, &projectv1.ListProjectRequest{})
@@ -139,56 +151,48 @@ spec:
 					name: "get project and details",
 					check: func(ctx context.Context, t *testing.T, d localstate.DB) {
 						want := &projectv1.GetProjectResponse{
-							Project: &typesv1.Project{
-								Name: "my project",
-								Pointer: &typesv1.ProjectPointer{Scheme: &typesv1.ProjectPointer_Localhost{
-									Localhost: &typesv1.ProjectPointer_LocalGit{
-										Path:         "project1dir",
-										AlertDir:     "alertdir",
-										DashboardDir: "dashdir",
-									},
-								}},
-								CreatedAt: timestamppb.New(now),
-								UpdatedAt: timestamppb.New(now),
-							},
-							Dashboards: []*typesv1.Dashboard{
-								{
-									Id:          dashboardID("my project", "my project", "my_dashboard"),
-									Name:        "my dashboard",
-									Description: "it's a nice dashboard",
-									IsReadonly:  true,
-									CreatedAt:   timestamppb.New(now),
-									UpdatedAt:   timestamppb.New(now),
-									PersesJson:  mkDashboardDataJSON(),
-									Source:      &typesv1.Dashboard_File{File: "project1dir/dashdir/dash1.json"},
-								},
-								{
-									Id:          dashboardID("my project", "my project", "my_dashboard"),
-									Name:        "my dashboard",
-									Description: "it's a nice dashboard",
-									IsReadonly:  true,
-									CreatedAt:   timestamppb.New(now),
-									UpdatedAt:   timestamppb.New(now),
-									PersesJson:  mkDashboardDataYAML(),
-									Source:      &typesv1.Dashboard_File{File: "project1dir/dashdir/dash2.yaml"},
-								},
-								{
-									Id:          dashboardID("my project", "my project", "my_dashboard"),
-									Name:        "my dashboard",
-									Description: "it's a nice dashboard",
-									IsReadonly:  true,
-									CreatedAt:   timestamppb.New(now),
-									UpdatedAt:   timestamppb.New(now),
-									PersesJson:  mkDashboardDataYAML(),
-									Source:      &typesv1.Dashboard_File{File: "project1dir/dashdir/dash3.yml"},
-								},
-							},
-							AlertGroups: []*typesv1.AlertGroup{
-								{
-									Name:     "my-group-name",
-									Interval: durationpb.New(30 * time.Second),
-									Labels:   &typesv1.Obj{},
-									Rules: []*typesv1.AlertRule{
+							Project: project(
+								"my project",
+								localProjectPointer("project1dir", "alertdir", "dashdir", true),
+								now, now,
+							),
+							Dashboards: dashboards(
+								dashboard(
+									dashboardID("my project", "my project", "my_dashboard"),
+									"my dashboard",
+									"it's a nice dashboard",
+									true,
+									mkDashboardDataJSON(),
+									"project1dir/dashdir/dash1.json",
+									now, now,
+								),
+								dashboard(
+									dashboardID("my project", "my project", "my_dashboard"),
+									"my dashboard",
+									"it's a nice dashboard",
+									true,
+									mkDashboardDataYAML(),
+									"project1dir/dashdir/dash2.yaml",
+									now,
+									now,
+								),
+								dashboard(
+									dashboardID("my project", "my project", "my_dashboard"),
+									"my dashboard",
+									"it's a nice dashboard",
+									true,
+									mkDashboardDataYAML(),
+									"project1dir/dashdir/dash3.yml",
+									now,
+									now,
+								),
+							),
+							AlertGroups: alertGroups(
+								alertGroup(
+									"my-group-name",
+									30*time.Second,
+									&typesv1.Obj{},
+									[]*typesv1.AlertRule{
 										{
 											Name: "HighErrors",
 											For:  durationpb.New(5 * time.Minute),
@@ -203,12 +207,12 @@ spec:
 											}},
 										},
 									},
-								},
-								{
-									Name:     "my-another-name",
-									Interval: durationpb.New(30 * time.Second),
-									Labels:   &typesv1.Obj{},
-									Rules: []*typesv1.AlertRule{
+								),
+								alertGroup(
+									"my-another-name",
+									30*time.Second,
+									&typesv1.Obj{},
+									[]*typesv1.AlertRule{
 										{
 											Name: "HighErrors",
 											For:  durationpb.New(5 * time.Minute),
@@ -219,12 +223,12 @@ spec:
 											Annotations: &typesv1.Obj{},
 										},
 									},
-								},
-								{
-									Name:     "my-group-name",
-									Interval: durationpb.New(30 * time.Second),
-									Labels:   &typesv1.Obj{},
-									Rules: []*typesv1.AlertRule{
+								),
+								alertGroup(
+									"my-group-name",
+									30*time.Second,
+									&typesv1.Obj{},
+									[]*typesv1.AlertRule{
 										{
 											Name: "HighErrors",
 											For:  durationpb.New(5 * time.Minute),
@@ -239,12 +243,12 @@ spec:
 											}},
 										},
 									},
-								},
-								{
-									Name:     "my-another-name",
-									Interval: durationpb.New(30 * time.Second),
-									Labels:   &typesv1.Obj{},
-									Rules: []*typesv1.AlertRule{
+								),
+								alertGroup(
+									"my-another-name",
+									30*time.Second,
+									&typesv1.Obj{},
+									[]*typesv1.AlertRule{
 										{
 											Name: "HighErrors",
 											For:  durationpb.New(5 * time.Minute),
@@ -255,8 +259,8 @@ spec:
 											Annotations: &typesv1.Obj{},
 										},
 									},
-								},
-							},
+								),
+							),
 						}
 						got, err := d.GetProject(ctx, &projectv1.GetProjectRequest{Name: "my project"})
 						require.NoError(t, err)
@@ -267,16 +271,16 @@ spec:
 				{
 					name: "get dashboard by id",
 					check: func(ctx context.Context, t *testing.T, d localstate.DB) {
-						want := &typesv1.Dashboard{
-							Id:          dashboardID("my project", "my project", "my_dashboard"),
-							Name:        "my dashboard",
-							Description: "it's a nice dashboard",
-							IsReadonly:  true,
-							CreatedAt:   timestamppb.New(now),
-							UpdatedAt:   timestamppb.New(now),
-							PersesJson:  mkDashboardDataJSON(),
-							Source:      &typesv1.Dashboard_File{File: "project1dir/dashdir/dash1.json"},
-						}
+						want := dashboard(
+							dashboardID("my project", "my project", "my_dashboard"),
+							"my dashboard",
+							"it's a nice dashboard",
+							true,
+							mkDashboardDataJSON(),
+							"project1dir/dashdir/dash1.json",
+							now,
+							now,
+						)
 						res, err := d.GetDashboard(ctx, &dashboardv1.GetDashboardRequest{
 							EnvironmentId: 0,
 							ProjectName:   "my project",
@@ -295,26 +299,26 @@ spec:
 						require.NoError(t, err)
 						// gotProject.Dashboards
 						i := slices.IndexFunc(gotProject.Dashboards, func(d *typesv1.Dashboard) bool {
-							return d.Name == "my dashboard"
+							return d.Spec.Name == "my dashboard"
 						})
 						require.NotEqual(t, -1, i)
 
 						db := gotProject.Dashboards[i]
 
-						want := &typesv1.Dashboard{
-							Id:          dashboardID("my project", "my project", "my_dashboard"),
-							Name:        "my dashboard",
-							Description: "it's a nice dashboard",
-							IsReadonly:  true,
-							CreatedAt:   timestamppb.New(now),
-							UpdatedAt:   timestamppb.New(now),
-							PersesJson:  mkDashboardDataJSON(),
-							Source:      &typesv1.Dashboard_File{File: "project1dir/dashdir/dash1.json"},
-						}
+						want := dashboard(
+							dashboardID("my project", "my project", "my_dashboard"),
+							"my dashboard",
+							"it's a nice dashboard",
+							true,
+							mkDashboardDataJSON(),
+							"project1dir/dashdir/dash1.json",
+							now,
+							now,
+						)
 						res, err := d.GetDashboard(ctx, &dashboardv1.GetDashboardRequest{
 							EnvironmentId: 0,
-							ProjectName:   gotProject.Project.Name,
-							Id:            db.Id,
+							ProjectName:   gotProject.Project.Spec.Name,
+							Id:            db.Meta.Id,
 						})
 						require.NoError(t, err)
 						got := res.Dashboard
@@ -391,7 +395,7 @@ func parseQuery(s string) (*typesv1.Query, error) {
 	}}, nil
 }
 
-const alertGroup = `groups:
+const alertGroupYAML = `groups:
   - name: my-group-name
     interval: 30s # defaults to global interval
     rules:
@@ -413,18 +417,95 @@ const alertGroup = `groups:
           severity: critical
 `
 
-func localProjectPointer(projectName, path, dashboard, alert string, readOnly bool) *typesv1.ProjectsConfig_Project {
+func projectConfigs(in ...*typesv1.ProjectsConfig_Project) []*typesv1.ProjectsConfig_Project {
+	return in
+}
+
+func projectConfig(projectName string, ptr *typesv1.ProjectPointer) *typesv1.ProjectsConfig_Project {
 	return &typesv1.ProjectsConfig_Project{
-		Name: projectName,
-		Pointer: &typesv1.ProjectPointer{
-			Scheme: &typesv1.ProjectPointer_Localhost{
-				Localhost: &typesv1.ProjectPointer_LocalGit{
-					Path:         path,
-					DashboardDir: dashboard,
-					AlertDir:     alert,
-					ReadOnly:     readOnly,
-				},
+		Name:    projectName,
+		Pointer: ptr,
+	}
+}
+
+func localProjectPointer(path, dashboard, alert string, readOnly bool) *typesv1.ProjectPointer {
+	return &typesv1.ProjectPointer{
+		Scheme: &typesv1.ProjectPointer_Localhost{
+			Localhost: &typesv1.ProjectPointer_LocalGit{
+				Path:         path,
+				DashboardDir: dashboard,
+				AlertDir:     alert,
+				ReadOnly:     readOnly,
 			},
 		},
 	}
+}
+
+func remoteProjectPointer(remoteURL, ref, dashboard, alert string) *typesv1.ProjectPointer {
+	return &typesv1.ProjectPointer{
+		Scheme: &typesv1.ProjectPointer_Remote{
+			Remote: &typesv1.ProjectPointer_RemoteGit{
+				RemoteUrl:    remoteURL,
+				Ref:          ref,
+				DashboardDir: dashboard,
+
+				AlertDir: alert,
+			},
+		},
+	}
+}
+
+func project(
+	name string,
+	ptr *typesv1.ProjectPointer,
+	createdAt, updatedAt time.Time,
+) *typesv1.Project {
+	return &typesv1.Project{
+		Meta: &typesv1.ProjectMeta{},
+		Spec: &typesv1.ProjectSpec{
+			Name:    name,
+			Pointer: ptr,
+		},
+		Status: &typesv1.ProjectStatus{
+			CreatedAt: timestamppb.New(createdAt),
+			UpdatedAt: timestamppb.New(updatedAt),
+		},
+	}
+}
+
+func dashboards(in ...*typesv1.Dashboard) []*typesv1.Dashboard {
+	return in
+}
+
+func dashboard(
+	id string,
+	name, desc string, isReadonly bool,
+	persesJSON []byte,
+	file string,
+	createdAt, updatedAt time.Time,
+) *typesv1.Dashboard {
+	return &typesv1.Dashboard{
+		Meta: &typesv1.DashboardMeta{
+			Id: id,
+		},
+		Spec: &typesv1.DashboardSpec{
+			Name:        name,
+			Description: desc,
+			IsReadonly:  isReadonly,
+			PersesJson:  persesJSON,
+			Source:      &typesv1.DashboardSpec_File{File: file},
+		},
+		Status: &typesv1.DashboardStatus{
+			CreatedAt: timestamppb.New(createdAt),
+			UpdatedAt: timestamppb.New(updatedAt),
+		},
+	}
+}
+
+func alertGroups(in ...*typesv1.AlertGroup) []*typesv1.AlertGroup {
+	return in
+}
+
+func alertGroup(name string, interval time.Duration, labels *typesv1.Obj, rules []*typesv1.AlertRule) *typesv1.AlertGroup {
+	return &typesv1.AlertGroup{}
 }

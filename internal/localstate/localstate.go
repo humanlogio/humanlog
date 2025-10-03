@@ -11,6 +11,7 @@ import (
 type DB interface {
 	CreateProject(context.Context, *projectv1.CreateProjectRequest) (*projectv1.CreateProjectResponse, error)
 	GetProject(context.Context, *projectv1.GetProjectRequest) (*projectv1.GetProjectResponse, error)
+	SyncProject(context.Context, *projectv1.SyncProjectRequest) (*projectv1.SyncProjectResponse, error)
 	UpdateProject(context.Context, *projectv1.UpdateProjectRequest) (*projectv1.UpdateProjectResponse, error)
 	DeleteProject(context.Context, *projectv1.DeleteProjectRequest) (*projectv1.DeleteProjectResponse, error)
 	ListProject(context.Context, *projectv1.ListProjectRequest) (*projectv1.ListProjectResponse, error)

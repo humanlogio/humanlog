@@ -57,6 +57,10 @@ func (store *localGitStorage) getOrCreateProject(ctx context.Context, name strin
 	return onGetProject(st)
 }
 
+func (store *localGitStorage) syncProject(ctx context.Context, name string, ptr *typesv1.ProjectPointer, onGetProject GetProjectFn) error {
+	return store.getProject(ctx, name, ptr, onGetProject)
+}
+
 func (store *localGitStorage) getProject(ctx context.Context, name string, ptr *typesv1.ProjectPointer, onGetProject GetProjectFn) error {
 	sch, ok := ptr.Scheme.(*typesv1.ProjectPointer_Localhost)
 	if !ok {
@@ -82,11 +86,19 @@ func (store *localGitStorage) getProjectHydrated(ctx context.Context, name strin
 		lh := sch.Localhost
 		dashboards, err := parseProjectDashboards(ctx, store.fs, name, lh.Path, lh.DashboardDir)
 		if err != nil {
-			return errInternal("parsing project dashboards: %v", err)
+			if errors.Is(err, os.ErrNotExist) {
+				p.Status.Errors = append(p.Status.Errors, fmt.Sprintf("dashboard directory does not exist at path %q", lh.DashboardDir))
+			} else {
+				p.Status.Errors = append(p.Status.Errors, fmt.Sprintf("parsing project dashboards: %v", err))
+			}
 		}
 		alertGroups, err := parseProjectAlertGroups(ctx, store.fs, name, lh.Path, lh.AlertDir, store.logQlParser)
 		if err != nil {
-			return errInternal("parsing project alert groups: %v", err)
+			if errors.Is(err, os.ErrNotExist) {
+				p.Status.Errors = append(p.Status.Errors, fmt.Sprintf("alert directory does not exist at path %q", lh.AlertDir))
+			} else {
+				p.Status.Errors = append(p.Status.Errors, fmt.Sprintf("parsing project alert groups: %v", err))
+			}
 		}
 		return onGetProject(p, dashboards, alertGroups)
 	})
@@ -103,7 +115,7 @@ func (store *localGitStorage) getDashboard(ctx context.Context, projectName stri
 		return errInternal("parsing project dashboards: %v", err)
 	}
 	for _, item := range dashboards {
-		if item.Id == id {
+		if item.Meta.Id == id {
 			return onDashboard(item)
 		}
 	}
@@ -120,7 +132,7 @@ func (store *localGitStorage) getAlertGroup(ctx context.Context, projectName str
 		return errInternal("parsing project alert groups: %v", err)
 	}
 	for _, item := range items {
-		if item.Name == groupName {
+		if item.Spec.Name == groupName {
 			return onAlertGroup(item)
 		}
 	}
@@ -138,7 +150,7 @@ func (store *localGitStorage) getAlertRule(ctx context.Context, projectName stri
 		return errInternal("parsing project alert groups: %v", err)
 	}
 	onGroup := func(group *typesv1.AlertGroup) error {
-		for _, rule := range group.Rules {
+		for _, rule := range group.Spec.Rules {
 			if rule.Name == ruleName {
 				return onAlertRule(rule)
 			}
@@ -147,7 +159,7 @@ func (store *localGitStorage) getAlertRule(ctx context.Context, projectName stri
 	}
 
 	for _, item := range items {
-		if item.Name == groupName {
+		if item.Spec.Name == groupName {
 			return onGroup(item)
 		}
 	}
@@ -206,20 +218,28 @@ func (store *localGitStorage) validateProjectPointer(ctx context.Context, ptr *t
 }
 
 func parseProjectPointer(ctx context.Context, ffs billy.Filesystem, projectName string, ptr *typesv1.ProjectPointer_LocalGit) (*typesv1.Project, bool, error) {
+	st := &typesv1.Project{
+		Meta:   &typesv1.ProjectMeta{},
+		Spec:   &typesv1.ProjectSpec{},
+		Status: &typesv1.ProjectStatus{},
+	}
 	projectDir, err := ffs.Stat(ptr.Path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return nil, false, nil
+			st.Status.Errors = append(st.Status.Errors, fmt.Sprintf("no directory exists at path %q", ptr.Path))
+			return st, false, nil
 		}
 		return nil, false, fmt.Errorf("looking up project directory %q on filesystem: %v", ptr.Path, err)
 	}
-	st := &typesv1.Project{
+	st.Spec = &typesv1.ProjectSpec{
 		Name: projectName,
 		Pointer: &typesv1.ProjectPointer{Scheme: &typesv1.ProjectPointer_Localhost{Localhost: &typesv1.ProjectPointer_LocalGit{
 			Path:         ptr.Path,
 			DashboardDir: ptr.DashboardDir,
 			AlertDir:     ptr.AlertDir,
 		}}},
+	}
+	st.Status = &typesv1.ProjectStatus{
 		CreatedAt: timestamppb.New(projectDir.ModTime()),
 		UpdatedAt: timestamppb.New(projectDir.ModTime()),
 	}
@@ -231,7 +251,7 @@ func parseProjectDashboards(ctx context.Context, ffs billy.Filesystem, projectNa
 	files, err := ffs.ReadDir(dashboardPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return nil, nil
+			return nil, err
 		}
 		return nil, fmt.Errorf("looking up dashboard directory on filesystem: %v", err)
 	}
@@ -263,22 +283,36 @@ func parseProjectDashboards(ctx context.Context, ffs billy.Filesystem, projectNa
 
 func parseProjectDashboard(ctx context.Context, ffs billy.Filesystem, projectName, dashboardPath, filename string) (*typesv1.Dashboard, error) {
 	persesToProto := func(in *persesv1.Dashboard, projectName, filepath string, data []byte) (*typesv1.Dashboard, error) {
-
 		return &typesv1.Dashboard{
-			Id:          dashboardID(projectName, in.Metadata.Project, in.Metadata.Name),
-			Name:        in.Spec.Display.Name,
-			Description: in.Spec.Display.Description,
-			IsReadonly:  true,
-			Source:      &typesv1.Dashboard_File{File: filepath},
-			CreatedAt:   timestamppb.New(in.Metadata.CreatedAt),
-			UpdatedAt:   timestamppb.New(in.Metadata.UpdatedAt),
-			PersesJson:  data,
+			Meta: &typesv1.DashboardMeta{
+				Id: dashboardID(projectName, in.Metadata.Project, in.Metadata.Name),
+			},
+			Spec: &typesv1.DashboardSpec{
+				Name:        in.Spec.Display.Name,
+				Description: in.Spec.Display.Description,
+				IsReadonly:  true,
+				Source:      &typesv1.DashboardSpec_File{File: filepath},
+				PersesJson:  data,
+			},
+			Status: &typesv1.DashboardStatus{
+				CreatedAt: timestamppb.New(in.Metadata.CreatedAt),
+				UpdatedAt: timestamppb.New(in.Metadata.UpdatedAt),
+			},
 		}, nil
 	}
 	parseFile := func(ctx context.Context, ffs billy.Filesystem, projectName, dirpath, filename string, parser func(ctx context.Context, data []byte) (*persesv1.Dashboard, error)) (*typesv1.Dashboard, error) {
+		out := &typesv1.Dashboard{
+			Meta:   &typesv1.DashboardMeta{},
+			Spec:   &typesv1.DashboardSpec{},
+			Status: &typesv1.DashboardStatus{},
+		}
 		fpath := path.Join(dirpath, filename)
 		f, err := ffs.Open(fpath)
 		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				out.Status.Errors = append(out.Status.Errors, fmt.Sprintf("no dashboard found at path %q", fpath))
+				return out, nil
+			}
 			return nil, fmt.Errorf("opening dashboard file at %q: %v", fpath, err)
 		}
 		defer f.Close()
@@ -287,11 +321,12 @@ func parseProjectDashboard(ctx context.Context, ffs billy.Filesystem, projectNam
 		if err != nil {
 			return nil, fmt.Errorf("reading dashboard file at %q: %v", fpath, err)
 		}
-		out, err := parser(ctx, data)
+		pout, err := parser(ctx, data)
 		if err != nil {
-			return nil, fmt.Errorf("parsing dashboard file at %q: %v", fpath, err)
+			out.Status.Errors = append(out.Status.Errors, fmt.Sprintf("invalid dashboard found at path %q: %v", fpath, err))
+			return out, nil
 		}
-		return persesToProto(out, projectName, fpath, data)
+		return persesToProto(pout, projectName, fpath, data)
 	}
 	parseJSONDashboard := func(ctx context.Context, data []byte) (*persesv1.Dashboard, error) {
 		out := new(persesv1.Dashboard)
@@ -319,7 +354,7 @@ func parseProjectAlertGroups(ctx context.Context, ffs billy.Filesystem, projectN
 	files, err := ffs.ReadDir(alertGroupPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return nil, nil
+			return nil, err
 		}
 		return nil, fmt.Errorf("looking up alert group directory on filesystem: %v", err)
 	}
@@ -355,5 +390,17 @@ func parseProjectAlertGroupsFromFile(ctx context.Context, ffs billy.Filesystem, 
 	if err != nil {
 		return nil, fmt.Errorf("opening alert group file at %q: %v", filepath, err)
 	}
-	return alertmanager.ParseRules(file, logQlParser)
+
+	out, err := alertmanager.ParseRules(file, logQlParser)
+	if err != nil {
+		out = append(out, &typesv1.AlertGroup{
+			Meta: &typesv1.AlertGroupMeta{},
+			Spec: &typesv1.AlertGroupSpec{},
+			Status: &typesv1.AlertGroupStatus{
+				Errors: []string{fmt.Sprintf("parsing alert group file %q: %v", filepath, err)},
+			},
+		})
+		return out, err
+	}
+	return out, err
 }

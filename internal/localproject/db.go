@@ -47,6 +47,10 @@ func (store *dbStorage) getProject(ctx context.Context, name string, ptr *typesv
 	panic("todo")
 }
 
+func (store *dbStorage) syncProject(ctx context.Context, name string, ptr *typesv1.ProjectPointer, onGetProject GetProjectFn) error {
+	return store.getProject(ctx, name, ptr, onGetProject)
+}
+
 func (store *dbStorage) getDashboard(ctx context.Context, projectName string, ptr *typesv1.ProjectPointer, id string, onDashboard GetDashboardFn) error {
 	panic("todo")
 	// sch, ok := ptr.Scheme.(*typesv1.ProjectPointer_Localhost)
