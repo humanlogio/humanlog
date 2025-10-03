@@ -285,11 +285,11 @@ func ServeLocalhost(
 				project := projectIter.Current()
 				evaluator := localalert.NewEvaluator(storage, time.Now)
 
-				alertGroupIter := iteratorForAlertGroup(ctx, project.Name)
+				alertGroupIter := iteratorForAlertGroup(ctx, project.Spec.Name)
 				for alertGroupIter.Next() {
 					alertGroup := alertGroupIter.Current()
 					if err := evaluator.EvaluateRules(ctx, project, alertGroup, notifyAlert); err != nil {
-						return fmt.Errorf("evaluating alert group %q: %v", alertGroup.Name, err)
+						return fmt.Errorf("evaluating alert group %q: %v", alertGroup.Spec.Name, err)
 					}
 				}
 				if err := alertGroupIter.Err(); err != nil {

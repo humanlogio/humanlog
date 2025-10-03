@@ -253,19 +253,21 @@ func apiProject(
 					client := getProjectClient(cctx)
 
 					req := &projectv1.CreateProjectRequest{
-						Name: cctx.String(projectName.Name),
-						Pointer: &typesv1.ProjectPointer{
-							Scheme: &typesv1.ProjectPointer_Localhost{
-								Localhost: &typesv1.ProjectPointer_LocalGit{
-									Path:         cctx.String(projectPath.Name),
-									DashboardDir: cctx.String(projectDashboardDir.Name),
-									AlertDir:     cctx.String(projectAlertDir.Name),
+						Spec: &typesv1.ProjectSpec{
+							Name: cctx.String(projectName.Name),
+							Pointer: &typesv1.ProjectPointer{
+								Scheme: &typesv1.ProjectPointer_Localhost{
+									Localhost: &typesv1.ProjectPointer_LocalGit{
+										Path:         cctx.String(projectPath.Name),
+										DashboardDir: cctx.String(projectDashboardDir.Name),
+										AlertDir:     cctx.String(projectAlertDir.Name),
+									},
 								},
 							},
 						},
 					}
 
-					ll.InfoContext(ctx, "creating project", slog.Any("pointer", req.Pointer.GetLocalhost()))
+					ll.InfoContext(ctx, "creating project", slog.Any("pointer", req.Spec.Pointer.GetLocalhost()))
 					res, err := client.CreateProject(ctx, connect.NewRequest(req))
 					if err != nil {
 						return err

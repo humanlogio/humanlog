@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -76,14 +77,19 @@ func (store *remoteGitStorage) checkout(ctx context.Context, name string, ptr *t
 	}
 	rem = &remoteGit{
 		project: &typesv1.Project{
-			Name: name,
-			Pointer: &typesv1.ProjectPointer{
-				Scheme: &typesv1.ProjectPointer_Remote{
-					Remote: ptr,
+			Meta: &typesv1.ProjectMeta{},
+			Spec: &typesv1.ProjectSpec{
+				Name: name,
+				Pointer: &typesv1.ProjectPointer{
+					Scheme: &typesv1.ProjectPointer_Remote{
+						Remote: ptr,
+					},
 				},
 			},
-			CreatedAt: timestamppb.New(store.timeNow()),
-			UpdatedAt: timestamppb.New(store.timeNow()),
+			Status: &typesv1.ProjectStatus{
+				CreatedAt: timestamppb.New(store.timeNow()),
+				UpdatedAt: timestamppb.New(store.timeNow()),
+			},
 		},
 		ptr:     ptr,
 		storage: memory.NewStorage(),
@@ -109,17 +115,34 @@ func (store *remoteGitStorage) checkout(ctx context.Context, name string, ptr *t
 	if err != nil {
 		return nil, fmt.Errorf("cloning repository: %v", err)
 	}
-	commit, err := r.ResolveRevision(plumbing.Revision(ptr.Ref))
+	rem.r = r
+	return store.syncWithLock(ctx, name, ptr, rem)
+}
+
+func (store *remoteGitStorage) sync(ctx context.Context, name string, ptr *typesv1.ProjectPointer_RemoteGit) (*remoteGit, error) {
+	store.mu.Lock()
+	rem, ok := store.repos[name]
+	if !ok {
+		store.mu.Unlock()
+		return nil, fmt.Errorf("can't sync unknown project named %q", name)
+	}
+	rem.mu.Lock()
+	defer rem.mu.Unlock()
+	return store.syncWithLock(ctx, name, ptr, rem)
+}
+
+func (store *remoteGitStorage) syncWithLock(ctx context.Context, name string, ptr *typesv1.ProjectPointer_RemoteGit, rem *remoteGit) (*remoteGit, error) {
+	commit, err := rem.r.ResolveRevision(plumbing.Revision(ptr.Ref))
 	if err != nil {
 		return nil, fmt.Errorf("resolving revision %q in repository: %v", ptr.Ref, err)
 	}
-	rem.r = r
+	r := rem.r
 	w, err := r.Worktree()
 	if err != nil {
 		return nil, fmt.Errorf("obtaining repository worktree: %v", err)
 	}
 	rem.w = w
-	rem.project.UpdatedAt = timestamppb.New(store.timeNow())
+	rem.project.Status.UpdatedAt = timestamppb.New(store.timeNow())
 	err = w.Checkout(&git.CheckoutOptions{
 		Hash: *commit,
 		SparseCheckoutDirectories: []string{
@@ -129,6 +152,17 @@ func (store *remoteGitStorage) checkout(ctx context.Context, name string, ptr *t
 	})
 	if err != nil && !errors.Is(err, git.ErrSparseResetDirectoryNotFound) {
 		return nil, fmt.Errorf("doing sparse checkout of dashboards and alerts dir: %v", err)
+	}
+
+	if _, err := rem.w.Filesystem.Stat(ptr.DashboardDir); errors.Is(err, os.ErrNotExist) {
+		rem.project.Status.Errors = append(rem.project.Status.Errors, fmt.Sprintf(
+			"project doesn't contain a dashboard directory at %q", ptr.DashboardDir,
+		))
+	}
+	if _, err := rem.w.Filesystem.Stat(ptr.AlertDir); errors.Is(err, os.ErrNotExist) {
+		rem.project.Status.Errors = append(rem.project.Status.Errors, fmt.Sprintf(
+			"project doesn't contain an alert directory at %q", ptr.AlertDir,
+		))
 	}
 
 	return rem, nil
@@ -173,6 +207,18 @@ func (store *remoteGitStorage) getProjectHydrated(ctx context.Context, name stri
 	return onGetProject(rem.project, dashboards, alertGroups)
 }
 
+func (store *remoteGitStorage) syncProject(ctx context.Context, name string, ptr *typesv1.ProjectPointer, onGetProject GetProjectFn) error {
+	rem, err := store.checkout(ctx, name, ptr.GetRemote())
+	if err != nil {
+		return fmt.Errorf("looking up git remote: %v", err)
+	}
+	if !rem.mu.TryLock() {
+		return fmt.Errorf("local checkout is busy, please wait: %v", err)
+	}
+	defer rem.mu.Unlock()
+	return onGetProject(rem.project)
+}
+
 func (store *remoteGitStorage) getProject(ctx context.Context, name string, ptr *typesv1.ProjectPointer, onGetProject GetProjectFn) error {
 	rem, err := store.checkout(ctx, name, ptr.GetRemote())
 	if err != nil {
@@ -200,7 +246,7 @@ func (store *remoteGitStorage) getDashboard(ctx context.Context, name string, pt
 		return errInternal("parsing project dashboards: %v", err)
 	}
 	for _, d := range dashboards {
-		if d.Id == id {
+		if d.Meta.Id == id {
 			return onDashboard(d)
 		}
 	}
@@ -222,7 +268,7 @@ func (store *remoteGitStorage) getAlertGroup(ctx context.Context, name string, p
 		return errInternal("parsing project alertGroups: %v", err)
 	}
 	for _, ag := range alertGroups {
-		if ag.Name == groupName {
+		if ag.Spec.Name == groupName {
 			return onAlertGroup(ag)
 		}
 	}
@@ -244,8 +290,8 @@ func (store *remoteGitStorage) getAlertRule(ctx context.Context, name string, pt
 		return errInternal("parsing project alertGroups: %v", err)
 	}
 	for _, ag := range alertGroups {
-		if ag.Name == groupName {
-			for _, rule := range ag.Rules {
+		if ag.Spec.Name == groupName {
+			for _, rule := range ag.Spec.Rules {
 				if rule.Name == ruleName {
 					return onAlertRule(rule)
 				}

@@ -47,6 +47,7 @@ type projectStorage interface {
 	getOrCreateProject(ctx context.Context, name string, ptr *typesv1.ProjectPointer, onCreate CreateProjectFn, onGetProject GetProjectFn) error
 	getProjectHydrated(ctx context.Context, name string, ptr *typesv1.ProjectPointer, onGetProject GetProjectHydratedFn) error
 	getProject(ctx context.Context, name string, ptr *typesv1.ProjectPointer, onGetProject GetProjectFn) error
+	syncProject(ctx context.Context, name string, ptr *typesv1.ProjectPointer, onGetProject GetProjectFn) error
 	getDashboard(ctx context.Context, projectName string, ptr *typesv1.ProjectPointer, id string, onDashboard GetDashboardFn) error
 	getAlertGroup(ctx context.Context, projectName string, ptr *typesv1.ProjectPointer, groupName string, onAlertGroup GetAlertGroupFn) error
 	getAlertRule(ctx context.Context, projectName string, ptr *typesv1.ProjectPointer, groupName, ruleName string, onAlertRule GetAlertRuleFn) error
@@ -125,7 +126,7 @@ func (wt *watch) storageForPointer(ptr *typesv1.ProjectPointer) (projectStorage,
 }
 
 func (wt *watch) CreateProject(ctx context.Context, req *projectv1.CreateProjectRequest) (*projectv1.CreateProjectResponse, error) {
-	name := req.Name
+	name := req.Spec.Name
 
 	err := func() error {
 		wt.mu.Lock()
@@ -148,7 +149,7 @@ func (wt *watch) CreateProject(ctx context.Context, req *projectv1.CreateProject
 
 		sp := &typesv1.ProjectsConfig_Project{
 			Name:    name,
-			Pointer: req.Pointer,
+			Pointer: req.Spec.Pointer,
 		}
 
 		onCreate := func() *typesv1.Project { panic("todo") }
@@ -156,20 +157,20 @@ func (wt *watch) CreateProject(ctx context.Context, req *projectv1.CreateProject
 		var toStoreInConfig *typesv1.ProjectsConfig_Project
 		onGet := func(p *typesv1.Project) error {
 			toStoreInConfig = &typesv1.ProjectsConfig_Project{
-				Name:    p.Name,
-				Pointer: p.Pointer,
+				Name:    p.Spec.Name,
+				Pointer: p.Spec.Pointer,
 			}
 			return nil
 		}
 
-		storage, err := wt.storageForPointer(req.Pointer)
+		storage, err := wt.storageForPointer(req.Spec.Pointer)
 		if err != nil {
 			return err
 		}
 		if err := wt.validateProjectPointer(ctx, projects.Projects, name, sp, storage); err != nil {
 			return err
 		}
-		if err := storage.getOrCreateProject(ctx, name, req.Pointer, onCreate, onGet); err != nil {
+		if err := storage.getOrCreateProject(ctx, name, req.Spec.Pointer, onCreate, onGet); err != nil {
 			return err
 		}
 
@@ -184,7 +185,7 @@ func (wt *watch) CreateProject(ctx context.Context, req *projectv1.CreateProject
 		return nil, err
 	}
 	var out *typesv1.Project
-	err = wt.lockedWithProjectByName(ctx, req.Name, func(ptr *typesv1.ProjectsConfig_Project) error {
+	err = wt.lockedWithProjectByName(ctx, req.Spec.Name, func(ptr *typesv1.ProjectsConfig_Project) error {
 		storage, err := wt.storageForPointer(ptr.Pointer)
 		if err != nil {
 			return nil
@@ -212,15 +213,8 @@ func (wt *watch) validateProjectPointer(ctx context.Context, projects []*typesv1
 func (wt *watch) UpdateProject(ctx context.Context, req *projectv1.UpdateProjectRequest) (*projectv1.UpdateProjectResponse, error) {
 	err := wt.lockedWithProjectByName(ctx, req.Name, func(sc *typesv1.ProjectsConfig_Project) error {
 		candidate := proto.Clone(sc).(*typesv1.ProjectsConfig_Project)
-
-		for _, mutation := range req.Mutations {
-			switch do := mutation.Do.(type) {
-			case *projectv1.UpdateProjectRequest_Mutation_SetName:
-				candidate.Name = do.SetName
-			case *projectv1.UpdateProjectRequest_Mutation_SetPointer:
-				candidate.Pointer = do.SetPointer
-			}
-		}
+		candidate.Name = req.Spec.Name
+		candidate.Pointer = req.Spec.Pointer
 		storage, err := wt.storageForPointer(candidate.Pointer)
 		if err != nil {
 			return nil
@@ -300,6 +294,28 @@ func (wt *watch) GetProject(ctx context.Context, req *projectv1.GetProjectReques
 	return &projectv1.GetProjectResponse{Project: project, Dashboards: dashboards, AlertGroups: alertGroups}, nil
 }
 
+func (wt *watch) SyncProject(ctx context.Context, req *projectv1.SyncProjectRequest) (*projectv1.SyncProjectResponse, error) {
+	var (
+		project *typesv1.Project
+		err     error
+	)
+	err = wt.lockedWithProjectByName(ctx, req.Name, func(ptr *typesv1.ProjectsConfig_Project) error {
+
+		storage, err := wt.storageForPointer(ptr.Pointer)
+		if err != nil {
+			return nil
+		}
+		return storage.getProjectHydrated(ctx, ptr.Name, ptr.Pointer, func(p *typesv1.Project, d []*typesv1.Dashboard, ag []*typesv1.AlertGroup) error {
+			project = p
+			return nil
+		})
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &projectv1.SyncProjectResponse{Project: project}, nil
+}
+
 func (wt *watch) ListProject(ctx context.Context, req *projectv1.ListProjectRequest) (*projectv1.ListProjectResponse, error) {
 	var (
 		out  []*projectv1.ListProjectResponse_ListItem
@@ -358,7 +374,7 @@ func (wt *watch) ListDashboard(ctx context.Context, req *dashboardv1.ListDashboa
 		}
 		return storage.getProjectHydrated(ctx, ptr.Name, ptr.Pointer, func(p *typesv1.Project, items []*typesv1.Dashboard, ag []*typesv1.AlertGroup) error {
 			next, err = cursorForSlice(items, req.Cursor, req.Limit, 10, 100,
-				func(sp *typesv1.Dashboard) string { return sp.Id },
+				func(sp *typesv1.Dashboard) string { return sp.Meta.Id },
 				func(sp *typesv1.Dashboard) error {
 					out = append(out, &dashboardv1.ListDashboardResponse_ListItem{Dashboard: sp})
 					return nil
@@ -403,7 +419,7 @@ func (wt *watch) ListAlertGroup(ctx context.Context, req *alertv1.ListAlertGroup
 		}
 		return storage.getProjectHydrated(ctx, ptr.Name, ptr.Pointer, func(p *typesv1.Project, d []*typesv1.Dashboard, items []*typesv1.AlertGroup) error {
 			next, err = cursorForSlice(items, req.Cursor, req.Limit, 10, 100,
-				func(sp *typesv1.AlertGroup) string { return sp.Name },
+				func(sp *typesv1.AlertGroup) string { return sp.Spec.Name },
 				func(sp *typesv1.AlertGroup) error {
 					out = append(out, &alertv1.ListAlertGroupResponse_ListItem{AlertGroup: sp})
 					return nil
@@ -442,7 +458,7 @@ func (wt *watch) ListAlertRule(ctx context.Context, req *alertv1.ListAlertRuleRe
 		err  error
 	)
 	err = wt.lockedWithAlertGroupByName(ctx, req.ProjectName, req.GroupName, func(_ *typesv1.ProjectsConfig_Project, s *typesv1.AlertGroup) error {
-		next, err = cursorForSlice(s.Rules, req.Cursor, req.Limit, 10, 100,
+		next, err = cursorForSlice(s.Spec.Rules, req.Cursor, req.Limit, 10, 100,
 			func(sp *typesv1.AlertRule) string { return sp.Name },
 			func(sp *typesv1.AlertRule) error {
 				out = append(out, &alertv1.ListAlertRuleResponse_ListItem{AlertRule: sp})
