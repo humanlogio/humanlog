@@ -372,7 +372,7 @@ func (svc *Service) SummarizeEvents(ctx context.Context, req *connect.Request[qr
 	period := req.Msg.To.AsTime().Sub(req.Msg.From.AsTime())
 	bucketWidth := period / time.Duration(req.Msg.BucketCount)
 
-	data, _, err := svc.storage.Query(ctx, &typesv1.Query{
+	data, _, _, err := svc.storage.Query(ctx, &typesv1.Query{
 		Timerange: &typesv1.Timerange{
 			From: typesv1.ExprLiteral(typesv1.ValTimestamp(req.Msg.From)),
 			To:   typesv1.ExprLiteral(typesv1.ValTimestamp(req.Msg.To)),
@@ -502,7 +502,7 @@ func (svc *Service) Query(ctx context.Context, req *connect.Request[qrv1.QueryRe
 	if query == nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("required: `query`"))
 	}
-	data, cursor, err := svc.storage.Query(ctx, query, req.Msg.Cursor, int(req.Msg.Limit))
+	data, cursor, metrics, err := svc.storage.Query(ctx, query, req.Msg.Cursor, int(req.Msg.Limit))
 	if err != nil {
 		if cerr, ok := err.(*connect.Error); ok {
 			return nil, cerr
@@ -510,8 +510,9 @@ func (svc *Service) Query(ctx context.Context, req *connect.Request[qrv1.QueryRe
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("querying local storage: %v", err))
 	}
 	out := &qrv1.QueryResponse{
-		Next: cursor,
-		Data: data,
+		Next:    cursor,
+		Data:    data,
+		Metrics: metrics,
 	}
 	return connect.NewResponse(out), nil
 }

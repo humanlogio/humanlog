@@ -71,7 +71,7 @@ func check(
 	now time.Time,
 	onStateChange CheckFunc,
 ) error {
-	data, _, err := db.Query(ctx, as.Rule.Expr, nil, 100)
+	data, _, _, err := db.Query(ctx, as.Rule.Expr, nil, 100)
 	if err != nil {
 		return fmt.Errorf("evaluating alert rule expression: %v", err)
 	}

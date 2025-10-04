@@ -270,8 +270,9 @@ func RunTest(t *testing.T, constructor func(t *testing.T, timeNow func() time.Ti
 				c   *typesv1.Cursor
 			)
 			for {
-				out, next, err := db.Query(ctx, q, c, int(tt.limit))
+				out, next, metrics, err := db.Query(ctx, q, c, int(tt.limit))
 				require.NoError(t, err)
+				require.NotNil(t, metrics)
 				got = append(got, out)
 				c = next
 				if next == nil {
