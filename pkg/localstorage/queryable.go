@@ -17,6 +17,7 @@ import (
 )
 
 type AppCtx struct {
+	Version        string
 	EnsureLoggedIn func(ctx context.Context) error
 	Features       featurev1connect.FeatureServiceClient
 	Config         *config.Config
