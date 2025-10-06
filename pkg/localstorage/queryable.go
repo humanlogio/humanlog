@@ -88,10 +88,10 @@ type StreamOption struct {
 type QueryConfig struct {
 	ProfilingEnabled bool
 }
-type QueryOption func(QueryConfig)
+type QueryOption func(*QueryConfig)
 
-func QueryWithProfiling(enabled bool) func(QueryConfig) {
-	return func(qc QueryConfig) { qc.ProfilingEnabled = enabled }
+func QueryWithProfiling(enabled bool) func(*QueryConfig) {
+	return func(qc *QueryConfig) { qc.ProfilingEnabled = enabled }
 }
 
 type Queryable interface {
