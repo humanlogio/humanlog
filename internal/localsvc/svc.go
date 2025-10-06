@@ -502,7 +502,13 @@ func (svc *Service) Query(ctx context.Context, req *connect.Request[qrv1.QueryRe
 	if query == nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("required: `query`"))
 	}
-	data, cursor, metrics, err := svc.storage.Query(ctx, query, req.Msg.Cursor, int(req.Msg.Limit))
+
+	var opts []localstorage.QueryOptions
+	if req.Msg.IncludeDetailedProfiling != nil {
+		opts = append(opts, localstorage.QueryWithProfiling(*req.Msg.IncludeDetailedProfiling))
+	}
+
+	data, cursor, metrics, err := svc.storage.Query(ctx, query, req.Msg.Cursor, int(req.Msg.Limit), opts...)
 	if err != nil {
 		if cerr, ok := err.(*connect.Error); ok {
 			return nil, cerr
