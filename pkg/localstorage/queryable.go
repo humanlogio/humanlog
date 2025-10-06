@@ -88,7 +88,7 @@ type StreamOption struct {
 type QueryConfig struct {
 	ProfilingEnabled bool
 }
-type QueryOptions func(QueryConfig)
+type QueryOption func(QueryConfig)
 
 func QueryWithProfiling(enabled bool) func(QueryConfig) {
 	return func(qc QueryConfig) { qc.ProfilingEnabled = enabled }
@@ -98,7 +98,7 @@ type Queryable interface {
 	Parse(ctx context.Context, q string) (*typesv1.Query, error)
 	Format(ctx context.Context, q *typesv1.Query) (string, error)
 
-	Query(ctx context.Context, q *typesv1.Query, c *typesv1.Cursor, limit int, opts ...QueryOptions) (*typesv1.Data, *typesv1.Cursor, *typesv1.QueryMetrics, error)
+	Query(ctx context.Context, q *typesv1.Query, c *typesv1.Cursor, limit int, opts ...QueryOption) (*typesv1.Data, *typesv1.Cursor, *typesv1.QueryMetrics, error)
 	ResolveQueryType(ctx context.Context, query *typesv1.Query) (*typesv1.DataStreamType, error)
 	ListSymbols(ctx context.Context, query *typesv1.Query, c *typesv1.Cursor, limit int) ([]*typesv1.Symbol, *typesv1.Cursor, error)
 

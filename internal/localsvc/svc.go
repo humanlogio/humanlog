@@ -503,7 +503,7 @@ func (svc *Service) Query(ctx context.Context, req *connect.Request[qrv1.QueryRe
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("required: `query`"))
 	}
 
-	var opts []localstorage.QueryOptions
+	var opts []localstorage.QueryOption
 	if req.Msg.IncludeDetailedProfiling != nil {
 		opts = append(opts, localstorage.QueryWithProfiling(*req.Msg.IncludeDetailedProfiling))
 	}
