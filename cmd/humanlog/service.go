@@ -413,6 +413,7 @@ func (hdl *serviceHandler) run(ctx context.Context, cancel context.CancelFunc) e
 		localhostCfg := cfg.ExperimentalFeatures.ServeLocalhost
 		ll := hdl.ll.WithGroup("localhost")
 		app := &localstorage.AppCtx{
+			Version: semverVersion.String(),
 			EnsureLoggedIn: func(ctx context.Context) error {
 				return fmt.Errorf("please sign in with the systray button, or via `humanlog auth login`")
 			},
