@@ -87,12 +87,17 @@ type StreamOption struct {
 }
 
 type QueryConfig struct {
-	ProfilingEnabled bool
+	ProfilingEnabled    bool
+	GeneratedIRCallback func(string)
 }
 type QueryOption func(*QueryConfig)
 
 func QueryWithProfiling(enabled bool) func(*QueryConfig) {
 	return func(qc *QueryConfig) { qc.ProfilingEnabled = enabled }
+}
+
+func QueryWithGeneratedIRCallback(cb func(string)) func(*QueryConfig) {
+	return func(qc *QueryConfig) { qc.GeneratedIRCallback = cb }
 }
 
 type Queryable interface {
