@@ -49,17 +49,7 @@ func Open(ctx context.Context, name string, ll *slog.Logger, cfg map[string]inte
 	return builder(ctx, ll, cfg, app)
 }
 
-type CompressionStat struct {
-	TableName         string `json:"table_name"`
-	ColumnName        string `json:"column_name"`
-	CompressionCodec  string `json:"compression_codec"`
-	UncompressedBytes uint64 `json:"uncompressed_bytes"`
-	CompressedBytes   uint64 `json:"compressed_bytes"`
-	RowCount          uint64 `json:"row_count"`
-}
-
 type InternalMetrics struct {
-	CompressionStats []CompressionStat `json:"compression_stats,omitempty"`
 }
 
 type MetricsReporterFunc func(
