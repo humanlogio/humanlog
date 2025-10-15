@@ -175,7 +175,11 @@ func (svc *Service) SetConfig(ctx context.Context, req *connect.Request[lhv1.Set
 }
 
 func (svc *Service) GetStats(ctx context.Context, req *connect.Request[lhv1.GetStatsRequest]) (*connect.Response[lhv1.GetStatsResponse], error) {
-	databaseStats, err := svc.storage.Stats(ctx)
+	var databaseStats *typesv1.DatabaseStats
+	err := svc.storage.ReportMetrics(ctx, func(ctx context.Context, public *typesv1.DatabaseStats, internal *localstorage.InternalMetrics, details any) error {
+		databaseStats = public
+		return nil
+	})
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to get database stats: %v", err))
 	}
