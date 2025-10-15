@@ -196,73 +196,73 @@ spec:
 									"my-group-name",
 									30*time.Second,
 									&typesv1.Obj{},
-									[]*typesv1.AlertRule{
-										{
-											Name: "HighErrors",
-											For:  durationpb.New(5 * time.Minute),
-											Expr: mustParseQuery(`filter severity_text == "error"`),
-											Labels: &typesv1.Obj{
+									alertRules(
+										alertRule(
+											"HighErrors",
+											mustParseQuery(`filter severity_text == "error"`),
+											withFor(5*time.Minute),
+											withLabels(&typesv1.Obj{
 												Kvs: []*typesv1.KV{
 													typesv1.KeyVal("severity", typesv1.ValStr("critical")),
 												},
-											},
-											Annotations: &typesv1.Obj{Kvs: []*typesv1.KV{
+											}),
+											withAnnotations(&typesv1.Obj{Kvs: []*typesv1.KV{
 												typesv1.KeyVal("description", typesv1.ValStr("stuff's happening with {{ $.labels.service }}")),
-											}},
-										},
-									},
+											}}),
+										),
+									),
 								),
 								alertGroup(
 									"my-another-name",
 									30*time.Second,
 									&typesv1.Obj{},
-									[]*typesv1.AlertRule{
-										{
-											Name: "HighErrors",
-											For:  durationpb.New(5 * time.Minute),
-											Expr: mustParseQuery(`filter severity_text == "error"`),
-											Labels: &typesv1.Obj{Kvs: []*typesv1.KV{
+									alertRules(
+										alertRule(
+											"HighErrors",
+											mustParseQuery(`filter severity_text == "error"`),
+											withFor(5*time.Minute),
+											withLabels(&typesv1.Obj{Kvs: []*typesv1.KV{
 												typesv1.KeyVal("severity", typesv1.ValStr("critical")),
-											}},
-											Annotations: &typesv1.Obj{},
-										},
-									},
+											}}),
+											withAnnotations(&typesv1.Obj{}),
+										),
+									),
 								),
 								alertGroup(
 									"my-group-name",
 									30*time.Second,
 									&typesv1.Obj{},
-									[]*typesv1.AlertRule{
-										{
-											Name: "HighErrors",
-											For:  durationpb.New(5 * time.Minute),
-											Expr: mustParseQuery(`filter severity_text == "error"`),
-											Labels: &typesv1.Obj{
+									alertRules(
+										alertRule(
+											"HighErrors",
+											mustParseQuery(`filter severity_text == "error"`),
+											withFor(5*time.Minute),
+											withLabels(&typesv1.Obj{
 												Kvs: []*typesv1.KV{
 													typesv1.KeyVal("severity", typesv1.ValStr("critical")),
 												},
-											},
-											Annotations: &typesv1.Obj{Kvs: []*typesv1.KV{
+											}),
+											withAnnotations(&typesv1.Obj{Kvs: []*typesv1.KV{
 												typesv1.KeyVal("description", typesv1.ValStr("stuff's happening with {{ $.labels.service }}")),
-											}},
-										},
-									},
+											}}),
+										),
+									),
 								),
 								alertGroup(
 									"my-another-name",
 									30*time.Second,
 									&typesv1.Obj{},
-									[]*typesv1.AlertRule{
-										{
-											Name: "HighErrors",
-											For:  durationpb.New(5 * time.Minute),
-											Expr: mustParseQuery(`filter severity_text == "error"`),
-											Labels: &typesv1.Obj{Kvs: []*typesv1.KV{
+									alertRules(
+										alertRule(
+											"HighErrors",
+											mustParseQuery(`filter severity_text == "error"`),
+											withFor(5*time.Minute),
+											withLabels(&typesv1.Obj{Kvs: []*typesv1.KV{
 												typesv1.KeyVal("severity", typesv1.ValStr("critical")),
-											}},
-											Annotations: &typesv1.Obj{},
-										},
-									},
+											}}),
+											withAnnotations(&typesv1.Obj{}),
+										),
+									),
 								),
 							),
 						}
@@ -337,7 +337,7 @@ spec:
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := t.Context()
-			alertState := localstate.NewMemory().AlertStateStorage()
+			alertState := localstate.NewMemory().AlertRuleStatusStorage()
 			cfg := &config.Config{CurrentConfig: &typesv1.LocalhostConfig{
 				Runtime: &typesv1.RuntimeConfig{
 					ExperimentalFeatures: &typesv1.RuntimeConfig_ExperimentalFeatures{
@@ -510,15 +510,56 @@ func alertGroups(in ...*typesv1.AlertGroup) []*typesv1.AlertGroup {
 	return in
 }
 
-func alertGroup(name string, interval time.Duration, labels *typesv1.Obj, rules []*typesv1.AlertRule) *typesv1.AlertGroup {
+func alertGroup(name string, interval time.Duration, labels *typesv1.Obj, rules []*typesv1.AlertRuleSpec) *typesv1.AlertGroup {
+	// Wrap specs in NamedAlertRuleSpec
+	namedRules := make([]*typesv1.AlertGroupSpec_NamedAlertRuleSpec, len(rules))
+	for i, spec := range rules {
+		namedRules[i] = &typesv1.AlertGroupSpec_NamedAlertRuleSpec{
+			Id:   spec.Name,
+			Spec: spec,
+		}
+	}
 	return &typesv1.AlertGroup{
 		Meta: &typesv1.AlertGroupMeta{},
 		Spec: &typesv1.AlertGroupSpec{
 			Name:     name,
 			Interval: durationpb.New(interval),
 			Labels:   labels,
-			Rules:    rules,
+			Rules:    namedRules,
 		},
 		Status: &typesv1.AlertGroupStatus{},
+	}
+}
+
+func alertRules(in ...*typesv1.AlertRuleSpec) []*typesv1.AlertRuleSpec {
+	return in
+}
+
+func alertRule(name string, expr *typesv1.Query, opts ...func(*typesv1.AlertRuleSpec)) *typesv1.AlertRuleSpec {
+	rule := &typesv1.AlertRuleSpec{
+		Name: name,
+		Expr: expr,
+	}
+	for _, opt := range opts {
+		opt(rule)
+	}
+	return rule
+}
+
+func withFor(d time.Duration) func(*typesv1.AlertRuleSpec) {
+	return func(r *typesv1.AlertRuleSpec) {
+		r.For = durationpb.New(d)
+	}
+}
+
+func withLabels(labels *typesv1.Obj) func(*typesv1.AlertRuleSpec) {
+	return func(r *typesv1.AlertRuleSpec) {
+		r.Labels = labels
+	}
+}
+
+func withAnnotations(annotations *typesv1.Obj) func(*typesv1.AlertRuleSpec) {
+	return func(r *typesv1.AlertRuleSpec) {
+		r.Annotations = annotations
 	}
 }

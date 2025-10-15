@@ -65,7 +65,7 @@ func ServeLocalhost(
 	getConfig func(ctx context.Context) (*typesv1.LocalhostConfig, error),
 	setConfig func(ctx context.Context, cfg *typesv1.LocalhostConfig) error,
 	whoami func(ctx context.Context) (*userv1.WhoamiResponse, error),
-	notifyAlert func(ctx context.Context, ar *typesv1.AlertRule, as *typesv1.AlertState, o *typesv1.Obj) error,
+	notifyAlert func(ctx context.Context, ar *typesv1.AlertRule, o *typesv1.Obj) error,
 ) error {
 	port := int(localhostCfg.Port)
 

@@ -291,8 +291,16 @@ func (store *remoteGitStorage) getAlertRule(ctx context.Context, name string, pt
 	}
 	for _, ag := range alertGroups {
 		if ag.Spec.Name == groupName {
-			for _, rule := range ag.Spec.Rules {
-				if rule.Name == ruleName {
+			for _, named := range ag.Spec.Rules {
+				if named.Id == ruleName {
+					// Construct full AlertRule from spec
+					rule := &typesv1.AlertRule{
+						Meta: &typesv1.AlertRuleMeta{
+							Id: named.Id,
+						},
+						Spec:   named.Spec,
+						Status: &typesv1.AlertRuleStatus{Status: &typesv1.AlertRuleStatus_Unknown{Unknown: &typesv1.AlertUnknown{}}},
+					}
 					return onAlertRule(rule)
 				}
 			}

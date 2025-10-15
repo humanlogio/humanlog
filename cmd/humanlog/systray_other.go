@@ -22,7 +22,7 @@ func newSystrayController(ctx context.Context, ll *slog.Logger, client serviceCl
 	return &systrayController{ll: ll}, nil
 }
 
-func (ctrl *systrayController) NotifyAlert(ctx context.Context, ar *typesv1.AlertRule, as *typesv1.AlertState, o *typesv1.Obj) error {
+func (ctrl *systrayController) NotifyAlert(ctx context.Context, ar *typesv1.AlertRule, o *typesv1.Obj) error {
 	ctrl.ll.WarnContext(ctx, "systray: not implemented on this platform: NotifyError")
 	return nil
 }

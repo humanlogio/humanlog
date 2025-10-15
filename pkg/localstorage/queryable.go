@@ -73,8 +73,8 @@ type Storage interface {
 }
 
 type Alertable interface {
-	AlertGetOrCreate(ctx context.Context, stackName, groupName, alertName string, create func() *typesv1.AlertState) (*typesv1.AlertState, error)
-	AlertUpdateState(ctx context.Context, stackName, groupName, alertName string, state *typesv1.AlertState) error
+	AlertGetOrCreate(ctx context.Context, stackName, groupName, alertName string, create func() *typesv1.AlertRuleStatus) (*typesv1.AlertRuleStatus, error)
+	AlertUpdateState(ctx context.Context, stackName, groupName, alertName string, state *typesv1.AlertRuleStatus) error
 	AlertDeleteStateNotInList(ctx context.Context, stackName, groupName string, keeplist []string) error
 }
 

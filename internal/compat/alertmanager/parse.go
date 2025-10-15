@@ -41,7 +41,7 @@ func ToGroup(g rulefmt.RuleGroup, parser func(string) (*typesv1.Query, error)) (
 		Interval: durationpb.New(time.Duration(g.Interval)),
 		Limit:    int32(g.Limit),
 		Labels:   mapToObj(g.Labels),
-		Rules:    make([]*typesv1.AlertRule, 0, len(g.Rules)),
+		Rules:    make([]*typesv1.AlertGroupSpec_NamedAlertRuleSpec, 0, len(g.Rules)),
 	}
 	status := &typesv1.AlertGroupStatus{}
 	out := &typesv1.AlertGroup{
@@ -57,7 +57,10 @@ func ToGroup(g rulefmt.RuleGroup, parser func(string) (*typesv1.Query, error)) (
 		if err != nil {
 			status.Errors = append(status.Errors, fmt.Sprintf("alert %q: %v", a.Alert, err))
 		}
-		spec.Rules = append(spec.Rules, ar)
+		spec.Rules = append(spec.Rules, &typesv1.AlertGroupSpec_NamedAlertRuleSpec{
+			Id:   ar.Spec.Name,
+			Spec: ar.Spec,
+		})
 	}
 	return out, nil
 }
@@ -67,7 +70,10 @@ func ToAlert(ar rulefmt.Rule, parser func(string) (*typesv1.Query, error)) (*typ
 	if err != nil {
 		return nil, err
 	}
-	out := &typesv1.AlertRule{
+	meta := &typesv1.AlertRuleMeta{
+		Id: ar.Alert,
+	}
+	spec := &typesv1.AlertRuleSpec{
 		Name:        ar.Alert,
 		Expr:        q,
 		For:         durationpb.New(time.Duration(ar.For)),
@@ -75,7 +81,13 @@ func ToAlert(ar rulefmt.Rule, parser func(string) (*typesv1.Query, error)) (*typ
 		Annotations: mapToObj(ar.Annotations),
 	}
 	if ar.KeepFiringFor != 0 {
-		out.KeepFiringFor = durationpb.New(time.Duration(ar.KeepFiringFor))
+		spec.KeepFiringFor = durationpb.New(time.Duration(ar.KeepFiringFor))
+	}
+	status := &typesv1.AlertRuleStatus{}
+	out := &typesv1.AlertRule{
+		Meta:   meta,
+		Spec:   spec,
+		Status: status,
 	}
 	return out, nil
 }

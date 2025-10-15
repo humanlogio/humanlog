@@ -29,7 +29,6 @@ type AlertFiring struct {
 type CheckFunc func(
 	context.Context,
 	*typesv1.AlertRule,
-	*typesv1.AlertState,
 	*typesv1.Obj,
 ) error
 
@@ -37,21 +36,26 @@ func (ev *Evaluator) EvaluateRules(ctx context.Context, project *typesv1.Project
 	projectName := project.Spec.Name
 	spec := group.Spec
 	var keeplist []string
-	for _, alert := range spec.Rules {
-		keeplist = append(keeplist, alert.Name)
-		state, err := ev.db.AlertGetOrCreate(ctx, projectName, spec.Name, alert.Name, func() *typesv1.AlertState {
-			return newAlertState(alert)
+	for _, named := range spec.Rules {
+		keeplist = append(keeplist, named.Id)
+		state, err := ev.db.AlertGetOrCreate(ctx, projectName, spec.Name, named.Id, func() *typesv1.AlertRuleStatus {
+			return &typesv1.AlertRuleStatus{Status: &typesv1.AlertRuleStatus_Unknown{}}
 		})
 		if err != nil {
-			return fmt.Errorf("getting alert state for group %q, alert %q: %v", spec.Name, alert.Name, err)
+			return fmt.Errorf("getting alert state for group %q, alert %q: %v", spec.Name, named.Id, err)
 		}
-		err = check(ctx, state, ev.db, ev.timeNow(), onStateChange)
-		if err != nil {
-			return fmt.Errorf("checking alert state for group %q, alert %q: %v", spec.Name, alert.Name, err)
+		as := &typesv1.AlertRule{
+			Meta:   &typesv1.AlertRuleMeta{Id: named.Id},
+			Spec:   named.Spec,
+			Status: state,
 		}
-		err = ev.db.AlertUpdateState(ctx, projectName, spec.Name, alert.Name, state)
+		err = check(ctx, as, ev.db, ev.timeNow(), onStateChange)
 		if err != nil {
-			return fmt.Errorf("updating alert state for group %q, alert %q: %v", spec.Name, alert.Name, err)
+			return fmt.Errorf("checking alert state for group %q, alert %q: %v", spec.Name, named.Id, err)
+		}
+		err = ev.db.AlertUpdateState(ctx, projectName, spec.Name, named.Id, state)
+		if err != nil {
+			return fmt.Errorf("updating alert state for group %q, alert %q: %v", spec.Name, named.Id, err)
 		}
 	}
 	if err := ev.db.AlertDeleteStateNotInList(ctx, projectName, spec.Name, keeplist); err != nil {
@@ -60,18 +64,14 @@ func (ev *Evaluator) EvaluateRules(ctx context.Context, project *typesv1.Project
 	return nil
 }
 
-func newAlertState(rule *typesv1.AlertRule) *typesv1.AlertState {
-	return &typesv1.AlertState{Rule: rule, Status: &typesv1.AlertState_Unknown{}}
-}
-
 func check(
 	ctx context.Context,
-	as *typesv1.AlertState,
+	as *typesv1.AlertRule,
 	db localstorage.Queryable,
 	now time.Time,
 	onStateChange CheckFunc,
 ) error {
-	data, _, _, err := db.Query(ctx, as.Rule.Expr, nil, 100)
+	data, _, _, err := db.Query(ctx, as.Spec.Expr, nil, 100)
 	if err != nil {
 		return fmt.Errorf("evaluating alert rule expression: %v", err)
 	}
@@ -83,39 +83,39 @@ func check(
 	return apply(ctx, as, table, now, onStateChange)
 }
 
-func apply(ctx context.Context, as *typesv1.AlertState, table *typesv1.Table, now time.Time, onStateChange CheckFunc) error {
+func apply(ctx context.Context, as *typesv1.AlertRule, table *typesv1.Table, now time.Time, onStateChange CheckFunc) error {
 	transitionToOk := func(labels *typesv1.Obj) error {
-		as.Status = &typesv1.AlertState_Ok{Ok: &typesv1.AlertOk{}}
-		as.TransitionedAt = timestamppb.New(now)
-		return onStateChange(ctx, as.Rule, as, labels)
+		as.Status.Status = &typesv1.AlertRuleStatus_Ok{Ok: &typesv1.AlertOk{}}
+		as.Status.TransitionedAt = timestamppb.New(now)
+		return onStateChange(ctx, as, labels)
 	}
 	transitionToPending := func(labels *typesv1.Obj) error {
-		as.Status = &typesv1.AlertState_Pending{Pending: &typesv1.AlertPending{}}
-		as.TransitionedAt = timestamppb.New(now)
-		return onStateChange(ctx, as.Rule, as, labels)
+		as.Status.Status = &typesv1.AlertRuleStatus_Pending{Pending: &typesv1.AlertPending{}}
+		as.Status.TransitionedAt = timestamppb.New(now)
+		return onStateChange(ctx, as, labels)
 	}
 	transitionToFiring := func(labels *typesv1.Obj) error {
-		as.Status = &typesv1.AlertState_Firing{Firing: &typesv1.AlertFiring{}}
-		as.TransitionedAt = timestamppb.New(now)
-		return onStateChange(ctx, as.Rule, as, labels)
+		as.Status.Status = &typesv1.AlertRuleStatus_Firing{Firing: &typesv1.AlertFiring{}}
+		as.Status.TransitionedAt = timestamppb.New(now)
+		return onStateChange(ctx, as, labels)
 	}
 
 	onOk := func(labels *typesv1.Obj) error {
-		switch as.Status.(type) {
-		case *typesv1.AlertState_Unknown:
+		switch as.Status.Status.(type) {
+		case *typesv1.AlertRuleStatus_Unknown:
 			return transitionToOk(labels)
-		case *typesv1.AlertState_Ok:
+		case *typesv1.AlertRuleStatus_Ok:
 			// we're already ok
 			return nil
-		case *typesv1.AlertState_Pending:
+		case *typesv1.AlertRuleStatus_Pending:
 			return transitionToOk(labels)
-		case *typesv1.AlertState_Firing:
-			if as.Rule.KeepFiringFor == nil {
+		case *typesv1.AlertRuleStatus_Firing:
+			if as.Spec.KeepFiringFor == nil {
 				// we're done
 				return transitionToOk(labels)
 			}
-			firingFor := as.Rule.KeepFiringFor.AsDuration()
-			mustBeOkUntil := as.LastFiringAt.AsTime().Add(firingFor)
+			firingFor := as.Spec.KeepFiringFor.AsDuration()
+			mustBeOkUntil := as.Status.LastFiringAt.AsTime().Add(firingFor)
 			if now.Before(mustBeOkUntil) {
 				return nil // still firing
 			}
@@ -126,30 +126,30 @@ func apply(ctx context.Context, as *typesv1.AlertState, table *typesv1.Table, no
 		}
 	}
 	onFiring := func(labels *typesv1.Obj) error {
-		as.LastFiringAt = timestamppb.New(now) // always record the last firing
-		switch as.Status.(type) {
-		case *typesv1.AlertState_Unknown:
-			if as.Rule.For == nil {
+		as.Status.LastFiringAt = timestamppb.New(now) // always record the last firing
+		switch as.Status.Status.(type) {
+		case *typesv1.AlertRuleStatus_Unknown:
+			if as.Spec.For == nil {
 				return transitionToFiring(labels)
 			}
 			return transitionToPending(labels)
-		case *typesv1.AlertState_Ok:
-			if as.Rule.For == nil {
+		case *typesv1.AlertRuleStatus_Ok:
+			if as.Spec.For == nil {
 				return transitionToFiring(labels)
 			}
 			return transitionToPending(labels)
-		case *typesv1.AlertState_Pending:
-			if as.Rule.For == nil {
+		case *typesv1.AlertRuleStatus_Pending:
+			if as.Spec.For == nil {
 				return transitionToFiring(labels)
 			}
-			pendingFor := as.Rule.For.AsDuration()
-			firesAt := as.TransitionedAt.AsTime().Add(pendingFor)
+			pendingFor := as.Spec.For.AsDuration()
+			firesAt := as.Status.TransitionedAt.AsTime().Add(pendingFor)
 			if now.Before(firesAt) {
 				// still pending
 				return nil
 			}
 			return transitionToFiring(labels)
-		case *typesv1.AlertState_Firing:
+		case *typesv1.AlertRuleStatus_Firing:
 			// we're already firing
 			return nil
 		default:
