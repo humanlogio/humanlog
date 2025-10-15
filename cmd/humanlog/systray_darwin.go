@@ -159,10 +159,10 @@ func newSystrayController(ctx context.Context, ll *slog.Logger, client serviceCl
 	return ctrl, nil
 }
 
-func (ctrl *systrayController) NotifyAlert(ctx context.Context, ar *typesv1.AlertRule, as *typesv1.AlertState, o *typesv1.Obj) error {
+func (ctrl *systrayController) NotifyAlert(ctx context.Context, ar *typesv1.AlertRule, o *typesv1.Obj) error {
 	ctrl.mu.Lock()
 	defer ctrl.mu.Unlock()
-	args := []any{slog.String("name", ar.Name)}
+	args := []any{slog.String("name", ar.Spec.Name)}
 	if o != nil {
 		for _, kv := range o.Kvs {
 			v, err := logqleval.ResolveVal(kv.Value, logqleval.MakeFlatGoMap, logqleval.MakeFlatGoSlice)
@@ -173,25 +173,25 @@ func (ctrl *systrayController) NotifyAlert(ctx context.Context, ar *typesv1.Aler
 		}
 	}
 	ll := ctrl.ll
-	switch as.Status.(type) {
-	case *typesv1.AlertState_Unknown:
+	switch ar.Status.Status.(type) {
+	case *typesv1.AlertRuleStatus_Unknown:
 		ll.InfoContext(ctx, "alert in unknown status", args...)
-	case *typesv1.AlertState_Ok:
+	case *typesv1.AlertRuleStatus_Ok:
 		ll.InfoContext(ctx, "alert in ok status", args...)
 		beeep.Alert("✅ humanlog: alert resolved",
-			fmt.Sprintf("alert resolved: %q", ar.Name),
+			fmt.Sprintf("alert resolved: %q", ar.Spec.Name),
 			"",
 		)
-	case *typesv1.AlertState_Pending:
+	case *typesv1.AlertRuleStatus_Pending:
 		ll.WarnContext(ctx, "alert in pending status", args...)
 		beeep.Alert("⚠️ humanlog: an alert is pending",
-			fmt.Sprintf("alert pending: %q", ar.Name),
+			fmt.Sprintf("alert pending: %q", ar.Spec.Name),
 			"",
 		)
-	case *typesv1.AlertState_Firing:
+	case *typesv1.AlertRuleStatus_Firing:
 		ll.ErrorContext(ctx, "alert is firing!", args...)
 		beeep.Alert("🚨 humanlog: an alert is firing",
-			fmt.Sprintf("alert pending: %q", ar.Name),
+			fmt.Sprintf("alert firing: %q", ar.Spec.Name),
 			"",
 		)
 	}

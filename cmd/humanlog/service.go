@@ -312,7 +312,7 @@ type systrayClient interface {
 	NotifyUnauthenticated(ctx context.Context) error
 	NotifyAuthenticated(ctx context.Context, user *typesv1.User, defaultOrg, currentOrg *typesv1.Organization) error
 	NotifyUpdateAvailable(ctx context.Context, oldV, newV *typesv1.Version) error
-	NotifyAlert(ctx context.Context, ar *typesv1.AlertRule, as *typesv1.AlertState, o *typesv1.Obj) error
+	NotifyAlert(ctx context.Context, ar *typesv1.AlertRule, o *typesv1.Obj) error
 }
 
 type serviceClient interface {
@@ -754,14 +754,14 @@ func (hdl *serviceHandler) registerClient(client systrayClient) {
 	ll.InfoContext(ctx, "systray client primed")
 }
 
-func (hdl *serviceHandler) notifyAlert(ctx context.Context, ar *typesv1.AlertRule, as *typesv1.AlertState, o *typesv1.Obj) error {
+func (hdl *serviceHandler) notifyAlert(ctx context.Context, ar *typesv1.AlertRule, o *typesv1.Obj) error {
 	hdl.ll.InfoContext(ctx, "calling notifyAlert")
 	hdl.clientMu.Lock()
 	defer hdl.clientMu.Unlock()
 	if hdl.client == nil {
 		return nil
 	}
-	return hdl.client.NotifyAlert(ctx, ar, as, o)
+	return hdl.client.NotifyAlert(ctx, ar, o)
 }
 
 func (hdl *serviceHandler) notifyError(ctx context.Context, err error) error {

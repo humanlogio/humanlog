@@ -40,7 +40,8 @@ type project struct {
 type alertGroup struct {
 	group *typesv1.AlertGroup
 
-	alertState map[string]*typesv1.AlertState
+	// Full alert rules (Meta+Spec+Status), keyed by name
+	rules map[string]*typesv1.AlertRule
 }
 
 func NewMemory() *Mem {
@@ -359,8 +360,8 @@ func (db *Mem) CreateAlertGroup(ctx context.Context, req *alertv1.CreateAlertGro
 		}
 		st.alertGroupList = append(st.alertGroupList, out.Meta.Id)
 		st.alertGroups[out.Meta.Id] = &alertGroup{
-			group:      out,
-			alertState: make(map[string]*typesv1.AlertState),
+			group: out,
+			rules: make(map[string]*typesv1.AlertRule),
 		}
 		return nil
 	})
@@ -462,20 +463,39 @@ func (db *Mem) ListAlertGroup(ctx context.Context, req *alertv1.ListAlertGroupRe
 func (db *Mem) CreateAlertRule(ctx context.Context, req *alertv1.CreateAlertRuleRequest) (*alertv1.CreateAlertRuleResponse, error) {
 	var out *typesv1.AlertRule
 	db.withAlertGroup(req.ProjectName, req.GroupName, func(st *project, group *alertGroup) error {
+		// Check if rule already exists
+		if _, exists := group.rules[req.Name]; exists {
+			return connect.NewError(connect.CodeAlreadyExists, fmt.Errorf("an alert with name %q already exists in this group", req.Name))
+		}
+
+		// Create the full AlertRule
 		item := &typesv1.AlertRule{
-			Name:          req.Name,
-			Expr:          req.Expr,
-			Labels:        req.Labels,
-			Annotations:   req.Annotations,
-			For:           req.For,
-			KeepFiringFor: req.KeepFiringFor,
+			Meta: &typesv1.AlertRuleMeta{
+				Id: req.Name,
+			},
+			Spec: &typesv1.AlertRuleSpec{
+				Name:          req.Name,
+				Expr:          req.Expr,
+				Labels:        req.Labels,
+				Annotations:   req.Annotations,
+				For:           req.For,
+				KeepFiringFor: req.KeepFiringFor,
+			},
+			Status: &typesv1.AlertRuleStatus{
+				Status: &typesv1.AlertRuleStatus_Unknown{Unknown: &typesv1.AlertUnknown{}},
+			},
 		}
-		for _, el := range group.group.Spec.Rules {
-			if el.Name == req.Name {
-				return connect.NewError(connect.CodeAlreadyExists, fmt.Errorf("an alert with name %q already exists in this group", req.Name))
-			}
-		}
-		group.group.Spec.Rules = append(group.group.Spec.Rules, item)
+
+		// Store in rules map
+		group.rules[req.Name] = item
+
+		// Also add to group.Spec.Rules slice
+		group.group.Spec.Rules = append(group.group.Spec.Rules, &typesv1.AlertGroupSpec_NamedAlertRuleSpec{
+			Id:   req.Name,
+			Spec: item.Spec,
+		})
+
+		out = item
 		return nil
 	})
 	return &alertv1.CreateAlertRuleResponse{AlertRule: out}, nil
@@ -485,62 +505,53 @@ func (db *Mem) CreateAlertRule(ctx context.Context, req *alertv1.CreateAlertRule
 func (db *Mem) GetAlertRule(ctx context.Context, req *alertv1.GetAlertRuleRequest) (*alertv1.GetAlertRuleResponse, error) {
 	var out *typesv1.AlertRule
 	err := db.withAlertGroup(req.ProjectName, req.GroupName, func(st *project, group *alertGroup) error {
-		for _, el := range group.group.Spec.Rules {
-			if el.Name == req.Name {
-				out = el
-				return nil
-			}
+		rule, ok := group.rules[req.Name]
+		if !ok {
+			return connect.NewError(connect.CodeNotFound, fmt.Errorf("no such alert"))
 		}
-		return connect.NewError(connect.CodeNotFound, fmt.Errorf("no such alert"))
-
+		out = rule
+		return nil
 	})
 	return &alertv1.GetAlertRuleResponse{AlertRule: out}, err
 }
 
 func (db *Mem) UpdateAlertRule(ctx context.Context, req *alertv1.UpdateAlertRuleRequest) (*alertv1.UpdateAlertRuleResponse, error) {
-	applyMutations := func(out *typesv1.AlertRule) (*typesv1.AlertRule, error) {
-		if out == nil {
-			return out, nil
+	var out *typesv1.AlertRule
+	err := db.withAlertGroup(req.ProjectName, req.GroupName, func(st *project, group *alertGroup) error {
+		rule, ok := group.rules[req.Spec.Name]
+		if !ok {
+			return connect.NewError(connect.CodeNotFound, fmt.Errorf("no such alert"))
 		}
-		for _, mutation := range req.Mutations {
-			switch do := mutation.Do.(type) {
-			case *alertv1.UpdateAlertRuleRequest_Mutation_SetName:
-				out.Name = do.SetName
-			case *alertv1.UpdateAlertRuleRequest_Mutation_SetExpr:
-				out.Expr = do.SetExpr
-			case *alertv1.UpdateAlertRuleRequest_Mutation_SetLabels:
-				out.Labels = do.SetLabels
-			case *alertv1.UpdateAlertRuleRequest_Mutation_SetAnnotations:
-				out.Annotations = do.SetAnnotations
-			case *alertv1.UpdateAlertRuleRequest_Mutation_SetFor:
-				out.For = do.SetFor
-			case *alertv1.UpdateAlertRuleRequest_Mutation_SetKeepFiringFor:
-				out.KeepFiringFor = do.SetKeepFiringFor
+
+		// Update the spec
+		rule.Spec = req.Spec
+
+		// Update in rules map
+		group.rules[req.Spec.Name] = rule
+
+		// Update in group.Spec.Rules slice
+		for i, named := range group.group.Spec.Rules {
+			if named.Id == req.Spec.Name {
+				group.group.Spec.Rules[i].Spec = rule.Spec
+				break
 			}
 		}
-		return out, nil
-	}
 
-	var (
-		out *typesv1.AlertRule
-		err error
-	)
-	err = db.withAlertGroup(req.ProjectName, req.GroupName, func(st *project, group *alertGroup) error {
-		for _, el := range group.group.Spec.Rules {
-			if el.Name == req.Name {
-				out, err = applyMutations(el)
-				return err
-			}
-		}
-		return connect.NewError(connect.CodeNotFound, fmt.Errorf("no such alert"))
-
+		out = rule
+		return nil
 	})
 	return &alertv1.UpdateAlertRuleResponse{AlertRule: out}, err
 }
 
 func (db *Mem) DeleteAlertRule(ctx context.Context, req *alertv1.DeleteAlertRuleRequest) (*alertv1.DeleteAlertRuleResponse, error) {
 	err := db.withAlertGroup(req.ProjectName, req.GroupName, func(st *project, group *alertGroup) error {
-		group.group.Spec.Rules = slices.DeleteFunc(group.group.Spec.Rules, func(e *typesv1.AlertRule) bool { return e.Name == req.Name })
+		// Delete from rules map
+		delete(group.rules, req.Name)
+
+		// Delete from group.Spec.Rules slice
+		group.group.Spec.Rules = slices.DeleteFunc(group.group.Spec.Rules, func(e *typesv1.AlertGroupSpec_NamedAlertRuleSpec) bool {
+			return e.Id == req.Name
+		})
 		return nil
 	})
 	return &alertv1.DeleteAlertRuleResponse{}, err
@@ -558,6 +569,7 @@ func (db *Mem) ListAlertRule(ctx context.Context, req *alertv1.ListAlertRuleRequ
 		err  error
 	)
 	err = db.withAlertGroup(req.ProjectName, req.GroupName, func(st *project, group *alertGroup) error {
+		// Iterate Spec.Rules in order (preserves YAML order)
 		var fromName string
 		if cursor != nil {
 			var p stringPage
@@ -568,22 +580,25 @@ func (db *Mem) ListAlertRule(ctx context.Context, req *alertv1.ListAlertRuleRequ
 		}
 		var i int
 		if fromName != "" {
-			i = slices.IndexFunc(group.group.Spec.Rules, func(e *typesv1.AlertRule) bool { return e.Name == fromName }) + 1
+			i = slices.IndexFunc(group.group.Spec.Rules, func(e *typesv1.AlertGroupSpec_NamedAlertRuleSpec) bool {
+				return e.Id == fromName
+			}) + 1
 		}
-		if i > len(group.group.Spec.Rules) {
+		if i >= len(group.group.Spec.Rules) {
 			return nil
 		}
 		from := i
 		to := min(i+int(limit), len(group.group.Spec.Rules))
 
-		for _, item := range group.group.Spec.Rules[from:to] {
+		for _, named := range group.group.Spec.Rules[from:to] {
+			rule := group.rules[named.Id]
 			out = append(out, &alertv1.ListAlertRuleResponse_ListItem{
-				AlertRule: item,
+				AlertRule: rule,
 			})
 		}
 		if len(out) == int(limit) && limit != 0 {
 			next = new(typesv1.Cursor)
-			p := stringPage{LastID: out[len(out)-1].AlertRule.Name}
+			p := stringPage{LastID: out[len(out)-1].AlertRule.Spec.Name}
 			next.Opaque, err = json.Marshal(p)
 			if err != nil {
 				return err
@@ -595,7 +610,7 @@ func (db *Mem) ListAlertRule(ctx context.Context, req *alertv1.ListAlertRuleRequ
 	return &alertv1.ListAlertRuleResponse{Items: out, Next: next}, err
 }
 
-func (db *Mem) AlertStateStorage() localstorage.Alertable {
+func (db *Mem) AlertRuleStatusStorage() localstorage.Alertable {
 	return &alertStorageMem{db: db}
 }
 
@@ -603,40 +618,40 @@ type alertStorageMem struct {
 	db *Mem
 }
 
-func (as *alertStorageMem) AlertGetOrCreate(ctx context.Context, projectName, groupName, alertName string, create func() *typesv1.AlertState) (*typesv1.AlertState, error) {
-	setState := func(group *alertGroup, rule *typesv1.AlertRule, create func() *typesv1.AlertState) *typesv1.AlertState {
-		state, ok := group.alertState[rule.Name]
-		if !ok {
-			state = create()
-			group.alertState[rule.Name] = state
-		}
-		return state
-	}
-
-	var out *typesv1.AlertState
+func (as *alertStorageMem) AlertGetOrCreate(ctx context.Context, projectName, groupName, alertName string, create func() *typesv1.AlertRuleStatus) (*typesv1.AlertRuleStatus, error) {
+	var out *typesv1.AlertRuleStatus
 	err := as.db.withAlertGroup(projectName, groupName, func(st *project, group *alertGroup) error {
-		for _, alertRule := range group.group.Spec.Rules {
-			if alertRule.Name == alertName {
-				out = setState(group, alertRule, create)
-				return nil
-			}
+		rule, ok := group.rules[alertName]
+		if !ok {
+			return fmt.Errorf("no alert named %q", alertName)
 		}
-		return fmt.Errorf("no alert named %q", alertName)
+
+		// If status is nil, create it
+		if rule.Status == nil {
+			rule.Status = create()
+			group.rules[alertName] = rule
+		}
+
+		out = rule.Status
+		return nil
 	})
 	return out, err
 }
-func (as *alertStorageMem) AlertUpdateState(ctx context.Context, projectName, groupName, alertName string, state *typesv1.AlertState) error {
+
+func (as *alertStorageMem) AlertUpdateState(ctx context.Context, projectName, groupName, alertName string, state *typesv1.AlertRuleStatus) error {
 	err := as.db.withAlertGroup(projectName, groupName, func(st *project, group *alertGroup) error {
-		for _, alertRule := range group.group.Spec.Rules {
-			if alertRule.Name == alertName {
-				group.alertState[alertName] = state
-				return nil
-			}
+		rule, ok := group.rules[alertName]
+		if !ok {
+			return fmt.Errorf("no alert named %q", alertName)
 		}
-		return fmt.Errorf("no alert named %q", alertName)
+
+		rule.Status = state
+		group.rules[alertName] = rule
+		return nil
 	})
 	return err
 }
+
 func (as *alertStorageMem) AlertDeleteStateNotInList(ctx context.Context, projectName, groupName string, keeplist []string) error {
 	err := as.db.withAlertGroup(projectName, groupName, func(st *project, group *alertGroup) error {
 		keepset := make(map[string]struct{})
@@ -645,13 +660,18 @@ func (as *alertStorageMem) AlertDeleteStateNotInList(ctx context.Context, projec
 		}
 
 		var toDelete []string
-		for key := range group.alertState {
+		for key := range group.rules {
 			if _, ok := keepset[key]; !ok {
 				toDelete = append(toDelete, key)
 			}
 		}
+
 		for _, key := range toDelete {
-			delete(group.alertState, key)
+			delete(group.rules, key)
+			// Also remove from group.Spec.Rules
+			group.group.Spec.Rules = slices.DeleteFunc(group.group.Spec.Rules, func(e *typesv1.AlertGroupSpec_NamedAlertRuleSpec) bool {
+				return e.Id == key
+			})
 		}
 		return nil
 	})

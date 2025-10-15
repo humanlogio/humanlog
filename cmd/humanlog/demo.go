@@ -187,8 +187,8 @@ func demoCmd(
 					}
 					return res.Msg, nil
 				},
-				func(ctx context.Context, ar *typesv1.AlertRule, as *typesv1.AlertState, o *typesv1.Obj) error {
-					args := []any{slog.String("name", ar.Name)}
+				func(ctx context.Context, ar *typesv1.AlertRule, o *typesv1.Obj) error {
+					args := []any{slog.String("name", ar.Spec.Name)}
 					if o != nil {
 						for _, kv := range o.Kvs {
 							v, err := logqleval.ResolveVal(kv.Value, logqleval.MakeFlatGoMap, logqleval.MakeFlatGoSlice)
@@ -198,14 +198,14 @@ func demoCmd(
 							args = append(args, slog.Any(kv.Key, v))
 						}
 					}
-					switch as.Status.(type) {
-					case *typesv1.AlertState_Unknown:
+					switch ar.Status.Status.(type) {
+					case *typesv1.AlertRuleStatus_Unknown:
 						ll.InfoContext(ctx, "alert in unknown status", args...)
-					case *typesv1.AlertState_Ok:
+					case *typesv1.AlertRuleStatus_Ok:
 						ll.InfoContext(ctx, "alert in ok status", args...)
-					case *typesv1.AlertState_Pending:
+					case *typesv1.AlertRuleStatus_Pending:
 						ll.WarnContext(ctx, "alert in pending status", args...)
-					case *typesv1.AlertState_Firing:
+					case *typesv1.AlertRuleStatus_Firing:
 						ll.ErrorContext(ctx, "alert is firing!", args...)
 					}
 					return nil

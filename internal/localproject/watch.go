@@ -457,11 +457,32 @@ func (wt *watch) ListAlertRule(ctx context.Context, req *alertv1.ListAlertRuleRe
 		next *typesv1.Cursor
 		err  error
 	)
-	err = wt.lockedWithAlertGroupByName(ctx, req.ProjectName, req.GroupName, func(_ *typesv1.ProjectsConfig_Project, s *typesv1.AlertGroup) error {
-		next, err = cursorForSlice(s.Spec.Rules, req.Cursor, req.Limit, 10, 100,
-			func(sp *typesv1.AlertRule) string { return sp.Name },
-			func(sp *typesv1.AlertRule) error {
-				out = append(out, &alertv1.ListAlertRuleResponse_ListItem{AlertRule: sp})
+	err = wt.lockedWithAlertGroupByName(ctx, req.ProjectName, req.GroupName, func(_ *typesv1.ProjectsConfig_Project, ag *typesv1.AlertGroup) error {
+		// Note: ag.Status.Rules is already hydrated by lockedWithAlertGroupByName
+		// Create a map for quick lookup by id
+		stateById := make(map[string]*typesv1.AlertRuleStatus)
+		for _, namedStatus := range ag.Status.Rules {
+			stateById[namedStatus.Id] = namedStatus.Status
+		}
+
+		next, err = cursorForSlice(ag.Spec.Rules, req.Cursor, req.Limit, 10, 100,
+			func(named *typesv1.AlertGroupSpec_NamedAlertRuleSpec) string { return named.Id },
+			func(named *typesv1.AlertGroupSpec_NamedAlertRuleSpec) error {
+				// Get the actual runtime state for this rule
+				state, ok := stateById[named.Id]
+				if !ok {
+					state = &typesv1.AlertRuleStatus{Status: &typesv1.AlertRuleStatus_Unknown{Unknown: &typesv1.AlertUnknown{}}}
+				}
+
+				// Construct full AlertRule from spec + state
+				rule := &typesv1.AlertRule{
+					Meta: &typesv1.AlertRuleMeta{
+						Id: named.Id,
+					},
+					Spec:   named.Spec,
+					Status: state,
+				}
+				out = append(out, &alertv1.ListAlertRuleResponse_ListItem{AlertRule: rule})
 				return nil
 			},
 		)
@@ -516,6 +537,21 @@ func (wt *watch) lockedWithAlertGroupByName(ctx context.Context, projectName, gr
 			return nil
 		}
 		return storage.getAlertGroup(ctx, projectName, sc.Pointer, groupName, func(ag *typesv1.AlertGroup) error {
+			// Hydrate the AlertGroup.Status.Rules with actual runtime states
+			ag.Status.Rules = make([]*typesv1.AlertGroupStatus_NamedAlertRuleStatus, 0, len(ag.Spec.Rules))
+			for _, named := range ag.Spec.Rules {
+				state, err := wt.alertState.AlertGetOrCreate(ctx, projectName, groupName, named.Id, func() *typesv1.AlertRuleStatus {
+					return &typesv1.AlertRuleStatus{Status: &typesv1.AlertRuleStatus_Unknown{Unknown: &typesv1.AlertUnknown{}}}
+				})
+				if err != nil {
+					// If we can't get state, use Unknown
+					state = &typesv1.AlertRuleStatus{Status: &typesv1.AlertRuleStatus_Unknown{Unknown: &typesv1.AlertUnknown{}}}
+				}
+				ag.Status.Rules = append(ag.Status.Rules, &typesv1.AlertGroupStatus_NamedAlertRuleStatus{
+					Id:     named.Id,
+					Status: state,
+				})
+			}
 			return fn(sc, ag)
 		})
 	})
@@ -527,7 +563,17 @@ func (wt *watch) lockedWithAlertByName(ctx context.Context, projectName, groupNa
 		if err != nil {
 			return nil
 		}
-		return storage.getAlertRule(ctx, projectName, sc.Pointer, groupName, name, fn)
+
+		return storage.getAlertRule(ctx, projectName, sc.Pointer, groupName, name, func(ar *typesv1.AlertRule) error {
+			state, err := wt.alertState.AlertGetOrCreate(ctx, projectName, groupName, name, func() *typesv1.AlertRuleStatus {
+				return &typesv1.AlertRuleStatus{Status: &typesv1.AlertRuleStatus_Unknown{Unknown: &typesv1.AlertUnknown{}}}
+			})
+			if err != nil {
+				return fn(ar)
+			}
+			ar.Status = state
+			return fn(ar)
+		})
 	})
 }
 
