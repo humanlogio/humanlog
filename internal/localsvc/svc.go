@@ -34,16 +34,17 @@ import (
 )
 
 type Service struct {
-	ll         *slog.Logger
-	tracer     trace.Tracer
-	ownVersion *typesv1.Version
-	storage    localstorage.Storage
-	doLogin    func(ctx context.Context, returnToURL string) error
-	doLogout   func(ctx context.Context, returnToURL string) error
-	doUpdate   func(ctx context.Context) error
-	doRestart  func(ctx context.Context) error
-	getConfig  func(ctx context.Context) (*typesv1.LocalhostConfig, error)
-	setConfig  func(ctx context.Context, cfg *typesv1.LocalhostConfig) error
+	ll            *slog.Logger
+	tracer        trace.Tracer
+	ownVersion    *typesv1.Version
+	storage       localstorage.Storage
+	doLogin       func(ctx context.Context, returnToURL string) error
+	doLogout      func(ctx context.Context, returnToURL string) error
+	doUpdate      func(ctx context.Context) error
+	doRestart     func(ctx context.Context) error
+	getConfig     func(ctx context.Context) (*typesv1.LocalhostConfig, error)
+	setConfig     func(ctx context.Context, cfg *typesv1.LocalhostConfig) error
+	doSyncProject func(ctx context.Context) error
 
 	db localstate.DB
 }
@@ -59,19 +60,21 @@ func New(
 	doRestart func(ctx context.Context) error,
 	getConfig func(ctx context.Context) (*typesv1.LocalhostConfig, error),
 	setConfig func(ctx context.Context, cfg *typesv1.LocalhostConfig) error,
+	doSyncProject func(ctx context.Context) error,
 ) *Service {
 	return &Service{
-		ll:         ll,
-		tracer:     otel.GetTracerProvider().Tracer("humanlog-localhost"),
-		ownVersion: ownVersion,
-		storage:    storage,
-		doLogin:    doLogin,
-		doLogout:   doLogout,
-		doUpdate:   doUpdate,
-		doRestart:  doRestart,
-		getConfig:  getConfig,
-		setConfig:  setConfig,
-		db:         state,
+		ll:            ll,
+		tracer:        otel.GetTracerProvider().Tracer("humanlog-localhost"),
+		ownVersion:    ownVersion,
+		storage:       storage,
+		doLogin:       doLogin,
+		doLogout:      doLogout,
+		doUpdate:      doUpdate,
+		doRestart:     doRestart,
+		getConfig:     getConfig,
+		setConfig:     setConfig,
+		db:            state,
+		doSyncProject: doSyncProject,
 	}
 }
 
@@ -675,6 +678,14 @@ func (svc *Service) SyncProject(ctx context.Context, req *connect.Request[projec
 	if err != nil {
 		return nil, err
 	}
+
+	// Trigger alert scheduler reconciliation if configured
+	if svc.doSyncProject != nil {
+		if err := svc.doSyncProject(ctx); err != nil {
+			svc.ll.WarnContext(ctx, "failed to trigger alert reconciliation after SyncProject", slog.Any("err", err))
+		}
+	}
+
 	return connect.NewResponse(out), nil
 }
 

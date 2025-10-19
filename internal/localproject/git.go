@@ -18,6 +18,7 @@ import (
 	"github.com/go-git/go-git/v6/storage"
 	"github.com/go-git/go-git/v6/storage/memory"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
+	"github.com/humanlogio/humanlog/pkg/localstorage"
 	"github.com/mitchellh/go-homedir"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -253,7 +254,7 @@ func (store *remoteGitStorage) getDashboard(ctx context.Context, name string, pt
 	return fmt.Errorf("project %q has no dashboard with ID %q", name, id)
 }
 
-func (store *remoteGitStorage) getAlertGroup(ctx context.Context, name string, ptr *typesv1.ProjectPointer, groupName string, onAlertGroup GetAlertGroupFn) error {
+func (store *remoteGitStorage) getAlertGroup(ctx context.Context, alertState localstorage.Alertable, name string, ptr *typesv1.ProjectPointer, groupName string, onAlertGroup GetAlertGroupFn) error {
 	rem, err := store.checkout(ctx, name, ptr.GetRemote())
 	if err != nil {
 		return fmt.Errorf("looking up git remote: %v", err)
@@ -269,13 +270,27 @@ func (store *remoteGitStorage) getAlertGroup(ctx context.Context, name string, p
 	}
 	for _, ag := range alertGroups {
 		if ag.Spec.Name == groupName {
+			// Hydrate status for all rules in group
+			ag.Status.Rules = make([]*typesv1.AlertGroupStatus_NamedAlertRuleStatus, 0, len(ag.Spec.Rules))
+			for _, named := range ag.Spec.Rules {
+				state, err := alertState.AlertGetOrCreate(ctx, name, groupName, named.Id, func() *typesv1.AlertRuleStatus {
+					return &typesv1.AlertRuleStatus{Status: &typesv1.AlertRuleStatus_Unknown{Unknown: &typesv1.AlertUnknown{}}}
+				})
+				if err != nil {
+					return fmt.Errorf("fetching alert status for rule %q: %w", named.Id, err)
+				}
+				ag.Status.Rules = append(ag.Status.Rules, &typesv1.AlertGroupStatus_NamedAlertRuleStatus{
+					Id:     named.Id,
+					Status: state,
+				})
+			}
 			return onAlertGroup(ag)
 		}
 	}
 	return fmt.Errorf("project %q has no alert group with name %q", name, groupName)
 }
 
-func (store *remoteGitStorage) getAlertRule(ctx context.Context, name string, ptr *typesv1.ProjectPointer, groupName, ruleName string, onAlertRule GetAlertRuleFn) error {
+func (store *remoteGitStorage) getAlertRule(ctx context.Context, alertState localstorage.Alertable, name string, ptr *typesv1.ProjectPointer, groupName, ruleName string, onAlertRule GetAlertRuleFn) error {
 	rem, err := store.checkout(ctx, name, ptr.GetRemote())
 	if err != nil {
 		return fmt.Errorf("looking up git remote: %v", err)
@@ -293,13 +308,21 @@ func (store *remoteGitStorage) getAlertRule(ctx context.Context, name string, pt
 		if ag.Spec.Name == groupName {
 			for _, named := range ag.Spec.Rules {
 				if named.Id == ruleName {
-					// Construct full AlertRule from spec
+					// Fetch actual runtime status from storage
+					state, err := alertState.AlertGetOrCreate(ctx, name, groupName, named.Id, func() *typesv1.AlertRuleStatus {
+						return &typesv1.AlertRuleStatus{Status: &typesv1.AlertRuleStatus_Unknown{Unknown: &typesv1.AlertUnknown{}}}
+					})
+					if err != nil {
+						return fmt.Errorf("fetching alert status for rule %q: %w", named.Id, err)
+					}
+
+					// Construct full AlertRule with hydrated status
 					rule := &typesv1.AlertRule{
 						Meta: &typesv1.AlertRuleMeta{
 							Id: named.Id,
 						},
 						Spec:   named.Spec,
-						Status: &typesv1.AlertRuleStatus{Status: &typesv1.AlertRuleStatus_Unknown{Unknown: &typesv1.AlertUnknown{}}},
+						Status: state,
 					}
 					return onAlertRule(rule)
 				}

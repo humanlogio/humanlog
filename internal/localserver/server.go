@@ -16,21 +16,17 @@ import (
 
 	connectcors "connectrpc.com/cors"
 	"connectrpc.com/otelconnect"
-	alertv1 "github.com/humanlogio/api/go/svc/alert/v1"
 	"github.com/humanlogio/api/go/svc/alert/v1/alertv1connect"
 	"github.com/humanlogio/api/go/svc/dashboard/v1/dashboardv1connect"
 	"github.com/humanlogio/api/go/svc/ingest/v1/ingestv1connect"
 	"github.com/humanlogio/api/go/svc/localhost/v1/localhostv1connect"
-	projectv1 "github.com/humanlogio/api/go/svc/project/v1"
 	"github.com/humanlogio/api/go/svc/project/v1/projectv1connect"
 	"github.com/humanlogio/api/go/svc/query/v1/queryv1connect"
 	userv1 "github.com/humanlogio/api/go/svc/user/v1"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
 	"github.com/humanlogio/humanlog/internal/errutil"
-	"github.com/humanlogio/humanlog/internal/localalert"
 	"github.com/humanlogio/humanlog/internal/localstate"
 	"github.com/humanlogio/humanlog/internal/localsvc"
-	"github.com/humanlogio/humanlog/internal/pkg/iterapi"
 	"github.com/humanlogio/humanlog/pkg/localstorage"
 	"github.com/humanlogio/humanlog/pkg/retry"
 	"github.com/rs/cors"
@@ -150,6 +146,9 @@ func ServeLocalhost(
 
 	mux := http.NewServeMux()
 
+	// Create alert scheduler (started later in errgroup)
+	scheduler := NewAlertScheduler(ll, state, storage, time.Now, notifyAlert, 60*time.Second)
+
 	localhostsvc := localsvc.New(ll, ownVersion, storage, state,
 		doLogin,
 		doLogout,
@@ -157,6 +156,7 @@ func ServeLocalhost(
 		doRestart,
 		getConfig,
 		setConfig,
+		scheduler.TriggerReconcile,
 	)
 
 	otelIctpr, err := otelconnect.NewInterceptor()
@@ -250,74 +250,8 @@ func ServeLocalhost(
 	})
 
 	eg.Go(func() error {
-		// handle alerts
-
-		iteratorForProject := func(ctx context.Context) *iterapi.Iter[*typesv1.Project] {
-			return iterapi.New(ctx, 100, func(ctx context.Context, cursor *typesv1.Cursor, limit int32) ([]*typesv1.Project, *typesv1.Cursor, error) {
-				out, err := state.ListProject(ctx, &projectv1.ListProjectRequest{Cursor: cursor, Limit: limit})
-				if err != nil {
-					return nil, nil, err
-				}
-				var items []*typesv1.Project
-				for _, el := range out.Items {
-					items = append(items, el.Project)
-				}
-				return items, out.Next, nil
-			})
-		}
-		iteratorForAlertGroup := func(ctx context.Context, projectName string) *iterapi.Iter[*typesv1.AlertGroup] {
-			return iterapi.New(ctx, 100, func(ctx context.Context, cursor *typesv1.Cursor, limit int32) ([]*typesv1.AlertGroup, *typesv1.Cursor, error) {
-				out, err := state.ListAlertGroup(ctx, &alertv1.ListAlertGroupRequest{ProjectName: projectName, Cursor: cursor, Limit: limit})
-				if err != nil {
-					return nil, nil, err
-				}
-				var items []*typesv1.AlertGroup
-				for _, el := range out.Items {
-					items = append(items, el.AlertGroup)
-				}
-				return items, out.Next, nil
-			})
-		}
-
-		handleAlerts := func(ctx context.Context) error {
-			projectIter := iteratorForProject(ctx)
-			for projectIter.Next() {
-				project := projectIter.Current()
-				evaluator := localalert.NewEvaluator(storage, time.Now)
-
-				alertGroupIter := iteratorForAlertGroup(ctx, project.Spec.Name)
-				for alertGroupIter.Next() {
-					alertGroup := alertGroupIter.Current()
-					if err := evaluator.EvaluateRules(ctx, project, alertGroup, notifyAlert); err != nil {
-						return fmt.Errorf("evaluating alert group %q: %v", alertGroup.Spec.Name, err)
-					}
-				}
-				if err := alertGroupIter.Err(); err != nil {
-					return fmt.Errorf("iterating alert groups: %v", err)
-				}
-			}
-			if err := projectIter.Err(); err != nil {
-				return fmt.Errorf("iterating projects: %v", err)
-			}
-
-			return nil
-
-		}
-
-		ticker := time.NewTicker(time.Second)
-		defer ticker.Stop()
-
-		ll.InfoContext(ctx, "humanlog localhost alert monitor starting")
-		for {
-			select {
-			case <-ctx.Done():
-				return nil
-			case <-ticker.C:
-				if err := handleAlerts(ctx); err != nil {
-					ll.ErrorContext(ctx, "failed to evaluate alerting rules", slog.Any("err", err))
-				}
-			}
-		}
+		// Alert scheduler: evaluates each alert group at its specified interval
+		return scheduler.Start(ctx)
 	})
 
 	if err := eg.Wait(); err != nil {

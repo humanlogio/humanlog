@@ -16,6 +16,7 @@ import (
 	"github.com/go-git/go-billy/v6"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
 	"github.com/humanlogio/humanlog/internal/compat/alertmanager"
+	"github.com/humanlogio/humanlog/pkg/localstorage"
 	persesv1 "github.com/perses/perses/pkg/model/api/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"gopkg.in/yaml.v3"
@@ -121,7 +122,7 @@ func (store *localGitStorage) getDashboard(ctx context.Context, projectName stri
 	}
 	return nil
 }
-func (store *localGitStorage) getAlertGroup(ctx context.Context, projectName string, ptr *typesv1.ProjectPointer, groupName string, onAlertGroup GetAlertGroupFn) error {
+func (store *localGitStorage) getAlertGroup(ctx context.Context, alertState localstorage.Alertable, projectName string, ptr *typesv1.ProjectPointer, groupName string, onAlertGroup GetAlertGroupFn) error {
 	sch, ok := ptr.Scheme.(*typesv1.ProjectPointer_Localhost)
 	if !ok {
 		return errInvalid("local git can only operate with projectpointers for localhost, but got %T", ptr.Scheme)
@@ -131,15 +132,29 @@ func (store *localGitStorage) getAlertGroup(ctx context.Context, projectName str
 	if err != nil {
 		return errInternal("parsing project alert groups: %v", err)
 	}
-	for _, item := range items {
-		if item.Spec.Name == groupName {
-			return onAlertGroup(item)
+	for _, ag := range items {
+		if ag.Spec.Name == groupName {
+			// Hydrate status for all rules in group
+			ag.Status.Rules = make([]*typesv1.AlertGroupStatus_NamedAlertRuleStatus, 0, len(ag.Spec.Rules))
+			for _, named := range ag.Spec.Rules {
+				state, err := alertState.AlertGetOrCreate(ctx, projectName, groupName, named.Id, func() *typesv1.AlertRuleStatus {
+					return &typesv1.AlertRuleStatus{Status: &typesv1.AlertRuleStatus_Unknown{Unknown: &typesv1.AlertUnknown{}}}
+				})
+				if err != nil {
+					return fmt.Errorf("fetching alert status for rule %q: %w", named.Id, err)
+				}
+				ag.Status.Rules = append(ag.Status.Rules, &typesv1.AlertGroupStatus_NamedAlertRuleStatus{
+					Id:     named.Id,
+					Status: state,
+				})
+			}
+			return onAlertGroup(ag)
 		}
 	}
 	return nil
 }
 
-func (store *localGitStorage) getAlertRule(ctx context.Context, projectName string, ptr *typesv1.ProjectPointer, groupName, ruleName string, onAlertRule GetAlertRuleFn) error {
+func (store *localGitStorage) getAlertRule(ctx context.Context, alertState localstorage.Alertable, projectName string, ptr *typesv1.ProjectPointer, groupName, ruleName string, onAlertRule GetAlertRuleFn) error {
 	sch, ok := ptr.Scheme.(*typesv1.ProjectPointer_Localhost)
 	if !ok {
 		return errInvalid("local git can only operate with projectpointers for localhost, but got %T", ptr.Scheme)
@@ -152,13 +167,21 @@ func (store *localGitStorage) getAlertRule(ctx context.Context, projectName stri
 	onGroup := func(group *typesv1.AlertGroup) error {
 		for _, named := range group.Spec.Rules {
 			if named.Id == ruleName {
-				// Construct full AlertRule from spec
+				// Fetch actual runtime status from storage
+				state, err := alertState.AlertGetOrCreate(ctx, projectName, groupName, named.Id, func() *typesv1.AlertRuleStatus {
+					return &typesv1.AlertRuleStatus{Status: &typesv1.AlertRuleStatus_Unknown{Unknown: &typesv1.AlertUnknown{}}}
+				})
+				if err != nil {
+					return fmt.Errorf("fetching alert status for rule %q: %w", named.Id, err)
+				}
+
+				// Construct full AlertRule with hydrated status
 				rule := &typesv1.AlertRule{
 					Meta: &typesv1.AlertRuleMeta{
 						Id: named.Id,
 					},
 					Spec:   named.Spec,
-					Status: &typesv1.AlertRuleStatus{Status: &typesv1.AlertRuleStatus_Unknown{Unknown: &typesv1.AlertUnknown{}}},
+					Status: state,
 				}
 				return onAlertRule(rule)
 			}
