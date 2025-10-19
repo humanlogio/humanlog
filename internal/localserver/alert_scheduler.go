@@ -13,11 +13,17 @@ import (
 	"github.com/humanlogio/humanlog/internal/localalert"
 	"github.com/humanlogio/humanlog/internal/pkg/iterapi"
 	"github.com/humanlogio/humanlog/pkg/localstorage"
+	"golang.org/x/sync/singleflight"
 )
 
 // AlertScheduler manages per-alert-group goroutines that evaluate rules
 // at their specified intervals, plus a reconciliation loop that discovers
 // new/changed/deleted alert groups.
+//
+// Error handling philosophy:
+// - System errors (corrupted DB, unrecoverable state) cause Start() to return error
+// - User errors (bad alert config, temporary API failures) are logged but don't kill the service
+// - Reconciliation is debounced via singleflight to handle concurrent triggers
 type AlertScheduler struct {
 	ll                  *slog.Logger
 	state               projectService
@@ -27,12 +33,16 @@ type AlertScheduler struct {
 	getEvalTrigger      func(projectName, groupName string, interval time.Duration) <-chan time.Time
 	notifyAlert         localalert.CheckFunc
 
-	// Test hooks for happens-before relationships
+	// Hooks for observability and user feedback
 	onReconcileComplete  func()
+	onReconcileError     func(err error)
 	onEvaluationComplete func(projectName, groupName string)
+	onEvaluationError    func(projectName, groupName string, err error, errorCount int)
 	onEvaluatorWillStart func(projectName, groupName string)
 	onEvaluatorStarted   func(projectName, groupName string)
 	onEvaluatorStopped   func(projectName, groupName string)
+
+	reconcileSF singleflight.Group
 
 	mu         sync.Mutex
 	evaluators map[string]*alertGroupEvaluator // key: "projectName/groupName"
@@ -64,9 +74,21 @@ func withOnReconcileComplete(fn func()) alertSchedulerOption {
 	}
 }
 
+func withOnReconcileError(fn func(err error)) alertSchedulerOption {
+	return func(s *AlertScheduler) {
+		s.onReconcileError = fn
+	}
+}
+
 func withOnEvaluationComplete(fn func(projectName, groupName string)) alertSchedulerOption {
 	return func(s *AlertScheduler) {
 		s.onEvaluationComplete = fn
+	}
+}
+
+func withOnEvaluationError(fn func(projectName, groupName string, err error, errorCount int)) alertSchedulerOption {
+	return func(s *AlertScheduler) {
+		s.onEvaluationError = fn
 	}
 }
 
@@ -144,6 +166,8 @@ func NewAlertScheduler(
 }
 
 // Start begins the scheduler. Blocks until context is cancelled.
+// Returns error only for system-level failures that should kill the background service.
+// User configuration errors are logged but don't stop the scheduler.
 func (s *AlertScheduler) Start(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	s.cancel = cancel
@@ -152,7 +176,7 @@ func (s *AlertScheduler) Start(ctx context.Context) error {
 	s.ll.InfoContext(ctx, "alert scheduler starting")
 
 	// Initial reconciliation
-	if err := s.reconcile(ctx); err != nil {
+	if err := s.doReconcile(ctx); err != nil {
 		s.ll.ErrorContext(ctx, "initial reconciliation failed", slog.Any("err", err))
 	}
 
@@ -160,28 +184,45 @@ func (s *AlertScheduler) Start(ctx context.Context) error {
 		reconcileTrigger := s.getReconcileTrigger()
 		select {
 		case <-ctx.Done():
-			s.stopAll()
+			// Create fresh context for shutdown with timeout
+			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer shutdownCancel()
+			s.stopAll(shutdownCtx)
 			s.ll.InfoContext(ctx, "alert scheduler stopped")
 			return nil
 		case <-reconcileTrigger:
-			if err := s.reconcile(ctx); err != nil {
+			if err := s.doReconcile(ctx); err != nil {
 				s.ll.ErrorContext(ctx, "reconciliation failed", slog.Any("err", err))
 			}
 		}
 	}
 }
 
-// TriggerReconcile forces an immediate reconciliation (used when user calls SyncProject)
+// TriggerReconcile forces an immediate reconciliation (used when user calls SyncProject).
+// Concurrent calls are deduplicated via singleflight.
 func (s *AlertScheduler) TriggerReconcile(ctx context.Context) error {
-	return s.reconcile(ctx)
+	_, err, _ := s.reconcileSF.Do("reconcile", func() (interface{}, error) {
+		return nil, s.reconcile(ctx)
+	})
+	return err
 }
 
-// reconcile discovers all alert groups and ensures each has a running evaluator
+// doReconcile wraps reconcile with singleflight for deduplication
+func (s *AlertScheduler) doReconcile(ctx context.Context) error {
+	_, err, _ := s.reconcileSF.Do("reconcile", func() (interface{}, error) {
+		err := s.reconcile(ctx)
+		if err != nil && s.onReconcileError != nil {
+			s.onReconcileError(err)
+		}
+		return nil, err
+	})
+	return err
+}
+
 func (s *AlertScheduler) reconcile(ctx context.Context) error {
 	s.ll.DebugContext(ctx, "reconciling alert groups")
 
-	// Discover all projects and their alert groups
-	discovered := make(map[string]*alertGroupConfig) // key: "projectName/groupName"
+	discovered := make(map[string]*alertGroupConfig)
 
 	projectIter := s.iteratorForProject(ctx)
 	for projectIter.Next() {
@@ -214,7 +255,6 @@ func (s *AlertScheduler) reconcile(ctx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Stop evaluators for groups that no longer exist or have changed intervals
 	for key, eval := range s.evaluators {
 		cfg, exists := discovered[key]
 		if exists && cfg.interval == eval.interval {
@@ -246,7 +286,6 @@ func (s *AlertScheduler) reconcile(ctx context.Context) error {
 		}
 	}
 
-	// Start evaluators for new groups
 	for key, cfg := range discovered {
 		if _, exists := s.evaluators[key]; exists {
 			continue
@@ -306,6 +345,7 @@ func (s *AlertScheduler) startEvaluator(parentCtx context.Context, cfg *alertGro
 			slog.String("group", eval.groupName),
 		)
 
+		errorCount := 0
 		for {
 			trigger := s.getEvalTrigger(eval.projectName, eval.groupName, eval.interval)
 			select {
@@ -313,7 +353,17 @@ func (s *AlertScheduler) startEvaluator(parentCtx context.Context, cfg *alertGro
 				return
 			case <-trigger:
 				if err := s.evaluateGroup(ctx, eval.projectName, eval.groupName); err != nil {
-					ll.ErrorContext(ctx, "failed to evaluate alert group", slog.Any("err", err))
+					errorCount++
+					ll.ErrorContext(ctx, "failed to evaluate alert group",
+						slog.Any("err", err),
+						slog.Int("error_count", errorCount),
+					)
+
+					if s.onEvaluationError != nil {
+						s.onEvaluationError(eval.projectName, eval.groupName, err, errorCount)
+					}
+				} else {
+					errorCount = 0
 				}
 				if s.onEvaluationComplete != nil {
 					s.onEvaluationComplete(eval.projectName, eval.groupName)
@@ -326,13 +376,11 @@ func (s *AlertScheduler) startEvaluator(parentCtx context.Context, cfg *alertGro
 }
 
 func (s *AlertScheduler) evaluateGroup(ctx context.Context, projectName, groupName string) error {
-	// Fetch the project
 	projectResp, err := s.state.GetProject(ctx, &projectv1.GetProjectRequest{Name: projectName})
 	if err != nil {
 		return fmt.Errorf("getting project %q: %v", projectName, err)
 	}
 
-	// Fetch the alert group
 	alertGroupResp, err := s.state.GetAlertGroup(ctx, &alertv1.GetAlertGroupRequest{
 		ProjectName: projectName,
 		Name:        groupName,
@@ -341,28 +389,26 @@ func (s *AlertScheduler) evaluateGroup(ctx context.Context, projectName, groupNa
 		return fmt.Errorf("getting alert group %q: %v", groupName, err)
 	}
 
-	// Evaluate rules
 	evaluator := localalert.NewEvaluator(s.storage, s.timeNow)
 	return evaluator.EvaluateRules(ctx, projectResp.Project, alertGroupResp.AlertGroup, s.notifyAlert)
 }
 
-func (s *AlertScheduler) stopAll() {
+func (s *AlertScheduler) stopAll(ctx context.Context) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	for key, eval := range s.evaluators {
-		ll := s.ll.With(
-			slog.String("project", eval.projectName),
-			slog.String("group", eval.groupName),
-		)
-
+	evals := make([]*alertGroupEvaluator, 0, len(s.evaluators))
+	for _, eval := range s.evaluators {
+		evals = append(evals, eval)
 		eval.cancel()
+	}
+	s.evaluators = make(map[string]*alertGroupEvaluator)
+	s.mu.Unlock()
+
+	for _, eval := range evals {
 		select {
 		case <-eval.done:
-		case <-time.After(5 * time.Second):
-			ll.Warn("timeout waiting for evaluator to stop")
+		case <-ctx.Done():
+			return
 		}
-		delete(s.evaluators, key)
 	}
 }
 
