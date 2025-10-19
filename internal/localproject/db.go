@@ -6,6 +6,7 @@ import (
 	"time"
 
 	typesv1 "github.com/humanlogio/api/go/types/v1"
+	"github.com/humanlogio/humanlog/pkg/localstorage"
 )
 
 type dbStorage struct {
@@ -69,7 +70,7 @@ func (store *dbStorage) getDashboard(ctx context.Context, projectName string, pt
 	// }
 	// return nil
 }
-func (store *dbStorage) getAlertGroup(ctx context.Context, projectName string, ptr *typesv1.ProjectPointer, groupName string, onAlertGroup GetAlertGroupFn) error {
+func (store *dbStorage) getAlertGroup(ctx context.Context, alertState localstorage.Alertable, projectName string, ptr *typesv1.ProjectPointer, groupName string, onAlertGroup GetAlertGroupFn) error {
 	panic("todo")
 	// sch, ok := ptr.Scheme.(*typesv1.ProjectPointer_Localhost)
 	// if !ok {
@@ -88,7 +89,7 @@ func (store *dbStorage) getAlertGroup(ctx context.Context, projectName string, p
 	// return nil
 }
 
-func (store *dbStorage) getAlertRule(ctx context.Context, projectName string, ptr *typesv1.ProjectPointer, groupName, ruleName string, onAlertRule GetAlertRuleFn) error {
+func (store *dbStorage) getAlertRule(ctx context.Context, alertState localstorage.Alertable, projectName string, ptr *typesv1.ProjectPointer, groupName, ruleName string, onAlertRule GetAlertRuleFn) error {
 	panic("todo")
 }
 
