@@ -293,10 +293,10 @@ github.com/gsterjov/go-libsecret v0.0.0-20161001094733-a6f4afe4910c h1:6rhixN/i8
 github.com/gsterjov/go-libsecret v0.0.0-20161001094733-a6f4afe4910c/go.mod h1:NMPJylDgVpX0MLRlPy15sqSwOFv/U1GZ2m21JhFfek0=
 github.com/hexops/gotextdiff v1.0.3 h1:gitA9+qJrrTCsiCl7+kh75nPqQt1cx4ZkudSTLoUqJM=
 github.com/hexops/gotextdiff v1.0.3/go.mod h1:pSWU5MAI3yDq+fZBTazCSJysOMbxWL1BSow5/V2vxeg=
-github.com/humanlogio/api/go v0.0.0-20251018130514-cf70251c3242 h1:i7aheCXYdznolwYJIP070kdDopgcSYddjrkmjPYoudg=
-github.com/humanlogio/api/go v0.0.0-20251018130514-cf70251c3242/go.mod h1:LDiXtryiWroW5eks9W3nl4RqwIRi26S71W+pnePHIC8=
-github.com/humanlogio/humanlog-pro v0.0.0-20251014074725-5387d67eb3e3 h1:mbwQgCbdjfmx2EBGIG5ZfNITWk8WOjl6XkVwljj8EaM=
-github.com/humanlogio/humanlog-pro v0.0.0-20251014074725-5387d67eb3e3/go.mod h1:zHWGenUdEmcMsbirbzFDROg9kOkwzlLTYQUTkGUaCUM=
+github.com/humanlogio/api/go v0.0.0-20251019153642-30f028bf8563 h1:x7Pd9VnkuZXs2lTCWNueO0o9HA9/rJntsNkU8LJBFsw=
+github.com/humanlogio/api/go v0.0.0-20251019153642-30f028bf8563/go.mod h1:LDiXtryiWroW5eks9W3nl4RqwIRi26S71W+pnePHIC8=
+github.com/humanlogio/humanlog-pro v0.0.0-20251020084914-0a565a1cf4c5 h1:Mu0be0PdzsNytRgIfu5kjEBEosJCTEPv69NW8KZDBEA=
+github.com/humanlogio/humanlog-pro v0.0.0-20251020084914-0a565a1cf4c5/go.mod h1:rOxl0fqbOgYRV/HuozSjbnqaOAsxa4KXadhOfDQCSbA=
 github.com/jpillora/backoff v1.0.0 h1:uvFg412JmmHBHw7iwprIxkPMI+sGQ4kzOWsMeHnm2EA=
 github.com/jpillora/backoff v1.0.0/go.mod h1:J/6gKK9jxlEcS3zixgDgUAsiuZ7yrSoa/FX5e0EB2j4=
 github.com/kardianos/service v1.2.2 h1:ZvePhAHfvo0A7Mftk/tEzqEZ7Q4lgnR8sGz4xu1YX60=
@@ -561,8 +561,8 @@ golang.org/x/sys v0.0.0-20210615035016-665e8c7367d1/go.mod h1:oPkhp1MJrh7nUepCBc
 golang.org/x/sys v0.0.0-20210809222454-d867a43fc93e/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
 golang.org/x/sys v0.1.0/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
 golang.org/x/sys v0.6.0/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
-golang.org/x/sys v0.36.0 h1:KVRy2GtZBrk1cBYA7MKu5bEZFxQk4NIDV6RLVcC8o0k=
-golang.org/x/sys v0.36.0/go.mod h1:OgkHotnGiDImocRcuBABYBEXf8A9a87e/uXjp9XT3ks=
+golang.org/x/sys v0.37.0 h1:fdNQudmxPjkdUTPnLn5mdQv7Zwvbvpaxqs831goi9kQ=
+golang.org/x/sys v0.37.0/go.mod h1:OgkHotnGiDImocRcuBABYBEXf8A9a87e/uXjp9XT3ks=
 golang.org/x/term v0.0.0-20201126162022-7de9c90e9dd1/go.mod h1:bj7SfCRtBDWHUb9snDiAeCFNEtKQo2Wmx5Cou7ajbmo=
 golang.org/x/term v0.34.0 h1:O/2T7POpk0ZZ7MAzMeWFSg6S5IpWd/RXDlM9hgM3DR4=
 golang.org/x/term v0.34.0/go.mod h1:5jC53AEywhIVebHgPVeg0mj8OD3VO9OzclacVrqpaAw=
