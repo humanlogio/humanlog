@@ -20,7 +20,7 @@ func TestAlertState(t *testing.T) {
 		init  *typesv1.AlertRule
 		now   time.Time
 		input *typesv1.Table
-		check CheckFunc
+		check OnStateTransition
 		want  *typesv1.AlertRule
 	}{
 		{

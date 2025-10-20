@@ -2,7 +2,9 @@ package localserver
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -16,6 +18,7 @@ import (
 	otlplogssvcpb "go.opentelemetry.io/proto/otlp/collector/logs/v1"
 	otlpmetricssvcpb "go.opentelemetry.io/proto/otlp/collector/metrics/v1"
 	otlptracesvcpb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/durationpb"
 )
@@ -254,7 +257,7 @@ func TestAlertScheduler(t *testing.T) {
 				withOnEvaluatorStopped(onEvaluatorStopped),
 			)
 
-			go scheduler.Start(ctx)
+			go scheduler.Start(ctx, state.asProjectService())
 
 			// Wait for initial reconcile
 			t.Log("Waiting for initial reconcile")
@@ -348,36 +351,180 @@ func setInterval(d time.Duration) func(*typesv1.AlertGroupSpec) {
 	}
 }
 
+type alertStorage interface {
+	AlertGetOrCreate(context.Context, string, string, string, func() *typesv1.AlertRuleStatus) (*typesv1.AlertRuleStatus, error)
+	AlertUpdateState(context.Context, string, string, string, *typesv1.AlertRuleStatus) error
+	AlertDeleteStateNotInList(context.Context, string, string, []string) error
+}
+
 type mockProjectService struct {
 	listProject    func(context.Context, *projectv1.ListProjectRequest) (*projectv1.ListProjectResponse, error)
 	getProject     func(context.Context, *projectv1.GetProjectRequest) (*projectv1.GetProjectResponse, error)
 	listAlertGroup func(context.Context, *alertv1.ListAlertGroupRequest) (*alertv1.ListAlertGroupResponse, error)
 	getAlertGroup  func(context.Context, *alertv1.GetAlertGroupRequest) (*alertv1.GetAlertGroupResponse, error)
+
+	projects    []*typesv1.Project
+	alertGroups map[string][]*typesv1.AlertGroup
+	storage     alertStorage
+	mu          sync.Mutex
 }
 
 func (m *mockProjectService) ListProject(ctx context.Context, req *projectv1.ListProjectRequest) (*projectv1.ListProjectResponse, error) {
 	return m.listProject(ctx, req)
 }
 func (m *mockProjectService) GetProject(ctx context.Context, req *projectv1.GetProjectRequest) (*projectv1.GetProjectResponse, error) {
-	return m.getProject(ctx, req)
+	if m.getProject != nil {
+		return m.getProject(ctx, req)
+	}
+
+	for _, p := range m.projects {
+		if p.Spec.Name == req.Name {
+			return &projectv1.GetProjectResponse{Project: p}, nil
+		}
+	}
+
+	return nil, fmt.Errorf("project %q not found", req.Name)
 }
 func (m *mockProjectService) ListAlertGroup(ctx context.Context, req *alertv1.ListAlertGroupRequest) (*alertv1.ListAlertGroupResponse, error) {
-	return m.listAlertGroup(ctx, req)
+	if m.listAlertGroup != nil {
+		return m.listAlertGroup(ctx, req)
+	}
+
+	groups, ok := m.alertGroups[req.ProjectName]
+	if !ok {
+		return &alertv1.ListAlertGroupResponse{}, nil
+	}
+
+	var items []*alertv1.ListAlertGroupResponse_ListItem
+	for _, g := range groups {
+		items = append(items, &alertv1.ListAlertGroupResponse_ListItem{AlertGroup: g})
+	}
+
+	return &alertv1.ListAlertGroupResponse{Items: items}, nil
 }
 func (m *mockProjectService) GetAlertGroup(ctx context.Context, req *alertv1.GetAlertGroupRequest) (*alertv1.GetAlertGroupResponse, error) {
-	return m.getAlertGroup(ctx, req)
+	if m.getAlertGroup != nil {
+		return m.getAlertGroup(ctx, req)
+	}
+
+	groups, ok := m.alertGroups[req.ProjectName]
+	if !ok {
+		return nil, fmt.Errorf("project %q not found", req.ProjectName)
+	}
+
+	for _, ag := range groups {
+		if ag.Spec.Name == req.Name {
+			// Populate status from storage
+			if ag.Status == nil {
+				ag.Status = &typesv1.AlertGroupStatus{}
+			}
+			if ag.Status.Rules == nil {
+				ag.Status.Rules = make([]*typesv1.AlertGroupStatus_NamedAlertRuleStatus, 0, len(ag.Spec.Rules))
+			}
+
+			// Query status for each rule from storage
+			if m.storage != nil {
+				for _, namedRule := range ag.Spec.Rules {
+					status, err := m.storage.AlertGetOrCreate(ctx, req.ProjectName, req.Name, namedRule.Id, func() *typesv1.AlertRuleStatus {
+						return &typesv1.AlertRuleStatus{Status: &typesv1.AlertRuleStatus_Unknown{}}
+					})
+					if err != nil {
+						return nil, fmt.Errorf("getting alert status for rule %q: %w", namedRule.Id, err)
+					}
+
+					// Check if status already exists in array and merge
+					found := false
+					for _, namedStatus := range ag.Status.Rules {
+						if namedStatus.Id == namedRule.Id {
+							namedStatus.Status = status
+							found = true
+							break
+						}
+					}
+					if !found {
+						ag.Status.Rules = append(ag.Status.Rules, &typesv1.AlertGroupStatus_NamedAlertRuleStatus{
+							Id:     namedRule.Id,
+							Status: status,
+						})
+					}
+				}
+			}
+
+			return &alertv1.GetAlertGroupResponse{AlertGroup: ag}, nil
+		}
+	}
+
+	return nil, fmt.Errorf("alert group %q not found in project %q", req.Name, req.ProjectName)
 }
 
-type mockStorage struct{}
+type mockStorage struct {
+	mu     sync.Mutex
+	alerts map[string]map[string]map[string]*typesv1.AlertRuleStatus // [projectName][groupName][ruleID]
+}
 
 func (m *mockStorage) Query(context.Context, *typesv1.Query, *typesv1.Cursor, int, ...localstorage.QueryOption) (*typesv1.Data, *typesv1.Cursor, *typesv1.QueryMetrics, error) {
 	return &typesv1.Data{Shape: &typesv1.Data_FreeForm{FreeForm: &typesv1.Table{Type: &typesv1.TableType{}, Rows: []*typesv1.Arr{}}}}, nil, nil, nil
 }
-func (m *mockStorage) AlertGetOrCreate(context.Context, string, string, string, func() *typesv1.AlertRuleStatus) (*typesv1.AlertRuleStatus, error) {
-	return &typesv1.AlertRuleStatus{Status: &typesv1.AlertRuleStatus_Unknown{}}, nil
+func (m *mockStorage) AlertGetOrCreate(ctx context.Context, projectName, groupName, ruleID string, create func() *typesv1.AlertRuleStatus) (*typesv1.AlertRuleStatus, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.alerts == nil {
+		m.alerts = make(map[string]map[string]map[string]*typesv1.AlertRuleStatus)
+	}
+	if m.alerts[projectName] == nil {
+		m.alerts[projectName] = make(map[string]map[string]*typesv1.AlertRuleStatus)
+	}
+	if m.alerts[projectName][groupName] == nil {
+		m.alerts[projectName][groupName] = make(map[string]*typesv1.AlertRuleStatus)
+	}
+
+	if status, ok := m.alerts[projectName][groupName][ruleID]; ok {
+		return status, nil
+	}
+
+	status := create()
+	m.alerts[projectName][groupName][ruleID] = status
+	return status, nil
 }
-func (m *mockStorage) AlertUpdateState(context.Context, string, string, string, *typesv1.AlertRuleStatus) error { return nil }
-func (m *mockStorage) AlertDeleteStateNotInList(context.Context, string, string, []string) error               { return nil }
+func (m *mockStorage) AlertUpdateState(ctx context.Context, projectName, groupName, ruleID string, status *typesv1.AlertRuleStatus) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.alerts == nil {
+		m.alerts = make(map[string]map[string]map[string]*typesv1.AlertRuleStatus)
+	}
+	if m.alerts[projectName] == nil {
+		m.alerts[projectName] = make(map[string]map[string]*typesv1.AlertRuleStatus)
+	}
+	if m.alerts[projectName][groupName] == nil {
+		m.alerts[projectName][groupName] = make(map[string]*typesv1.AlertRuleStatus)
+	}
+
+	m.alerts[projectName][groupName][ruleID] = status
+	return nil
+}
+func (m *mockStorage) AlertDeleteStateNotInList(ctx context.Context, projectName, groupName string, keeplist []string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.alerts == nil || m.alerts[projectName] == nil || m.alerts[projectName][groupName] == nil {
+		return nil
+	}
+
+	keep := make(map[string]bool)
+	for _, ruleID := range keeplist {
+		keep[ruleID] = true
+	}
+
+	for ruleID := range m.alerts[projectName][groupName] {
+		if !keep[ruleID] {
+			delete(m.alerts[projectName][groupName], ruleID)
+		}
+	}
+
+	return nil
+}
 func (m *mockStorage) ExportLogs(context.Context, *otlplogssvcpb.ExportLogsServiceRequest) (*otlplogssvcpb.ExportLogsServiceResponse, error) {
 	return &otlplogssvcpb.ExportLogsServiceResponse{}, nil
 }
@@ -461,6 +608,10 @@ func (s *testState) update(groups map[string][]*typesv1.AlertGroup) {
 }
 
 func (s *testState) asProjectService() *mockProjectService {
+	return s.asProjectServiceWithStorage(nil)
+}
+
+func (s *testState) asProjectServiceWithStorage(storage alertStorage) *mockProjectService {
 	return &mockProjectService{
 		listProject: func(ctx context.Context, req *projectv1.ListProjectRequest) (*projectv1.ListProjectResponse, error) {
 			s.mu.Lock()
@@ -502,5 +653,146 @@ func (s *testState) asProjectService() *mockProjectService {
 			}
 			return nil, nil
 		},
+		storage:     storage,
+		projects:    s.projects,
+		alertGroups: s.alertGroups,
 	}
+}
+
+// TestAlertSchedulerIntegration tests the full path from evaluation to status injection
+func TestAlertSchedulerIntegration(t *testing.T) {
+	now := time.Date(2025, 10, 20, 10, 15, 30, 123456789, time.UTC)
+	ctx := context.Background()
+
+	// Create alert group with a real rule
+	group := &typesv1.AlertGroup{
+		Meta: &typesv1.AlertGroupMeta{Id: "test-group"},
+		Spec: &typesv1.AlertGroupSpec{
+			Name:     "test-group",
+			Interval: durationpb.New(60 * time.Second),
+			Rules: []*typesv1.AlertGroupSpec_NamedAlertRuleSpec{
+				{
+					Id: "cpu_high",
+					Spec: &typesv1.AlertRuleSpec{
+						Name: "cpu_high",
+						Expr: &typesv1.Query{},
+					},
+				},
+			},
+		},
+		Status: &typesv1.AlertGroupStatus{},
+	}
+
+	project := &typesv1.Project{
+		Spec: &typesv1.ProjectSpec{Name: "test-proj"},
+	}
+
+	// Create mock storage that returns test data with metrics
+	storage := &mockStorageWithMetrics{
+		queryMetrics: &typesv1.QueryMetrics{
+			RowsScanned:  1000,
+			RowsReturned: 5,
+			TotalLatency: durationpb.New(50 * time.Millisecond),
+		},
+	}
+
+	// Create mock state with runtime status support
+	state := &mockProjectService{
+		projects:    []*typesv1.Project{project},
+		alertGroups: map[string][]*typesv1.AlertGroup{"test-proj": {group}},
+		storage:     storage,
+	}
+
+	// Create scheduler
+	scheduler := newAlertScheduler(
+		slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})),
+		state,
+		storage,
+		func() time.Time { return now },
+		func() <-chan time.Time { return nil },
+		func(projectName, groupName string, interval time.Duration) <-chan time.Time {
+			ch := make(chan time.Time, 1)
+			return ch
+		},
+		func(ctx context.Context, ar *typesv1.AlertRule, o *typesv1.Obj) error { return nil },
+	)
+
+	// Create evaluator and register it
+	eval := &alertGroupEvaluator{
+		projectName: "test-proj",
+		groupName:   "test-group",
+	}
+	scheduler.mu.Lock()
+	scheduler.evaluators[alertGroupKey("test-proj", "test-group")] = eval
+	scheduler.mu.Unlock()
+
+	// Manually trigger evaluation (this will call UpdateAlertRuleRuntimeStatus on state)
+	err := scheduler.evaluateGroup(ctx, eval)
+	require.NoError(t, err, "evaluateGroup should succeed")
+
+	// Now fetch the alert group via GetAlertGroup - this should return the runtime status
+	resp, err := state.GetAlertGroup(ctx, &alertv1.GetAlertGroupRequest{
+		ProjectName: "test-proj",
+		Name:        "test-group",
+	})
+	require.NoError(t, err, "GetAlertGroup should succeed")
+	require.NotNil(t, resp, "response should not be nil")
+	require.NotNil(t, resp.AlertGroup, "alert group should not be nil")
+
+	// Verify runtime status was injected
+	require.NotNil(t, resp.AlertGroup.Status, "status should be populated")
+	require.NotEmpty(t, resp.AlertGroup.Status.Rules, "status should have rules")
+
+	// Find our rule status
+	var ruleStatus *typesv1.AlertRuleStatus
+	for _, namedStatus := range resp.AlertGroup.Status.Rules {
+		if namedStatus.Id == "cpu_high" {
+			ruleStatus = namedStatus.Status
+			break
+		}
+	}
+	require.NotNil(t, ruleStatus, "cpu_high rule should have status")
+
+	// Verify the injected runtime metrics
+	require.NotNil(t, ruleStatus.LastEvaluatedAt, "should have evaluation timestamp")
+	assert.Equal(t, now, ruleStatus.LastEvaluatedAt.AsTime(), "evaluation timestamp should match")
+
+	require.NotNil(t, ruleStatus.LastEvaluationMetrics, "should have evaluation metrics")
+	assert.Equal(t, int64(1000), ruleStatus.LastEvaluationMetrics.RowsScanned, "rows scanned should be injected")
+	assert.Equal(t, int64(5), ruleStatus.LastEvaluationMetrics.RowsReturned, "rows returned should be injected")
+	assert.Equal(t, 50*time.Millisecond, ruleStatus.LastEvaluationMetrics.TotalLatency.AsDuration(), "latency should be injected")
+
+	assert.Nil(t, ruleStatus.Error, "should not have error")
+}
+
+// mockStorageWithMetrics returns predefined metrics
+type mockStorageWithMetrics struct {
+	mockStorage
+	queryMetrics *typesv1.QueryMetrics
+}
+
+func (m *mockStorageWithMetrics) Query(ctx context.Context, q *typesv1.Query, cursor *typesv1.Cursor, limit int, opts ...localstorage.QueryOption) (*typesv1.Data, *typesv1.Cursor, *typesv1.QueryMetrics, error) {
+	// Return empty table (no rows firing)
+	data := &typesv1.Data{
+		Shape: &typesv1.Data_FreeForm{
+			FreeForm: &typesv1.Table{
+				Type: &typesv1.TableType{
+					Columns: []*typesv1.TableType_Column{
+						{
+							Name: "firing",
+							Type: &typesv1.VarType{Type: &typesv1.VarType_Scalar{Scalar: typesv1.ScalarType_bool}},
+						},
+					},
+				},
+				Rows: []*typesv1.Arr{
+					{
+						Items: []*typesv1.Val{
+							{Kind: &typesv1.Val_Bool{Bool: false}},
+						},
+					},
+				},
+			},
+		},
+	}
+	return data, nil, m.queryMetrics, nil
 }

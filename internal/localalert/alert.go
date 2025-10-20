@@ -26,36 +26,58 @@ type AlertFiring struct {
 	Labels *typesv1.Obj
 }
 
-type CheckFunc func(
-	context.Context,
-	*typesv1.AlertRule,
-	*typesv1.Obj,
+type OnStateTransition func(
+	ctx context.Context,
+	rule *typesv1.AlertRule,
+	labels *typesv1.Obj,
 ) error
 
-func (ev *Evaluator) EvaluateRules(ctx context.Context, project *typesv1.Project, group *typesv1.AlertGroup, onStateChange CheckFunc) error {
+func (ev *Evaluator) EvaluateRules(ctx context.Context, project *typesv1.Project, group *typesv1.AlertGroup, onStateTransition OnStateTransition) error {
 	projectName := project.Spec.Name
 	spec := group.Spec
-	var keeplist []string
-	for _, named := range spec.Rules {
-		keeplist = append(keeplist, named.Id)
-		state, err := ev.db.AlertGetOrCreate(ctx, projectName, spec.Name, named.Id, func() *typesv1.AlertRuleStatus {
+
+	evaluateRule := func(named *typesv1.AlertGroupSpec_NamedAlertRuleSpec) error {
+		status, err := ev.db.AlertGetOrCreate(ctx, projectName, spec.Name, named.Id, func() *typesv1.AlertRuleStatus {
 			return &typesv1.AlertRuleStatus{Status: &typesv1.AlertRuleStatus_Unknown{}}
 		})
 		if err != nil {
-			return fmt.Errorf("getting alert state for group %q, alert %q: %v", spec.Name, named.Id, err)
+			return fmt.Errorf("getting alert state for %q: %w", named.Id, err)
 		}
+
+		status.LastEvaluatedAt = timestamppb.New(ev.timeNow())
+
 		as := &typesv1.AlertRule{
 			Meta:   &typesv1.AlertRuleMeta{Id: named.Id},
 			Spec:   named.Spec,
-			Status: state,
+			Status: status,
 		}
-		err = check(ctx, as, ev.db, ev.timeNow(), onStateChange)
+		err = check(ctx, as, ev.db, ev.timeNow(), onStateTransition, status)
 		if err != nil {
-			return fmt.Errorf("checking alert state for group %q, alert %q: %v", spec.Name, named.Id, err)
+			errMsg := fmt.Sprintf("evaluating alert: %v", err)
+			status.Error = &errMsg
+			// Persist error status so user can see it
+			if persistErr := ev.db.AlertUpdateState(ctx, projectName, spec.Name, named.Id, status); persistErr != nil {
+				return fmt.Errorf("persisting error status for alert %q: %w", named.Id, persistErr)
+			}
+			return nil
 		}
-		err = ev.db.AlertUpdateState(ctx, projectName, spec.Name, named.Id, state)
+
+		// Clear any previous error
+		status.Error = nil
+
+		err = ev.db.AlertUpdateState(ctx, projectName, spec.Name, named.Id, status)
 		if err != nil {
-			return fmt.Errorf("updating alert state for group %q, alert %q: %v", spec.Name, named.Id, err)
+			return fmt.Errorf("persisting alert state for %q: %w", named.Id, err)
+		}
+
+		return nil
+	}
+
+	var keeplist []string
+	for _, named := range spec.Rules {
+		keeplist = append(keeplist, named.Id)
+		if err := evaluateRule(named); err != nil {
+			return err
 		}
 	}
 	if err := ev.db.AlertDeleteStateNotInList(ctx, projectName, spec.Name, keeplist); err != nil {
@@ -69,9 +91,11 @@ func check(
 	as *typesv1.AlertRule,
 	db localstorage.Queryable,
 	now time.Time,
-	onStateChange CheckFunc,
+	onStateTransition OnStateTransition,
+	status *typesv1.AlertRuleStatus,
 ) error {
-	data, _, _, err := db.Query(ctx, as.Spec.Expr, nil, 100)
+	data, _, metrics, err := db.Query(ctx, as.Spec.Expr, nil, 100)
+	status.LastEvaluationMetrics = metrics
 	if err != nil {
 		return fmt.Errorf("evaluating alert rule expression: %v", err)
 	}
@@ -80,24 +104,24 @@ func check(
 		return fmt.Errorf("invalid query, result is not a table")
 	}
 	table := freeform.FreeForm
-	return apply(ctx, as, table, now, onStateChange)
+	return apply(ctx, as, table, now, onStateTransition)
 }
 
-func apply(ctx context.Context, as *typesv1.AlertRule, table *typesv1.Table, now time.Time, onStateChange CheckFunc) error {
+func apply(ctx context.Context, as *typesv1.AlertRule, table *typesv1.Table, now time.Time, onStateTransition OnStateTransition) error {
 	transitionToOk := func(labels *typesv1.Obj) error {
 		as.Status.Status = &typesv1.AlertRuleStatus_Ok{Ok: &typesv1.AlertOk{}}
 		as.Status.TransitionedAt = timestamppb.New(now)
-		return onStateChange(ctx, as, labels)
+		return onStateTransition(ctx, as, labels)
 	}
 	transitionToPending := func(labels *typesv1.Obj) error {
 		as.Status.Status = &typesv1.AlertRuleStatus_Pending{Pending: &typesv1.AlertPending{}}
 		as.Status.TransitionedAt = timestamppb.New(now)
-		return onStateChange(ctx, as, labels)
+		return onStateTransition(ctx, as, labels)
 	}
 	transitionToFiring := func(labels *typesv1.Obj) error {
 		as.Status.Status = &typesv1.AlertRuleStatus_Firing{Firing: &typesv1.AlertFiring{}}
 		as.Status.TransitionedAt = timestamppb.New(now)
-		return onStateChange(ctx, as, labels)
+		return onStateTransition(ctx, as, labels)
 	}
 
 	onOk := func(labels *typesv1.Obj) error {

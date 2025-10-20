@@ -370,16 +370,51 @@ func (db *Mem) CreateAlertGroup(ctx context.Context, req *alertv1.CreateAlertGro
 
 func (db *Mem) GetAlertGroup(ctx context.Context, req *alertv1.GetAlertGroupRequest) (*alertv1.GetAlertGroupResponse, error) {
 	var out *typesv1.AlertGroup
-	err := db.withProject(req.ProjectName, func(st *project) error {
-		for _, ag := range st.alertGroups {
-			if ag.group.Spec.Name == req.Name {
-				out = ag.group
-				return nil
+	err := db.withAlertGroup(req.ProjectName, req.Name, func(st *project, ag *alertGroup) error {
+		out = ag.group
+
+		// Populate status from AlertRuleStatusStorage
+		if out.Status == nil {
+			out.Status = &typesv1.AlertGroupStatus{}
+		}
+		if out.Status.Rules == nil {
+			out.Status.Rules = make([]*typesv1.AlertGroupStatus_NamedAlertRuleStatus, 0, len(out.Spec.Rules))
+		}
+
+		// Query status for each rule from storage
+		alertStorage := db.AlertRuleStatusStorage()
+		for _, namedRule := range out.Spec.Rules {
+			status, err := alertStorage.AlertGetOrCreate(ctx, req.ProjectName, req.Name, namedRule.Id, func() *typesv1.AlertRuleStatus {
+				return &typesv1.AlertRuleStatus{Status: &typesv1.AlertRuleStatus_Unknown{}}
+			})
+			if err != nil {
+				return fmt.Errorf("getting alert status for rule %q: %w", namedRule.Id, err)
+			}
+
+			// Check if status already exists in the array
+			found := false
+			for _, namedStatus := range out.Status.Rules {
+				if namedStatus.Id == namedRule.Id {
+					namedStatus.Status = status
+					found = true
+					break
+				}
+			}
+			if !found {
+				out.Status.Rules = append(out.Status.Rules, &typesv1.AlertGroupStatus_NamedAlertRuleStatus{
+					Id:     namedRule.Id,
+					Status: status,
+				})
 			}
 		}
-		return connect.NewError(connect.CodeNotFound, fmt.Errorf("no such alert group: %q", req.Name))
+
+		return nil
 	})
-	return &alertv1.GetAlertGroupResponse{AlertGroup: out}, err
+	if err != nil {
+		return nil, err
+	}
+
+	return &alertv1.GetAlertGroupResponse{AlertGroup: out}, nil
 }
 
 func (db *Mem) UpdateAlertGroup(ctx context.Context, req *alertv1.UpdateAlertGroupRequest) (*alertv1.UpdateAlertGroupResponse, error) {
@@ -457,6 +492,7 @@ func (db *Mem) ListAlertGroup(ctx context.Context, req *alertv1.ListAlertGroupRe
 		}
 		return nil
 	})
+
 	return &alertv1.ListAlertGroupResponse{Items: out, Next: next}, err
 }
 

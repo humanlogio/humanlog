@@ -396,16 +396,52 @@ func (wt *watch) DeleteAlertGroup(ctx context.Context, req *alertv1.DeleteAlertG
 	return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("localhost alertgroups are deleted on the filesystem"))
 }
 func (wt *watch) GetAlertGroup(ctx context.Context, req *alertv1.GetAlertGroupRequest) (*alertv1.GetAlertGroupResponse, error) {
-	var (
-		out *typesv1.AlertGroup
-		err error
-	)
-	err = wt.lockedWithAlertGroupByName(ctx, req.ProjectName, req.Name, func(_ *typesv1.ProjectsConfig_Project, s *typesv1.AlertGroup) error {
+	var out *typesv1.AlertGroup
+	err := wt.lockedWithAlertGroupByName(ctx, req.ProjectName, req.Name, func(_ *typesv1.ProjectsConfig_Project, s *typesv1.AlertGroup) error {
 		out = s
 		return nil
 	})
-	return &alertv1.GetAlertGroupResponse{AlertGroup: out}, err
+	if err != nil {
+		return nil, err
+	}
+
+	// Populate status from alertState storage
+	if out.Status == nil {
+		out.Status = &typesv1.AlertGroupStatus{}
+	}
+	if out.Status.Rules == nil {
+		out.Status.Rules = make([]*typesv1.AlertGroupStatus_NamedAlertRuleStatus, 0, len(out.Spec.Rules))
+	}
+
+	// Query status for each rule from storage
+	for _, namedRule := range out.Spec.Rules {
+		status, err := wt.alertState.AlertGetOrCreate(ctx, req.ProjectName, req.Name, namedRule.Id, func() *typesv1.AlertRuleStatus {
+			return &typesv1.AlertRuleStatus{Status: &typesv1.AlertRuleStatus_Unknown{}}
+		})
+		if err != nil {
+			return nil, fmt.Errorf("getting alert status for rule %q: %w", namedRule.Id, err)
+		}
+
+		// Check if status already exists in the array
+		found := false
+		for _, namedStatus := range out.Status.Rules {
+			if namedStatus.Id == namedRule.Id {
+				namedStatus.Status = status
+				found = true
+				break
+			}
+		}
+		if !found {
+			out.Status.Rules = append(out.Status.Rules, &typesv1.AlertGroupStatus_NamedAlertRuleStatus{
+				Id:     namedRule.Id,
+				Status: status,
+			})
+		}
+	}
+
+	return &alertv1.GetAlertGroupResponse{AlertGroup: out}, nil
 }
+
 func (wt *watch) ListAlertGroup(ctx context.Context, req *alertv1.ListAlertGroupRequest) (*alertv1.ListAlertGroupResponse, error) {
 	var (
 		out  []*alertv1.ListAlertGroupResponse_ListItem
@@ -428,7 +464,11 @@ func (wt *watch) ListAlertGroup(ctx context.Context, req *alertv1.ListAlertGroup
 			return nil
 		})
 	})
-	return &alertv1.ListAlertGroupResponse{Items: out, Next: next}, err
+	if err != nil {
+		return nil, err
+	}
+
+	return &alertv1.ListAlertGroupResponse{Items: out, Next: next}, nil
 }
 
 func (wt *watch) CreateAlertRule(ctx context.Context, req *alertv1.CreateAlertRuleRequest) (*alertv1.CreateAlertRuleResponse, error) {

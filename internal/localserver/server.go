@@ -136,15 +136,15 @@ func ServeLocalhost(
 			ll.InfoContext(ctx, "storage engine closed cleanly")
 		}
 	}()
+	ll.InfoContext(ctx, "preparing localhost services")
+
+	mux := http.NewServeMux()
+
 	ll.InfoContext(ctx, "opening state engine")
 	state, err := openState(ctx, storage)
 	if err != nil {
 		return fmt.Errorf("opening localstorage %q: %v", localhostCfg.Engine, err)
 	}
-
-	ll.InfoContext(ctx, "preparing localhost services")
-
-	mux := http.NewServeMux()
 
 	// Create alert scheduler (started later in errgroup)
 	scheduler := NewAlertScheduler(ll, state, storage, time.Now, notifyAlert, 60*time.Second)
@@ -251,7 +251,7 @@ func ServeLocalhost(
 
 	eg.Go(func() error {
 		// Alert scheduler: evaluates each alert group at its specified interval
-		return scheduler.Start(ctx)
+		return scheduler.Start(ctx, state)
 	})
 
 	if err := eg.Wait(); err != nil {
