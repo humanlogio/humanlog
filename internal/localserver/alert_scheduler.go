@@ -31,7 +31,7 @@ type AlertScheduler struct {
 	timeNow             func() time.Time
 	getReconcileTrigger func() <-chan time.Time
 	getEvalTrigger      func(projectName, groupName string, interval time.Duration) <-chan time.Time
-	notifyAlert         localalert.CheckFunc
+	onStateTransition   localalert.OnStateTransition
 
 	// Hooks for observability and user feedback
 	onReconcileComplete  func()
@@ -119,7 +119,7 @@ func newAlertScheduler(
 	timeNow func() time.Time,
 	getReconcileTrigger func() <-chan time.Time,
 	getEvalTrigger func(projectName, groupName string, interval time.Duration) <-chan time.Time,
-	notifyAlert localalert.CheckFunc,
+	onStateTransition localalert.OnStateTransition,
 	opts ...alertSchedulerOption,
 ) *AlertScheduler {
 	s := &AlertScheduler{
@@ -129,7 +129,7 @@ func newAlertScheduler(
 		timeNow:             timeNow,
 		getReconcileTrigger: getReconcileTrigger,
 		getEvalTrigger:      getEvalTrigger,
-		notifyAlert:         notifyAlert,
+		onStateTransition:   onStateTransition,
 		evaluators:          make(map[string]*alertGroupEvaluator),
 		done:                make(chan struct{}),
 	}
@@ -147,7 +147,7 @@ func NewAlertScheduler(
 	state projectService,
 	storage localstorage.Storage,
 	timeNow func() time.Time,
-	notifyAlert localalert.CheckFunc,
+	onStateTransition localalert.OnStateTransition,
 	reconcileEvery time.Duration,
 	opts ...alertSchedulerOption,
 ) *AlertScheduler {
@@ -160,7 +160,7 @@ func NewAlertScheduler(
 		func(projectName, groupName string, interval time.Duration) <-chan time.Time {
 			return time.After(interval)
 		},
-		notifyAlert,
+		onStateTransition,
 		opts...,
 	)
 }
@@ -168,7 +168,10 @@ func NewAlertScheduler(
 // Start begins the scheduler. Blocks until context is cancelled.
 // Returns error only for system-level failures that should kill the background service.
 // User configuration errors are logged but don't stop the scheduler.
-func (s *AlertScheduler) Start(ctx context.Context) error {
+func (s *AlertScheduler) Start(ctx context.Context, state projectService) error {
+	s.mu.Lock()
+	s.state = state
+	s.mu.Unlock()
 	ctx, cancel := context.WithCancel(ctx)
 	s.cancel = cancel
 	defer close(s.done)
@@ -184,8 +187,8 @@ func (s *AlertScheduler) Start(ctx context.Context) error {
 		reconcileTrigger := s.getReconcileTrigger()
 		select {
 		case <-ctx.Done():
-			// Create fresh context for shutdown with timeout
-			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			// Create detached context for shutdown: inherit values but not cancellation
+			shutdownCtx, shutdownCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 			defer shutdownCancel()
 			s.stopAll(shutdownCtx)
 			s.ll.InfoContext(ctx, "alert scheduler stopped")
@@ -201,10 +204,7 @@ func (s *AlertScheduler) Start(ctx context.Context) error {
 // TriggerReconcile forces an immediate reconciliation (used when user calls SyncProject).
 // Concurrent calls are deduplicated via singleflight.
 func (s *AlertScheduler) TriggerReconcile(ctx context.Context) error {
-	_, err, _ := s.reconcileSF.Do("reconcile", func() (interface{}, error) {
-		return nil, s.reconcile(ctx)
-	})
-	return err
+	return s.doReconcile(ctx)
 }
 
 // doReconcile wraps reconcile with singleflight for deduplication
@@ -266,14 +266,12 @@ func (s *AlertScheduler) reconcile(ctx context.Context) error {
 			slog.String("group", eval.groupName),
 		)
 
-		ll.InfoContext(ctx, "stopping alert group evaluator",
-			slog.String("reason", func() string {
-				if !exists {
-					return "deleted"
-				}
-				return "interval changed"
-			}()),
-		)
+		reason := "interval changed"
+		if !exists {
+			reason = "deleted"
+		}
+
+		ll.InfoContext(ctx, "stopping alert group evaluator", slog.String("reason", reason))
 		eval.cancel()
 		select {
 		case <-eval.done:
@@ -281,6 +279,7 @@ func (s *AlertScheduler) reconcile(ctx context.Context) error {
 			ll.WarnContext(ctx, "context cancelled while waiting for evaluator to stop")
 		}
 		delete(s.evaluators, key)
+
 		if s.onEvaluatorStopped != nil {
 			s.onEvaluatorStopped(eval.projectName, eval.groupName)
 		}
@@ -352,7 +351,9 @@ func (s *AlertScheduler) startEvaluator(parentCtx context.Context, cfg *alertGro
 			case <-ctx.Done():
 				return
 			case <-trigger:
-				if err := s.evaluateGroup(ctx, eval.projectName, eval.groupName); err != nil {
+				err := s.evaluateGroup(ctx, eval)
+
+				if err != nil {
 					errorCount++
 					ll.ErrorContext(ctx, "failed to evaluate alert group",
 						slog.Any("err", err),
@@ -365,6 +366,7 @@ func (s *AlertScheduler) startEvaluator(parentCtx context.Context, cfg *alertGro
 				} else {
 					errorCount = 0
 				}
+
 				if s.onEvaluationComplete != nil {
 					s.onEvaluationComplete(eval.projectName, eval.groupName)
 				}
@@ -375,22 +377,22 @@ func (s *AlertScheduler) startEvaluator(parentCtx context.Context, cfg *alertGro
 	return eval
 }
 
-func (s *AlertScheduler) evaluateGroup(ctx context.Context, projectName, groupName string) error {
-	projectResp, err := s.state.GetProject(ctx, &projectv1.GetProjectRequest{Name: projectName})
+func (s *AlertScheduler) evaluateGroup(ctx context.Context, eval *alertGroupEvaluator) error {
+	projectResp, err := s.state.GetProject(ctx, &projectv1.GetProjectRequest{Name: eval.projectName})
 	if err != nil {
-		return fmt.Errorf("getting project %q: %v", projectName, err)
+		return fmt.Errorf("getting project %q: %v", eval.projectName, err)
 	}
 
 	alertGroupResp, err := s.state.GetAlertGroup(ctx, &alertv1.GetAlertGroupRequest{
-		ProjectName: projectName,
-		Name:        groupName,
+		ProjectName: eval.projectName,
+		Name:        eval.groupName,
 	})
 	if err != nil {
-		return fmt.Errorf("getting alert group %q: %v", groupName, err)
+		return fmt.Errorf("getting alert group %q: %v", eval.groupName, err)
 	}
 
 	evaluator := localalert.NewEvaluator(s.storage, s.timeNow)
-	return evaluator.EvaluateRules(ctx, projectResp.Project, alertGroupResp.AlertGroup, s.notifyAlert)
+	return evaluator.EvaluateRules(ctx, projectResp.Project, alertGroupResp.AlertGroup, s.onStateTransition)
 }
 
 func (s *AlertScheduler) stopAll(ctx context.Context) {
