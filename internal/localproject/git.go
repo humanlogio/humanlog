@@ -197,7 +197,7 @@ func (store *remoteGitStorage) getProjectHydrated(ctx context.Context, name stri
 	defer rem.mu.Unlock()
 
 	gitptr := rem.ptr
-	dashboards, err := parseProjectDashboards(ctx, rem.w.Filesystem, name, "", gitptr.DashboardDir)
+	dashboards, err := parseProjectDashboards(ctx, rem.w.Filesystem, name, "", gitptr.DashboardDir, true)
 	if err != nil {
 		return errInternal("parsing project dashboards: %v", err)
 	}
@@ -242,7 +242,7 @@ func (store *remoteGitStorage) getDashboard(ctx context.Context, name string, pt
 	}
 	defer rem.mu.Unlock()
 	gitptr := rem.ptr
-	dashboards, err := parseProjectDashboards(ctx, rem.w.Filesystem, name, "", gitptr.DashboardDir)
+	dashboards, err := parseProjectDashboards(ctx, rem.w.Filesystem, name, "", gitptr.DashboardDir, true)
 	if err != nil {
 		return errInternal("parsing project dashboards: %v", err)
 	}
@@ -252,6 +252,18 @@ func (store *remoteGitStorage) getDashboard(ctx context.Context, name string, pt
 		}
 	}
 	return fmt.Errorf("project %q has no dashboard with ID %q", name, id)
+}
+
+func (store *remoteGitStorage) createDashboard(ctx context.Context, projectName string, ptr *typesv1.ProjectPointer, dashboard *typesv1.Dashboard, onCreated CreateDashboardFn) error {
+	return errInvalid("cannot create dashboard in remote project")
+}
+
+func (store *remoteGitStorage) updateDashboard(ctx context.Context, projectName string, ptr *typesv1.ProjectPointer, id string, dashboard *typesv1.Dashboard, onUpdated UpdateDashboardFn) error {
+	return errInvalid("cannot update dashboard in remote project")
+}
+
+func (store *remoteGitStorage) deleteDashboard(ctx context.Context, projectName string, ptr *typesv1.ProjectPointer, id string, onDeleted DeleteDashboardFn) error {
+	return errInvalid("cannot delete dashboard in remote project")
 }
 
 func (store *remoteGitStorage) getAlertGroup(ctx context.Context, alertState localstorage.Alertable, name string, ptr *typesv1.ProjectPointer, groupName string, onAlertGroup GetAlertGroupFn) error {

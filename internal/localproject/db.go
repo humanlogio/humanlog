@@ -70,6 +70,19 @@ func (store *dbStorage) getDashboard(ctx context.Context, projectName string, pt
 	// }
 	// return nil
 }
+
+func (store *dbStorage) createDashboard(ctx context.Context, projectName string, ptr *typesv1.ProjectPointer, dashboard *typesv1.Dashboard, onCreated CreateDashboardFn) error {
+	panic("todo")
+}
+
+func (store *dbStorage) updateDashboard(ctx context.Context, projectName string, ptr *typesv1.ProjectPointer, id string, dashboard *typesv1.Dashboard, onUpdated UpdateDashboardFn) error {
+	panic("todo")
+}
+
+func (store *dbStorage) deleteDashboard(ctx context.Context, projectName string, ptr *typesv1.ProjectPointer, id string, onDeleted DeleteDashboardFn) error {
+	panic("todo")
+}
+
 func (store *dbStorage) getAlertGroup(ctx context.Context, alertState localstorage.Alertable, projectName string, ptr *typesv1.ProjectPointer, groupName string, onAlertGroup GetAlertGroupFn) error {
 	panic("todo")
 	// sch, ok := ptr.Scheme.(*typesv1.ProjectPointer_Localhost)

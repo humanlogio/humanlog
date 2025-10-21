@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/url"
 	"slices"
+	"strings"
 	"testing"
 	"testing/fstest"
 	"time"
@@ -488,6 +489,12 @@ func dashboard(
 	file string,
 	createdAt, updatedAt time.Time,
 ) *typesv1.Dashboard {
+	// Determine detection reason based on file extension
+	detectionReason := "No humanlog metadata or generation markers found"
+	if strings.HasSuffix(file, ".json") {
+		detectionReason = "JSON files are never managed by humanlog"
+	}
+
 	return &typesv1.Dashboard{
 		Meta: &typesv1.DashboardMeta{
 			Id: id,
@@ -497,11 +504,16 @@ func dashboard(
 			Description: desc,
 			IsReadonly:  isReadonly,
 			PersesJson:  persesJSON,
-			Source:      &typesv1.DashboardSpec_File{File: file},
 		},
 		Status: &typesv1.DashboardStatus{
 			CreatedAt: timestamppb.New(createdAt),
 			UpdatedAt: timestamppb.New(updatedAt),
+			Origin: &typesv1.DashboardStatus_Generated{
+				Generated: &typesv1.DashboardStatus_GeneratedDashboard{
+					Path:            file,
+					DetectionReason: detectionReason,
+				},
+			},
 		},
 	}
 }

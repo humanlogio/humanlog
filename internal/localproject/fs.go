@@ -1,6 +1,7 @@
 package localproject
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"errors"
@@ -9,6 +10,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -18,9 +20,23 @@ import (
 	"github.com/humanlogio/humanlog/internal/compat/alertmanager"
 	"github.com/humanlogio/humanlog/pkg/localstorage"
 	persesv1 "github.com/perses/perses/pkg/model/api/v1"
+	persescommon "github.com/perses/perses/pkg/model/api/v1/common"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"gopkg.in/yaml.v3"
 )
+
+var (
+	// dashboardSlugRegexp defines valid characters for dashboard slugs used as filenames
+	// Based on Perses' idRegexp (^[a-zA-Z0-9_.-]+$) but excluding dots to avoid file extension confusion
+	dashboardSlugRegexp = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
+	dashboardSlugMaxLen = 75
+)
+
+const humanlogPreamble = "managed-by: humanlog"
+
+type HumanlogMetadata struct {
+	IsReadonly *bool `yaml:"humanlog.is_readonly,omitempty"`
+}
 
 type localGitStorage struct {
 	fs          billy.Filesystem
@@ -85,7 +101,7 @@ func (store *localGitStorage) getProjectHydrated(ctx context.Context, name strin
 			return errInvalid("local git can only operate with projectpointers for localhost, but got %T", ptr.Scheme)
 		}
 		lh := sch.Localhost
-		dashboards, err := parseProjectDashboards(ctx, store.fs, name, lh.Path, lh.DashboardDir)
+		dashboards, err := parseProjectDashboards(ctx, store.fs, name, lh.Path, lh.DashboardDir, lh.ReadOnly)
 		if err != nil {
 			if errors.Is(err, os.ErrNotExist) {
 				p.Status.Errors = append(p.Status.Errors, fmt.Sprintf("dashboard directory does not exist at path %q", lh.DashboardDir))
@@ -111,7 +127,7 @@ func (store *localGitStorage) getDashboard(ctx context.Context, projectName stri
 		return errInvalid("local git can only operate with projectpointers for localhost, but got %T", ptr.Scheme)
 	}
 	lh := sch.Localhost
-	dashboards, err := parseProjectDashboards(ctx, store.fs, projectName, lh.Path, lh.DashboardDir)
+	dashboards, err := parseProjectDashboards(ctx, store.fs, projectName, lh.Path, lh.DashboardDir, lh.ReadOnly)
 	if err != nil {
 		return errInternal("parsing project dashboards: %v", err)
 	}
@@ -122,6 +138,212 @@ func (store *localGitStorage) getDashboard(ctx context.Context, projectName stri
 	}
 	return nil
 }
+
+func (store *localGitStorage) createDashboard(ctx context.Context, projectName string, ptr *typesv1.ProjectPointer, dashboard *typesv1.Dashboard, onCreated CreateDashboardFn) error {
+	sch, ok := ptr.Scheme.(*typesv1.ProjectPointer_Localhost)
+	if !ok {
+		return errInvalid("local git can only operate with projectpointers for localhost, but got %T", ptr.Scheme)
+	}
+	lh := sch.Localhost
+	if lh.ReadOnly {
+		return errInvalid("cannot create dashboard in read-only project")
+	}
+
+	var persesDash persesv1.Dashboard
+	if err := persesDash.UnmarshalJSON(dashboard.Spec.PersesJson); err != nil {
+		return errInvalid("invalid Perses dashboard JSON: %v", err)
+	}
+
+	filename, err := extractFilenameFromDashboard(&persesDash)
+	if err != nil {
+		return errInvalid("invalid dashboard slug: %v", err)
+	}
+
+	dashboardPath := path.Join(lh.Path, lh.DashboardDir)
+	fpath := path.Join(dashboardPath, filename)
+
+	if _, err := store.fs.Stat(fpath); err == nil {
+		return errInvalid("a dashboard already exists at path %q, use another name to avoid conflicts", fpath)
+	}
+
+	if err := store.fs.MkdirAll(dashboardPath, 0755); err != nil {
+		return errInternal("creating dashboard directory: %v", err)
+	}
+
+	f, err := store.fs.Create(fpath)
+	if err != nil {
+		return errInternal("creating dashboard file: %v", err)
+	}
+	success := false
+	defer func() {
+		if !success {
+			_ = f.Close()
+			_ = os.Remove(f.Name())
+		}
+	}()
+
+	yamlData, err := yaml.Marshal(&persesDash)
+	if err != nil {
+		return errInternal("marshaling dashboard to YAML: %v", err)
+	}
+	meta := &HumanlogMetadata{
+		IsReadonly: nil,
+	}
+	if dashboard.Spec.IsReadonly {
+		meta.IsReadonly = &dashboard.Spec.IsReadonly
+	}
+	headerData, err := encodeHeadComment(meta)
+	if err != nil {
+		return errInternal("encoding dashboard metadata: %v", err)
+	}
+	fileData := append(headerData, yamlData...)
+	if _, err := f.Write(fileData); err != nil {
+		return errInternal("writing dashboard data: %v", err)
+	}
+	if err := f.Close(); err != nil {
+		return errInternal("closing dashboard file: %v", err)
+	}
+	success = true
+
+	created, err := parseProjectDashboard(ctx, store.fs, projectName, dashboardPath, filename, false)
+	if err != nil {
+		return errInternal("parsing created dashboard: %v", err)
+	}
+
+	return onCreated(created)
+}
+
+func (store *localGitStorage) updateDashboard(ctx context.Context, projectName string, ptr *typesv1.ProjectPointer, id string, dashboard *typesv1.Dashboard, onUpdated UpdateDashboardFn) error {
+	sch, ok := ptr.Scheme.(*typesv1.ProjectPointer_Localhost)
+	if !ok {
+		return errInvalid("local git can only operate with projectpointers for localhost, but got %T", ptr.Scheme)
+	}
+	lh := sch.Localhost
+	if lh.ReadOnly {
+		return errInvalid("cannot update dashboard in read-only project")
+	}
+
+	// Get existing dashboard
+	var existing *typesv1.Dashboard
+	err := store.getDashboard(ctx, projectName, ptr, id, func(d *typesv1.Dashboard) error {
+		existing = d
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	if existing == nil {
+		return errInvalid("dashboard %q not found", id)
+	}
+
+	var fpath string
+	switch origin := existing.Status.Origin.(type) {
+	case *typesv1.DashboardStatus_Managed:
+		fpath = origin.Managed.Path
+	case *typesv1.DashboardStatus_Generated:
+		if dashboard.Spec.IsReadonly {
+			return errInvalid("can't update dashboard that appears to be generated unless `is_readonly=false` is provided. detected as possibly generted because of: %s", origin.Generated.DetectionReason)
+		}
+		fpath = origin.Generated.Path
+	case *typesv1.DashboardStatus_Builtin:
+		return errInvalid("cannot update built-in dashboard %q", id)
+	case *typesv1.DashboardStatus_Remote:
+		return errInvalid("cannot update remote dashboard %q", id)
+	default:
+		return errInvalid("dashboard %q has unknown origin type", id)
+	}
+
+	var persesDash persesv1.Dashboard
+	if err := persesDash.UnmarshalJSON(dashboard.Spec.PersesJson); err != nil {
+		return errInvalid("invalid Perses dashboard JSON: %v", err)
+	}
+	if dashboard.Spec.Name != "" {
+		if persesDash.Spec.Display == nil {
+			persesDash.Spec.Display = &persescommon.Display{}
+		}
+		persesDash.Spec.Display.Name = dashboard.Spec.Name
+	}
+	if dashboard.Spec.Description != "" {
+		if persesDash.Spec.Display == nil {
+			persesDash.Spec.Display = &persescommon.Display{}
+		}
+		persesDash.Spec.Display.Description = dashboard.Spec.Description
+	}
+
+	f, err := store.fs.Create(fpath)
+	if err != nil {
+		return errInternal("opening dashboard file for write: %v", err)
+	}
+	defer f.Close()
+
+	meta := &HumanlogMetadata{
+		IsReadonly: &dashboard.Spec.IsReadonly,
+	}
+	headerData, err := encodeHeadComment(meta)
+	if err != nil {
+		return errInternal("encoding dashboard metadata: %v", err)
+	}
+	if _, err := f.Write(headerData); err != nil {
+		return errInternal("writing dashboard metadata: %v", err)
+	}
+
+	yamlData, err := yaml.Marshal(&persesDash)
+	if err != nil {
+		return errInternal("marshaling dashboard to YAML: %v", err)
+	}
+	if _, err := f.Write(yamlData); err != nil {
+		return errInternal("writing dashboard data: %v", err)
+	}
+
+	filename := filepath.Base(fpath)
+	dashboardPath := filepath.Dir(fpath)
+	updated, err := parseProjectDashboard(ctx, store.fs, projectName, dashboardPath, filename, existing.Spec.IsReadonly)
+	if err != nil {
+		return errInternal("parsing updated dashboard: %v", err)
+	}
+
+	return onUpdated(updated)
+}
+
+func (store *localGitStorage) deleteDashboard(ctx context.Context, projectName string, ptr *typesv1.ProjectPointer, id string, onDeleted DeleteDashboardFn) error {
+	sch, ok := ptr.Scheme.(*typesv1.ProjectPointer_Localhost)
+	if !ok {
+		return errInvalid("local git can only operate with projectpointers for localhost, but got %T", ptr.Scheme)
+	}
+	lh := sch.Localhost
+	if lh.ReadOnly {
+		return errInvalid("cannot delete dashboard in read-only project")
+	}
+
+	var existing *typesv1.Dashboard
+	err := store.getDashboard(ctx, projectName, ptr, id, func(d *typesv1.Dashboard) error {
+		existing = d
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	if existing == nil {
+		return errInvalid("dashboard %q not found", id)
+	}
+
+	if existing.Status.Origin == nil {
+		return errInvalid("dashboard %q has no origin information", id)
+	}
+	if _, ok := existing.Status.Origin.(*typesv1.DashboardStatus_Managed); !ok {
+		return errInvalid("cannot delete generated or built-in dashboard %q", id)
+	}
+
+	managedOrigin := existing.Status.Origin.(*typesv1.DashboardStatus_Managed)
+	fpath := managedOrigin.Managed.Path
+
+	if err := store.fs.Remove(fpath); err != nil {
+		return errInternal("deleting dashboard file: %v", err)
+	}
+
+	return onDeleted()
+}
+
 func (store *localGitStorage) getAlertGroup(ctx context.Context, alertState localstorage.Alertable, projectName string, ptr *typesv1.ProjectPointer, groupName string, onAlertGroup GetAlertGroupFn) error {
 	sch, ok := ptr.Scheme.(*typesv1.ProjectPointer_Localhost)
 	if !ok {
@@ -278,7 +500,7 @@ func parseProjectPointer(ctx context.Context, ffs billy.Filesystem, projectName 
 	return st, true, nil
 }
 
-func parseProjectDashboards(ctx context.Context, ffs billy.Filesystem, projectName, projectPath, dashboardDir string) ([]*typesv1.Dashboard, error) {
+func parseProjectDashboards(ctx context.Context, ffs billy.Filesystem, projectName, projectPath, dashboardDir string, projectIsReadOnly bool) ([]*typesv1.Dashboard, error) {
 	dashboardPath := path.Join(projectPath, dashboardDir)
 	files, err := ffs.ReadDir(dashboardPath)
 	if err != nil {
@@ -300,9 +522,8 @@ func parseProjectDashboards(ctx context.Context, ffs billy.Filesystem, projectNa
 		)
 		switch fileext {
 		case ".json", ".yaml", ".yml":
-			item, err = parseProjectDashboard(ctx, ffs, projectName, dashboardPath, filename)
+			item, err = parseProjectDashboard(ctx, ffs, projectName, dashboardPath, filename, projectIsReadOnly)
 		default:
-			// skip it
 			continue
 		}
 		if err != nil {
@@ -313,26 +534,23 @@ func parseProjectDashboards(ctx context.Context, ffs billy.Filesystem, projectNa
 	return out, nil
 }
 
-func parseProjectDashboard(ctx context.Context, ffs billy.Filesystem, projectName, dashboardPath, filename string) (*typesv1.Dashboard, error) {
-	persesToProto := func(in *persesv1.Dashboard, projectName, filepath string, data []byte) (*typesv1.Dashboard, error) {
-		return &typesv1.Dashboard{
-			Meta: &typesv1.DashboardMeta{
-				Id: dashboardID(projectName, in.Metadata.Project, in.Metadata.Name),
-			},
-			Spec: &typesv1.DashboardSpec{
-				Name:        in.Spec.Display.Name,
-				Description: in.Spec.Display.Description,
-				IsReadonly:  true,
-				Source:      &typesv1.DashboardSpec_File{File: filepath},
-				PersesJson:  data,
-			},
-			Status: &typesv1.DashboardStatus{
-				CreatedAt: timestamppb.New(in.Metadata.CreatedAt),
-				UpdatedAt: timestamppb.New(in.Metadata.UpdatedAt),
-			},
-		}, nil
+func parseProjectDashboard(ctx context.Context, ffs billy.Filesystem, projectName, dashboardPath, filename string, projectIsReadOnly bool) (*typesv1.Dashboard, error) {
+	persesToProto := func(in *persesv1.Dashboard, projectName, filepath string, data []byte, out *typesv1.Dashboard) (*typesv1.Dashboard, error) {
+		out.Meta.Id = dashboardID(projectName, in.Metadata.Project, in.Metadata.Name)
+
+		out.Spec.Name = in.Metadata.Name
+		out.Spec.PersesJson = data
+		if in.Spec.Display != nil {
+			out.Spec.Name = in.Spec.Display.Name
+			out.Spec.Description = in.Spec.Display.Description
+		}
+
+		out.Status.CreatedAt = timestamppb.New(in.Metadata.CreatedAt)
+		out.Status.UpdatedAt = timestamppb.New(in.Metadata.UpdatedAt)
+
+		return out, nil
 	}
-	parseFile := func(ctx context.Context, ffs billy.Filesystem, projectName, dirpath, filename string, parser func(ctx context.Context, data []byte) (*persesv1.Dashboard, error)) (*typesv1.Dashboard, error) {
+	parseFile := func(ctx context.Context, ffs billy.Filesystem, projectName, dirpath, filename string, parser func(ctx context.Context, data []byte, out *typesv1.Dashboard, path string) (*persesv1.Dashboard, error)) (*typesv1.Dashboard, error) {
 		out := &typesv1.Dashboard{
 			Meta:   &typesv1.DashboardMeta{},
 			Spec:   &typesv1.DashboardSpec{},
@@ -349,25 +567,67 @@ func parseProjectDashboard(ctx context.Context, ffs billy.Filesystem, projectNam
 		}
 		defer f.Close()
 
-		data, err := io.ReadAll(f)
+		rawData, err := io.ReadAll(f)
 		if err != nil {
 			return nil, fmt.Errorf("reading dashboard file at %q: %v", fpath, err)
 		}
-		pout, err := parser(ctx, data)
+		pout, err := parser(ctx, rawData, out, fpath)
 		if err != nil {
 			out.Status.Errors = append(out.Status.Errors, fmt.Sprintf("invalid dashboard found at path %q: %v", fpath, err))
 			return out, nil
 		}
-		return persesToProto(pout, projectName, fpath, data)
+		return persesToProto(pout, projectName, fpath, rawData, out)
 	}
-	parseJSONDashboard := func(ctx context.Context, data []byte) (*persesv1.Dashboard, error) {
-		out := new(persesv1.Dashboard)
-		return out, out.UnmarshalJSON(data)
+	parseJSONDashboard := func(ctx context.Context, data []byte, out *typesv1.Dashboard, path string) (*persesv1.Dashboard, error) {
+		perses := new(persesv1.Dashboard)
+		if err := perses.UnmarshalJSON(data); err != nil {
+			return nil, err
+		}
+
+		out.Spec.IsReadonly = true
+		out.Status.Origin = &typesv1.DashboardStatus_Generated{
+			Generated: &typesv1.DashboardStatus_GeneratedDashboard{
+				Path:            path,
+				DetectionReason: "JSON files are never managed by humanlog",
+			},
+		}
+
+		return perses, nil
 	}
-	parseYAMLDashboard := func(ctx context.Context, data []byte) (*persesv1.Dashboard, error) {
-		dec := yaml.NewDecoder(bytes.NewReader(data))
-		out := new(persesv1.Dashboard)
-		return out, out.UnmarshalYAML(dec.Decode)
+	parseYAMLDashboard := func(ctx context.Context, data []byte, out *typesv1.Dashboard, path string) (*persesv1.Dashboard, error) {
+		meta, isManaged, err := decodeHeadComment(data)
+		if err != nil {
+			return nil, fmt.Errorf("parsing humanlog metadata: %w", err)
+		}
+
+		if meta != nil && meta.IsReadonly != nil {
+			out.Spec.IsReadonly = *meta.IsReadonly
+		} else if isManaged {
+			out.Spec.IsReadonly = false
+		} else {
+			out.Spec.IsReadonly = true
+		}
+
+		if isManaged {
+			out.Status.Origin = &typesv1.DashboardStatus_Managed{
+				Managed: &typesv1.DashboardStatus_ManagedDashboard{
+					Path: path,
+				},
+			}
+		} else {
+			var node yaml.Node
+			if err := yaml.Unmarshal(data, &node); err != nil {
+				return nil, err
+			}
+			out.Status = detectGeneratedDashboard(node, out.Status, path)
+		}
+
+		perses := new(persesv1.Dashboard)
+		if err := yaml.Unmarshal(data, &perses); err != nil {
+			return nil, err
+		}
+
+		return perses, nil
 	}
 
 	fileext := filepath.Ext(filename)
@@ -379,6 +639,137 @@ func parseProjectDashboard(ctx context.Context, ffs billy.Filesystem, projectNam
 	default:
 		return nil, fmt.Errorf("invalid file extension for a dashboard: expecting .yaml, .yml or .json, got %q", fileext)
 	}
+}
+
+func extractFilenameFromDashboard(dashboard *persesv1.Dashboard) (string, error) {
+	if dashboard.Metadata.Name == "" {
+		return "", fmt.Errorf("dashboard metadata.name is required")
+	}
+	name := dashboard.Metadata.Name
+	if len(name) > dashboardSlugMaxLen {
+		return "", fmt.Errorf("name cannot exceed %d characters (got %d)", dashboardSlugMaxLen, len(name))
+	}
+	if !dashboardSlugRegexp.MatchString(name) {
+		return "", fmt.Errorf("name must only contain alphanumeric characters, underscores, and hyphens (got %q)", name)
+	}
+	return name + ".yaml", nil
+}
+
+func encodeHeadComment(meta *HumanlogMetadata) ([]byte, error) {
+	var buf bytes.Buffer
+
+	buf.WriteString("# " + humanlogPreamble + "\n")
+
+	if meta == nil || meta.IsReadonly == nil {
+		return buf.Bytes(), nil
+	}
+
+	yamlData, err := yaml.Marshal(meta)
+	if err != nil {
+		return nil, fmt.Errorf("marshaling humanlog metadata: %w", err)
+	}
+
+	scanner := bufio.NewScanner(bytes.NewReader(yamlData))
+	scanner.Split(bufio.ScanLines)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.TrimSpace(line) != "" {
+			buf.WriteString("# " + line + "\n")
+		}
+	}
+
+	return buf.Bytes(), scanner.Err()
+}
+
+func decodeHeadComment(data []byte) (*HumanlogMetadata, bool, error) {
+	scanner := bufio.NewScanner(bytes.NewReader(data))
+	scanner.Split(bufio.ScanLines)
+	var foundPreamble bool
+	var metadataLines []string
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		trimmed := strings.TrimSpace(line)
+
+		if !strings.HasPrefix(trimmed, "#") {
+			break
+		}
+
+		if strings.Contains(trimmed, humanlogPreamble) {
+			foundPreamble = true
+			continue
+		}
+
+		if foundPreamble && strings.HasPrefix(trimmed, "# humanlog.") {
+			metadataLines = append(metadataLines, strings.TrimPrefix(trimmed, "# "))
+		}
+	}
+
+	if !foundPreamble {
+		return nil, false, nil
+	}
+
+	if len(metadataLines) == 0 {
+		return &HumanlogMetadata{}, true, nil
+	}
+
+	yamlData := []byte(strings.Join(metadataLines, "\n"))
+	var meta HumanlogMetadata
+	if err := yaml.Unmarshal(yamlData, &meta); err != nil {
+		return nil, true, fmt.Errorf("parsing humanlog metadata: %w", err)
+	}
+
+	return &meta, true, nil
+}
+
+func detectGeneratedDashboard(node yaml.Node, status *typesv1.DashboardStatus, path string) *typesv1.DashboardStatus {
+	comments := extractYAMLComments(&node)
+	codegenMarkers := []string{
+		"Generated by ",
+		"DO NOT EDIT",
+		"@generated",
+		"Code generated",
+		"This file is automatically generated",
+	}
+
+	for _, comment := range comments {
+		for _, marker := range codegenMarkers {
+			if strings.Contains(comment, marker) {
+				status.Origin = &typesv1.DashboardStatus_Generated{
+					Generated: &typesv1.DashboardStatus_GeneratedDashboard{
+						Path:            path,
+						DetectionReason: fmt.Sprintf("Contains %q", strings.TrimSpace(comment)),
+					},
+				}
+				return status
+			}
+		}
+	}
+
+	status.Origin = &typesv1.DashboardStatus_Generated{
+		Generated: &typesv1.DashboardStatus_GeneratedDashboard{
+			Path:            path,
+			DetectionReason: "No humanlog metadata or generation markers found",
+		},
+	}
+	return status
+}
+
+func extractYAMLComments(node *yaml.Node) []string {
+	var comments []string
+	if node.HeadComment != "" {
+		comments = append(comments, node.HeadComment)
+	}
+	if node.LineComment != "" {
+		comments = append(comments, node.LineComment)
+	}
+	if node.FootComment != "" {
+		comments = append(comments, node.FootComment)
+	}
+	for _, child := range node.Content {
+		comments = append(comments, extractYAMLComments(child)...)
+	}
+	return comments
 }
 
 func parseProjectAlertGroups(ctx context.Context, ffs billy.Filesystem, projectName, projectPath, alertGroupDir string, logQlParser func(string) (*typesv1.Query, error)) ([]*typesv1.AlertGroup, error) {
