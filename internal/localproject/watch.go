@@ -40,6 +40,9 @@ type GetProjectHydratedFn func(
 	[]*typesv1.AlertGroup,
 ) error
 type GetDashboardFn func(*typesv1.Dashboard) error
+type CreateDashboardFn func(*typesv1.Dashboard) error
+type UpdateDashboardFn func(*typesv1.Dashboard) error
+type DeleteDashboardFn func() error
 type GetAlertGroupFn func(*typesv1.AlertGroup) error
 type GetAlertRuleFn func(*typesv1.AlertRule) error
 
@@ -49,6 +52,9 @@ type projectStorage interface {
 	getProject(ctx context.Context, name string, ptr *typesv1.ProjectPointer, onGetProject GetProjectFn) error
 	syncProject(ctx context.Context, name string, ptr *typesv1.ProjectPointer, onGetProject GetProjectFn) error
 	getDashboard(ctx context.Context, projectName string, ptr *typesv1.ProjectPointer, id string, onDashboard GetDashboardFn) error
+	createDashboard(ctx context.Context, projectName string, ptr *typesv1.ProjectPointer, dashboard *typesv1.Dashboard, onCreated CreateDashboardFn) error
+	updateDashboard(ctx context.Context, projectName string, ptr *typesv1.ProjectPointer, id string, dashboard *typesv1.Dashboard, onUpdated UpdateDashboardFn) error
+	deleteDashboard(ctx context.Context, projectName string, ptr *typesv1.ProjectPointer, id string, onDeleted DeleteDashboardFn) error
 	getAlertGroup(ctx context.Context, alertState localstorage.Alertable, projectName string, ptr *typesv1.ProjectPointer, groupName string, onAlertGroup GetAlertGroupFn) error
 	getAlertRule(ctx context.Context, alertState localstorage.Alertable, projectName string, ptr *typesv1.ProjectPointer, groupName, ruleName string, onAlertRule GetAlertRuleFn) error
 	validateProjectPointer(ctx context.Context, ptr *typesv1.ProjectPointer) error
@@ -342,13 +348,57 @@ func (wt *watch) ListProject(ctx context.Context, req *projectv1.ListProjectRequ
 }
 
 func (wt *watch) CreateDashboard(ctx context.Context, req *dashboardv1.CreateDashboardRequest) (*dashboardv1.CreateDashboardResponse, error) {
-	return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("localhost dashboard are created on the filesystem"))
+	var out *typesv1.Dashboard
+	err := wt.lockedWithProjectByName(ctx, req.ProjectName, func(ptr *typesv1.ProjectsConfig_Project) error {
+		storage, err := wt.storageForPointer(ptr.Pointer)
+		if err != nil {
+			return err
+		}
+		// ID will be extracted from Perses dashboard metadata.name (slug) in storage layer
+		dashboard := &typesv1.Dashboard{
+			Meta:   &typesv1.DashboardMeta{},  // ID set by storage layer
+			Spec:   req.Spec,
+			Status: &typesv1.DashboardStatus{},
+		}
+		return storage.createDashboard(ctx, ptr.Name, ptr.Pointer, dashboard, func(dashboard *typesv1.Dashboard) error {
+			out = dashboard
+			return nil
+		})
+	})
+	return &dashboardv1.CreateDashboardResponse{Dashboard: out}, err
 }
+
 func (wt *watch) UpdateDashboard(ctx context.Context, req *dashboardv1.UpdateDashboardRequest) (*dashboardv1.UpdateDashboardResponse, error) {
-	return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("localhost dashboard are updated on the filesystem"))
+	var out *typesv1.Dashboard
+	err := wt.lockedWithProjectByName(ctx, req.ProjectName, func(ptr *typesv1.ProjectsConfig_Project) error {
+		storage, err := wt.storageForPointer(ptr.Pointer)
+		if err != nil {
+			return err
+		}
+		dashboard := &typesv1.Dashboard{
+			Meta:   &typesv1.DashboardMeta{Id: req.Id},
+			Spec:   req.Spec,
+			Status: &typesv1.DashboardStatus{},
+		}
+		return storage.updateDashboard(ctx, ptr.Name, ptr.Pointer, req.Id, dashboard, func(dashboard *typesv1.Dashboard) error {
+			out = dashboard
+			return nil
+		})
+	})
+	return &dashboardv1.UpdateDashboardResponse{Dashboard: out}, err
 }
+
 func (wt *watch) DeleteDashboard(ctx context.Context, req *dashboardv1.DeleteDashboardRequest) (*dashboardv1.DeleteDashboardResponse, error) {
-	return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("localhost dashboard are deleted on the filesystem"))
+	err := wt.lockedWithProjectByName(ctx, req.ProjectName, func(ptr *typesv1.ProjectsConfig_Project) error {
+		storage, err := wt.storageForPointer(ptr.Pointer)
+		if err != nil {
+			return err
+		}
+		return storage.deleteDashboard(ctx, ptr.Name, ptr.Pointer, req.Id, func() error {
+			return nil
+		})
+	})
+	return &dashboardv1.DeleteDashboardResponse{}, err
 }
 func (wt *watch) GetDashboard(ctx context.Context, req *dashboardv1.GetDashboardRequest) (*dashboardv1.GetDashboardResponse, error) {
 	var (
