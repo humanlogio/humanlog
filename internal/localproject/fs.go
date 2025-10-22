@@ -103,18 +103,24 @@ func (store *localGitStorage) getProjectHydrated(ctx context.Context, name strin
 		lh := sch.Localhost
 		dashboards, err := parseProjectDashboards(ctx, store.fs, name, lh.Path, lh.DashboardDir, lh.ReadOnly)
 		if err != nil {
-			if errors.Is(err, os.ErrNotExist) {
-				p.Status.Errors = append(p.Status.Errors, fmt.Sprintf("dashboard directory does not exist at path %q", lh.DashboardDir))
+			var connectErr *connect.Error
+			if errors.As(err, &connectErr) && connectErr.Code() == connect.CodeInvalidArgument {
+				// User config error - add to status, continue
+				p.Status.Errors = append(p.Status.Errors, err.Error())
 			} else {
-				p.Status.Errors = append(p.Status.Errors, fmt.Sprintf("parsing project dashboards: %v", err))
+				// System error - fail immediately
+				return err
 			}
 		}
 		alertGroups, err := parseProjectAlertGroups(ctx, store.fs, name, lh.Path, lh.AlertDir, store.logQlParser)
 		if err != nil {
-			if errors.Is(err, os.ErrNotExist) {
-				p.Status.Errors = append(p.Status.Errors, fmt.Sprintf("alert directory does not exist at path %q", lh.AlertDir))
+			var connectErr *connect.Error
+			if errors.As(err, &connectErr) && connectErr.Code() == connect.CodeInvalidArgument {
+				// User config error - add to status, continue
+				p.Status.Errors = append(p.Status.Errors, err.Error())
 			} else {
-				p.Status.Errors = append(p.Status.Errors, fmt.Sprintf("parsing project alert groups: %v", err))
+				// System error - fail immediately
+				return err
 			}
 		}
 		return onGetProject(p, dashboards, alertGroups)
@@ -522,9 +528,9 @@ func parseProjectDashboards(ctx context.Context, ffs billy.Filesystem, projectNa
 	files, err := ffs.ReadDir(dashboardPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return nil, err
+			return nil, errInvalid("dashboard directory %q not found", dashboardPath)
 		}
-		return nil, fmt.Errorf("looking up dashboard directory on filesystem: %v", err)
+		return nil, errInternal("reading dashboard directory: %v", err)
 	}
 	var out []*typesv1.Dashboard
 	for _, file := range files {
@@ -533,20 +539,23 @@ func parseProjectDashboards(ctx context.Context, ffs billy.Filesystem, projectNa
 		}
 		filename := file.Name()
 		fileext := filepath.Ext(filename)
-		var (
-			item *typesv1.Dashboard
-			err  error
-		)
 		switch fileext {
 		case ".json", ".yaml", ".yml":
-			item, err = parseProjectDashboard(ctx, ffs, projectName, dashboardPath, filename, projectIsReadOnly)
+			item, err := parseProjectDashboard(ctx, ffs, projectName, dashboardPath, filename, projectIsReadOnly)
+			if err != nil {
+				out = append(out, &typesv1.Dashboard{
+					Meta:   &typesv1.DashboardMeta{},
+					Spec:   &typesv1.DashboardSpec{},
+					Status: &typesv1.DashboardStatus{
+						Errors: []string{dashboardParseErr(filename, err)},
+					},
+				})
+			} else {
+				out = append(out, item)
+			}
 		default:
 			continue
 		}
-		if err != nil {
-			return nil, fmt.Errorf("parsing dashboard %q on filesystem: %v", filename, err)
-		}
-		out = append(out, item)
 	}
 	return out, nil
 }
@@ -794,9 +803,9 @@ func parseProjectAlertGroups(ctx context.Context, ffs billy.Filesystem, projectN
 	files, err := ffs.ReadDir(alertGroupPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return nil, err
+			return nil, errInvalid("alert directory %q not found", alertGroupPath)
 		}
-		return nil, fmt.Errorf("looking up alert group directory on filesystem: %v", err)
+		return nil, errInternal("reading alert directory: %v", err)
 	}
 	var out []*typesv1.AlertGroup
 	for _, file := range files {
@@ -805,21 +814,23 @@ func parseProjectAlertGroups(ctx context.Context, ffs billy.Filesystem, projectN
 		}
 		filename := file.Name()
 		fileext := filepath.Ext(filename)
-		var (
-			items []*typesv1.AlertGroup
-			err   error
-		)
 		switch fileext {
 		case ".yaml", ".yml":
-			items, err = parseProjectAlertGroupsFromFile(ctx, ffs, alertGroupPath, filename, logQlParser)
+			items, err := parseProjectAlertGroupsFromFile(ctx, ffs, alertGroupPath, filename, logQlParser)
+			if err != nil {
+				out = append(out, &typesv1.AlertGroup{
+					Meta: &typesv1.AlertGroupMeta{},
+					Spec: &typesv1.AlertGroupSpec{},
+					Status: &typesv1.AlertGroupStatus{
+						Errors: []string{alertGroupParseErr(filename, err)},
+					},
+				})
+			} else {
+				out = append(out, items...)
+			}
 		default:
-			// skip it
 			continue
 		}
-		if err != nil {
-			return nil, fmt.Errorf("parsing alert group %q on filesystem: %v", filename, err)
-		}
-		out = append(out, items...)
 	}
 	return out, nil
 }
@@ -828,11 +839,13 @@ func parseProjectAlertGroupsFromFile(ctx context.Context, ffs billy.Filesystem, 
 	filepath := path.Join(alertGroupPath, filename)
 	file, err := ffs.Open(filepath)
 	if err != nil {
-		return nil, fmt.Errorf("opening alert group file at %q: %v", filepath, err)
+		return nil, errInternal("opening alert group file at %q: %v", filepath, err)
 	}
 
 	out, err := alertmanager.ParseRules(file, logQlParser)
 	if err != nil {
+		// Parse errors are user config errors - return partial result with error in status
+		// Don't fail the operation, allow reconciliation to continue
 		out = append(out, &typesv1.AlertGroup{
 			Meta: &typesv1.AlertGroupMeta{},
 			Spec: &typesv1.AlertGroupSpec{},
@@ -840,7 +853,7 @@ func parseProjectAlertGroupsFromFile(ctx context.Context, ffs billy.Filesystem, 
 				Errors: []string{fmt.Sprintf("parsing alert group file %q: %v", filepath, err)},
 			},
 		})
-		return out, err
+		return out, nil
 	}
-	return out, err
+	return out, nil
 }
