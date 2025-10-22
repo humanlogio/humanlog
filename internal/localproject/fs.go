@@ -154,6 +154,20 @@ func (store *localGitStorage) createDashboard(ctx context.Context, projectName s
 		return errInvalid("invalid Perses dashboard JSON: %v", err)
 	}
 
+	// Override display name and description from Spec if provided
+	if dashboard.Spec.Name != "" {
+		if persesDash.Spec.Display == nil {
+			persesDash.Spec.Display = &persescommon.Display{}
+		}
+		persesDash.Spec.Display.Name = dashboard.Spec.Name
+	}
+	if dashboard.Spec.Description != "" {
+		if persesDash.Spec.Display == nil {
+			persesDash.Spec.Display = &persescommon.Display{}
+		}
+		persesDash.Spec.Display.Description = dashboard.Spec.Description
+	}
+
 	filename, err := extractFilenameFromDashboard(&persesDash)
 	if err != nil {
 		return errInvalid("invalid dashboard slug: %v", err)
@@ -239,6 +253,9 @@ func (store *localGitStorage) updateDashboard(ctx context.Context, projectName s
 	var fpath string
 	switch origin := existing.Status.Origin.(type) {
 	case *typesv1.DashboardStatus_Managed:
+		if existing.Spec.IsReadonly && dashboard.Spec.IsReadonly {
+			return errInvalid("cannot update readonly dashboard (set is_readonly=false to make it writable)")
+		}
 		fpath = origin.Managed.Path
 	case *typesv1.DashboardStatus_Generated:
 		if dashboard.Spec.IsReadonly {
