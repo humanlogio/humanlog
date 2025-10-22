@@ -334,6 +334,63 @@ spec:
 				},
 			},
 		},
+		{
+			name: "partial results with corrupt files",
+			fs: fstest.MapFS{
+				"project1dir/dashdir/good1.json":  &fstest.MapFile{Data: mkDashboardDataJSON()},
+				"project1dir/dashdir/corrupt.yaml": &fstest.MapFile{Data: []byte("this is not valid yaml: [[[")},
+				"project1dir/dashdir/good2.yaml":  &fstest.MapFile{Data: mkDashboardDataYAML()},
+				"project1dir/alertdir/good-alert.yaml": &fstest.MapFile{Data: mkAlertGroupData()},
+				"project1dir/alertdir/corrupt-alert.yml": &fstest.MapFile{Data: []byte("invalid: {{{")},
+			},
+			cfg: &typesv1.ProjectsConfig{
+				Projects: projectConfigs(
+					projectConfig("test-project",
+						localProjectPointer("project1dir", "dashdir", "alertdir", true),
+					),
+				),
+			},
+			subtest: []subtest{
+				{
+					name: "get project returns both valid and corrupt items",
+					check: func(ctx context.Context, t *testing.T, d localstate.DB) {
+						got, err := d.GetProject(ctx, &projectv1.GetProjectRequest{Name: "test-project"})
+						require.NoError(t, err)
+
+						require.Len(t, got.Dashboards, 3, "should return all dashboards including corrupt one")
+						require.Len(t, got.AlertGroups, 3, "should return all alert groups including corrupt one")
+
+						var validDashboards int
+						var corruptDashboards int
+						for _, db := range got.Dashboards {
+							if len(db.Status.Errors) > 0 {
+								corruptDashboards++
+								require.Empty(t, db.Spec.Name, "corrupt dashboard should have empty name")
+							} else {
+								validDashboards++
+								require.NotEmpty(t, db.Spec.Name, "valid dashboard should have non-empty name")
+							}
+						}
+						require.Equal(t, 2, validDashboards, "should have 2 valid dashboards")
+						require.Equal(t, 1, corruptDashboards, "should have 1 corrupt dashboard")
+
+						var validAlertGroups int
+						var corruptAlertGroups int
+						for _, ag := range got.AlertGroups {
+							if len(ag.Status.Errors) > 0 {
+								corruptAlertGroups++
+								require.Empty(t, ag.Spec.Name, "corrupt alert group should have empty name")
+							} else {
+								validAlertGroups++
+								require.NotEmpty(t, ag.Spec.Name, "valid alert group should have non-empty name")
+							}
+						}
+						require.Equal(t, 2, validAlertGroups, "should have 2 valid alert groups")
+						require.Equal(t, 1, corruptAlertGroups, "should have 1 corrupt alert group")
+					},
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

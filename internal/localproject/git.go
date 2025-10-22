@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"connectrpc.com/connect"
 	"github.com/go-git/go-billy/v6"
 	"github.com/go-git/go-git/v6"
 	"github.com/go-git/go-git/v6/plumbing"
@@ -156,14 +157,10 @@ func (store *remoteGitStorage) syncWithLock(ctx context.Context, name string, pt
 	}
 
 	if _, err := rem.w.Filesystem.Stat(ptr.DashboardDir); errors.Is(err, os.ErrNotExist) {
-		rem.project.Status.Errors = append(rem.project.Status.Errors, fmt.Sprintf(
-			"project doesn't contain a dashboard directory at %q", ptr.DashboardDir,
-		))
+		rem.project.Status.Errors = append(rem.project.Status.Errors, projectErrDashboardDirMissing(ptr.DashboardDir))
 	}
 	if _, err := rem.w.Filesystem.Stat(ptr.AlertDir); errors.Is(err, os.ErrNotExist) {
-		rem.project.Status.Errors = append(rem.project.Status.Errors, fmt.Sprintf(
-			"project doesn't contain an alert directory at %q", ptr.AlertDir,
-		))
+		rem.project.Status.Errors = append(rem.project.Status.Errors, projectErrAlertDirMissing(ptr.AlertDir))
 	}
 
 	return rem, nil
@@ -197,14 +194,32 @@ func (store *remoteGitStorage) getProjectHydrated(ctx context.Context, name stri
 	defer rem.mu.Unlock()
 
 	gitptr := rem.ptr
-	dashboards, err := parseProjectDashboards(ctx, rem.w.Filesystem, name, "", gitptr.DashboardDir, true)
-	if err != nil {
-		return errInternal("parsing project dashboards: %v", err)
+	dashboards := []*typesv1.Dashboard{}
+	if _, err := rem.w.Filesystem.Stat(gitptr.DashboardDir); err == nil {
+		dashboards, err = parseProjectDashboards(ctx, rem.w.Filesystem, name, "", gitptr.DashboardDir, true)
+		if err != nil {
+			var connectErr *connect.Error
+			if errors.As(err, &connectErr) && connectErr.Code() == connect.CodeInvalidArgument {
+				rem.project.Status.Errors = append(rem.project.Status.Errors, err.Error())
+			} else {
+				return err
+			}
+		}
 	}
-	alertGroups, err := parseProjectAlertGroups(ctx, rem.w.Filesystem, name, "", gitptr.AlertDir, store.logQlParser)
-	if err != nil {
-		return errInternal("parsing project alert groups: %v", err)
+
+	alertGroups := []*typesv1.AlertGroup{}
+	if _, err := rem.w.Filesystem.Stat(gitptr.AlertDir); err == nil {
+		alertGroups, err = parseProjectAlertGroups(ctx, rem.w.Filesystem, name, "", gitptr.AlertDir, store.logQlParser)
+		if err != nil {
+			var connectErr *connect.Error
+			if errors.As(err, &connectErr) && connectErr.Code() == connect.CodeInvalidArgument {
+				rem.project.Status.Errors = append(rem.project.Status.Errors, err.Error())
+			} else {
+				return err
+			}
+		}
 	}
+
 	return onGetProject(rem.project, dashboards, alertGroups)
 }
 
@@ -242,16 +257,22 @@ func (store *remoteGitStorage) getDashboard(ctx context.Context, name string, pt
 	}
 	defer rem.mu.Unlock()
 	gitptr := rem.ptr
+	if _, err := rem.w.Filesystem.Stat(gitptr.DashboardDir); err != nil {
+		return errInvalid("project %q has no dashboard directory at %q", name, gitptr.DashboardDir)
+	}
 	dashboards, err := parseProjectDashboards(ctx, rem.w.Filesystem, name, "", gitptr.DashboardDir, true)
 	if err != nil {
-		return errInternal("parsing project dashboards: %v", err)
+		if errors.Is(err, os.ErrNotExist) {
+			return errInvalid("dashboard directory %q not found in remote repository", gitptr.DashboardDir)
+		}
+		return errInvalid("cannot parse dashboards: %v", err)
 	}
 	for _, d := range dashboards {
 		if d.Meta.Id == id {
 			return onDashboard(d)
 		}
 	}
-	return fmt.Errorf("project %q has no dashboard with ID %q", name, id)
+	return errDashboardNotFound(name, id)
 }
 
 func (store *remoteGitStorage) createDashboard(ctx context.Context, projectName string, ptr *typesv1.ProjectPointer, dashboard *typesv1.Dashboard, onCreated CreateDashboardFn) error {
@@ -276,9 +297,15 @@ func (store *remoteGitStorage) getAlertGroup(ctx context.Context, alertState loc
 	}
 	defer rem.mu.Unlock()
 	gitptr := rem.ptr
+	if _, err := rem.w.Filesystem.Stat(gitptr.AlertDir); err != nil {
+		return errInvalid("project %q has no alert directory at %q", name, gitptr.AlertDir)
+	}
 	alertGroups, err := parseProjectAlertGroups(ctx, rem.w.Filesystem, name, "", gitptr.AlertDir, store.logQlParser)
 	if err != nil {
-		return errInternal("parsing project alertGroups: %v", err)
+		if errors.Is(err, os.ErrNotExist) {
+			return errInvalid("alert directory %q not found in remote repository", gitptr.AlertDir)
+		}
+		return errInvalid("cannot parse alert groups: %v", err)
 	}
 	for _, ag := range alertGroups {
 		if ag.Spec.Name == groupName {
@@ -289,7 +316,7 @@ func (store *remoteGitStorage) getAlertGroup(ctx context.Context, alertState loc
 					return &typesv1.AlertRuleStatus{Status: &typesv1.AlertRuleStatus_Unknown{Unknown: &typesv1.AlertUnknown{}}}
 				})
 				if err != nil {
-					return fmt.Errorf("fetching alert status for rule %q: %w", named.Id, err)
+					return errInternal("fetching alert status for rule %q: %w", named.Id, err)
 				}
 				ag.Status.Rules = append(ag.Status.Rules, &typesv1.AlertGroupStatus_NamedAlertRuleStatus{
 					Id:     named.Id,
@@ -299,7 +326,7 @@ func (store *remoteGitStorage) getAlertGroup(ctx context.Context, alertState loc
 			return onAlertGroup(ag)
 		}
 	}
-	return fmt.Errorf("project %q has no alert group with name %q", name, groupName)
+	return errAlertGroupNotFound(name, groupName)
 }
 
 func (store *remoteGitStorage) getAlertRule(ctx context.Context, alertState localstorage.Alertable, name string, ptr *typesv1.ProjectPointer, groupName, ruleName string, onAlertRule GetAlertRuleFn) error {
@@ -312,9 +339,15 @@ func (store *remoteGitStorage) getAlertRule(ctx context.Context, alertState loca
 	}
 	defer rem.mu.Unlock()
 	gitptr := rem.ptr
+	if _, err := rem.w.Filesystem.Stat(gitptr.AlertDir); err != nil {
+		return errInvalid("project %q has no alert directory at %q", name, gitptr.AlertDir)
+	}
 	alertGroups, err := parseProjectAlertGroups(ctx, rem.w.Filesystem, name, "", gitptr.AlertDir, store.logQlParser)
 	if err != nil {
-		return errInternal("parsing project alertGroups: %v", err)
+		if errors.Is(err, os.ErrNotExist) {
+			return errInvalid("alert directory %q not found in remote repository", gitptr.AlertDir)
+		}
+		return errInvalid("cannot parse alert groups: %v", err)
 	}
 	for _, ag := range alertGroups {
 		if ag.Spec.Name == groupName {
@@ -325,7 +358,7 @@ func (store *remoteGitStorage) getAlertRule(ctx context.Context, alertState loca
 						return &typesv1.AlertRuleStatus{Status: &typesv1.AlertRuleStatus_Unknown{Unknown: &typesv1.AlertUnknown{}}}
 					})
 					if err != nil {
-						return fmt.Errorf("fetching alert status for rule %q: %w", named.Id, err)
+						return errInternal("fetching alert status for rule %q: %w", named.Id, err)
 					}
 
 					// Construct full AlertRule with hydrated status
@@ -342,7 +375,7 @@ func (store *remoteGitStorage) getAlertRule(ctx context.Context, alertState loca
 
 		}
 	}
-	return fmt.Errorf("project %q has no alert rule in group %q with name %q", name, groupName, ruleName)
+	return errAlertRuleNotFound(name, groupName, ruleName)
 }
 
 func (store *remoteGitStorage) validateProjectPointer(ctx context.Context, ptr *typesv1.ProjectPointer) error {
