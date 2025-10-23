@@ -133,6 +133,13 @@ func (store *localGitStorage) getDashboard(ctx context.Context, projectName stri
 		return errInvalid("local git can only operate with projectpointers for localhost, but got %T", ptr.Scheme)
 	}
 	lh := sch.Localhost
+	dashboardPath := path.Join(lh.Path, lh.DashboardDir)
+	if _, err := store.fs.Stat(dashboardPath); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return errInvalid("project %q has no dashboard directory at %q", projectName, lh.DashboardDir)
+		}
+		return errInternal("checking dashboard directory: %v", err)
+	}
 	dashboards, err := parseProjectDashboards(ctx, store.fs, projectName, lh.Path, lh.DashboardDir, lh.ReadOnly)
 	if err != nil {
 		return errInternal("parsing project dashboards: %v", err)
@@ -142,7 +149,7 @@ func (store *localGitStorage) getDashboard(ctx context.Context, projectName stri
 			return onDashboard(item)
 		}
 	}
-	return nil
+	return errDashboardNotFound(projectName, id)
 }
 
 func (store *localGitStorage) createDashboard(ctx context.Context, projectName string, ptr *typesv1.ProjectPointer, dashboard *typesv1.Dashboard, onCreated CreateDashboardFn) error {
@@ -373,6 +380,13 @@ func (store *localGitStorage) getAlertGroup(ctx context.Context, alertState loca
 		return errInvalid("local git can only operate with projectpointers for localhost, but got %T", ptr.Scheme)
 	}
 	lh := sch.Localhost
+	alertPath := path.Join(lh.Path, lh.AlertDir)
+	if _, err := store.fs.Stat(alertPath); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return errInvalid("project %q has no alert directory at %q", projectName, lh.AlertDir)
+		}
+		return errInternal("checking alert directory: %v", err)
+	}
 	items, err := parseProjectAlertGroups(ctx, store.fs, projectName, lh.Path, lh.AlertDir, store.logQlParser)
 	if err != nil {
 		return errInternal("parsing project alert groups: %v", err)
@@ -396,7 +410,7 @@ func (store *localGitStorage) getAlertGroup(ctx context.Context, alertState loca
 			return onAlertGroup(ag)
 		}
 	}
-	return nil
+	return errAlertGroupNotFound(projectName, groupName)
 }
 
 func (store *localGitStorage) getAlertRule(ctx context.Context, alertState localstorage.Alertable, projectName string, ptr *typesv1.ProjectPointer, groupName, ruleName string, onAlertRule GetAlertRuleFn) error {
@@ -405,6 +419,13 @@ func (store *localGitStorage) getAlertRule(ctx context.Context, alertState local
 		return errInvalid("local git can only operate with projectpointers for localhost, but got %T", ptr.Scheme)
 	}
 	lh := sch.Localhost
+	alertPath := path.Join(lh.Path, lh.AlertDir)
+	if _, err := store.fs.Stat(alertPath); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return errInvalid("project %q has no alert directory at %q", projectName, lh.AlertDir)
+		}
+		return errInternal("checking alert directory: %v", err)
+	}
 	items, err := parseProjectAlertGroups(ctx, store.fs, projectName, lh.Path, lh.AlertDir, store.logQlParser)
 	if err != nil {
 		return errInternal("parsing project alert groups: %v", err)
@@ -431,7 +452,7 @@ func (store *localGitStorage) getAlertRule(ctx context.Context, alertState local
 				return onAlertRule(rule)
 			}
 		}
-		return errNotFound("no alert rule in group %q has this name: %q", groupName, ruleName)
+		return errAlertRuleNotFound(projectName, groupName, ruleName)
 	}
 
 	for _, item := range items {
@@ -439,7 +460,7 @@ func (store *localGitStorage) getAlertRule(ctx context.Context, alertState local
 			return onGroup(item)
 		}
 	}
-	return errNotFound("no alert group with this name: %q", groupName)
+	return errAlertRuleNotFound(projectName, groupName, ruleName)
 }
 
 func createProjectFromPointer(ctx context.Context, ffs billy.Filesystem, projectName string, project *typesv1.Project, ptr *typesv1.ProjectPointer_LocalGit) error {
@@ -528,7 +549,7 @@ func parseProjectDashboards(ctx context.Context, ffs billy.Filesystem, projectNa
 	files, err := ffs.ReadDir(dashboardPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return nil, errInvalid("dashboard directory %q not found", dashboardPath)
+			return nil, errProjectDashboardDirMissing(dashboardDir)
 		}
 		return nil, errInternal("reading dashboard directory: %v", err)
 	}
@@ -544,10 +565,10 @@ func parseProjectDashboards(ctx context.Context, ffs billy.Filesystem, projectNa
 			item, err := parseProjectDashboard(ctx, ffs, projectName, dashboardPath, filename, projectIsReadOnly)
 			if err != nil {
 				out = append(out, &typesv1.Dashboard{
-					Meta:   &typesv1.DashboardMeta{},
-					Spec:   &typesv1.DashboardSpec{},
+					Meta: &typesv1.DashboardMeta{},
+					Spec: &typesv1.DashboardSpec{},
 					Status: &typesv1.DashboardStatus{
-						Errors: []string{dashboardParseErr(filename, err)},
+						Errors: []string{errDashboardParse(filename, err).Error()},
 					},
 				})
 			} else {
@@ -803,7 +824,7 @@ func parseProjectAlertGroups(ctx context.Context, ffs billy.Filesystem, projectN
 	files, err := ffs.ReadDir(alertGroupPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return nil, errInvalid("alert directory %q not found", alertGroupPath)
+			return nil, errProjectAlertDirMissing(alertGroupDir)
 		}
 		return nil, errInternal("reading alert directory: %v", err)
 	}
@@ -822,7 +843,7 @@ func parseProjectAlertGroups(ctx context.Context, ffs billy.Filesystem, projectN
 					Meta: &typesv1.AlertGroupMeta{},
 					Spec: &typesv1.AlertGroupSpec{},
 					Status: &typesv1.AlertGroupStatus{
-						Errors: []string{alertGroupParseErr(filename, err)},
+						Errors: []string{errAlertGroupParse(filename, err).Error()},
 					},
 				})
 			} else {
@@ -850,7 +871,7 @@ func parseProjectAlertGroupsFromFile(ctx context.Context, ffs billy.Filesystem, 
 			Meta: &typesv1.AlertGroupMeta{},
 			Spec: &typesv1.AlertGroupSpec{},
 			Status: &typesv1.AlertGroupStatus{
-				Errors: []string{fmt.Sprintf("parsing alert group file %q: %v", filepath, err)},
+				Errors: []string{errAlertGroupParse(filename, err).Error()},
 			},
 		})
 		return out, nil
