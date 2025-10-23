@@ -157,10 +157,10 @@ func (store *remoteGitStorage) syncWithLock(ctx context.Context, name string, pt
 	}
 
 	if _, err := rem.w.Filesystem.Stat(ptr.DashboardDir); errors.Is(err, os.ErrNotExist) {
-		rem.project.Status.Errors = append(rem.project.Status.Errors, projectErrDashboardDirMissing(ptr.DashboardDir))
+		rem.project.Status.Errors = append(rem.project.Status.Errors, errProjectDashboardDirMissing(ptr.DashboardDir).Error())
 	}
 	if _, err := rem.w.Filesystem.Stat(ptr.AlertDir); errors.Is(err, os.ErrNotExist) {
-		rem.project.Status.Errors = append(rem.project.Status.Errors, projectErrAlertDirMissing(ptr.AlertDir))
+		rem.project.Status.Errors = append(rem.project.Status.Errors, errProjectAlertDirMissing(ptr.AlertDir).Error())
 	}
 
 	return rem, nil
