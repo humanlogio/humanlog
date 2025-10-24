@@ -5,6 +5,7 @@ import (
 	"encoding/base32"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -291,6 +292,10 @@ func (wt *watch) GetProject(ctx context.Context, req *projectv1.GetProjectReques
 			project = p
 			dashboards = d
 			alertGroups = ag
+
+			// Check for directory conflicts with other projects
+			wt.addDirectoryConflictWarnings(p, ptr)
+
 			return nil
 		})
 	})
@@ -641,6 +646,55 @@ func (wt *watch) lockedWithAlertByName(ctx context.Context, projectName, groupNa
 
 		return storage.getAlertRule(ctx, wt.alertState, projectName, sc.Pointer, groupName, name, fn)
 	})
+}
+
+// addDirectoryConflictWarnings checks if this project shares directories with other projects
+// and adds warnings to the project status if conflicts are found
+func (wt *watch) addDirectoryConflictWarnings(project *typesv1.Project, currentPtr *typesv1.ProjectsConfig_Project) {
+	// Only check for localhost projects
+	localhost := currentPtr.Pointer.GetLocalhost()
+	if localhost == nil {
+		return
+	}
+
+	cfg, err := wt.cfg.Reload()
+	if err != nil {
+		return // Can't check, skip
+	}
+
+	if cfg.Runtime == nil || cfg.Runtime.ExperimentalFeatures == nil || cfg.Runtime.ExperimentalFeatures.Projects == nil {
+		return
+	}
+
+	var conflicts []string
+	for _, otherProj := range cfg.Runtime.ExperimentalFeatures.Projects.Projects {
+		if otherProj.Name == currentPtr.Name {
+			continue // Skip self
+		}
+
+		otherLocalhost := otherProj.Pointer.GetLocalhost()
+		if otherLocalhost == nil {
+			continue // Only check localhost projects
+		}
+
+		// Check if dashboard directories match
+		currentDashDir := filepath.Join(localhost.Path, localhost.DashboardDir)
+		otherDashDir := filepath.Join(otherLocalhost.Path, otherLocalhost.DashboardDir)
+		if currentDashDir == otherDashDir {
+			conflicts = append(conflicts, fmt.Sprintf("Project %q shares the same dashboard directory (%s). Changes in one project will affect the other.", otherProj.Name, currentDashDir))
+		}
+
+		// Check if alert directories match
+		currentAlertDir := filepath.Join(localhost.Path, localhost.AlertDir)
+		otherAlertDir := filepath.Join(otherLocalhost.Path, otherLocalhost.AlertDir)
+		if currentAlertDir == otherAlertDir {
+			conflicts = append(conflicts, fmt.Sprintf("Project %q shares the same alert directory (%s). Changes in one project will affect the other.", otherProj.Name, currentAlertDir))
+		}
+	}
+
+	if len(conflicts) > 0 {
+		project.Status.Warnings = append(project.Status.Warnings, conflicts...)
+	}
 }
 
 func dashboardID(projectName, persesProjectName, dashboardName string) string {

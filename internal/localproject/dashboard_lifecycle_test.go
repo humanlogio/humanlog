@@ -13,6 +13,7 @@ import (
 	"github.com/go-git/go-billy/v6/memfs"
 	"github.com/google/go-cmp/cmp"
 	dashboardv1 "github.com/humanlogio/api/go/svc/dashboard/v1"
+	projectv1 "github.com/humanlogio/api/go/svc/project/v1"
 	typesv1 "github.com/humanlogio/api/go/types/v1"
 	"github.com/humanlogio/humanlog/internal/localstate"
 	"github.com/humanlogio/humanlog/internal/pkg/config"
@@ -1909,6 +1910,237 @@ func fileExists(fs billy.Filesystem, path string) (bool, error) {
 		return false, err
 	}
 	return true, nil
+}
+
+func TestDashboardIsolationBetweenProjects(t *testing.T) {
+	now := time.Date(2025, 10, 21, 10, 56, 42, 123456, time.UTC)
+	timeNow := func() time.Time { return now }
+
+	tests := []struct {
+		name           string
+		initProjects   []*typesv1.ProjectsConfig_Project
+		createInProject string
+		dashboardName  string
+		dashboardSlug  string
+		verifyProjects map[string]int // project name -> expected dashboard count
+	}{
+		{
+			name: "dashboard created in one project does not leak to others",
+			initProjects: []*typesv1.ProjectsConfig_Project{
+				projectConfig("project-a", localProjectPointer("project-a-dir", "dashboards", "alerts", false)),
+				projectConfig("project-b", localProjectPointer("project-b-dir", "dashboards", "alerts", false)),
+			},
+			createInProject: "project-a",
+			dashboardName:   "Project A Dashboard",
+			dashboardSlug:   "dashboard-a",
+			verifyProjects: map[string]int{
+				"project-a": 1,
+				"project-b": 0,
+			},
+		},
+		{
+			name: "dashboard created in second project does not leak to first",
+			initProjects: []*typesv1.ProjectsConfig_Project{
+				projectConfig("project-x", localProjectPointer("project-x-dir", "dashboards", "alerts", false)),
+				projectConfig("project-y", localProjectPointer("project-y-dir", "dashboards", "alerts", false)),
+			},
+			createInProject: "project-y",
+			dashboardName:   "Project Y Dashboard",
+			dashboardSlug:   "dashboard-y",
+			verifyProjects: map[string]int{
+				"project-x": 0,
+				"project-y": 1,
+			},
+		},
+		{
+			name: "dashboard isolation with three projects",
+			initProjects: []*typesv1.ProjectsConfig_Project{
+				projectConfig("alpha", localProjectPointer("alpha-dir", "dashboards", "alerts", false)),
+				projectConfig("beta", localProjectPointer("beta-dir", "dashboards", "alerts", false)),
+				projectConfig("gamma", localProjectPointer("gamma-dir", "dashboards", "alerts", false)),
+			},
+			createInProject: "beta",
+			dashboardName:   "Beta Dashboard",
+			dashboardSlug:   "beta-dash",
+			verifyProjects: map[string]int{
+				"alpha": 0,
+				"beta":  1,
+				"gamma": 0,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			fs := memfs.New()
+
+			// Create project directories
+			for _, proj := range tt.initProjects {
+				ptr := proj.Pointer.GetLocalhost()
+				require.NoError(t, fs.MkdirAll(filepath.Join(ptr.Path, ptr.DashboardDir), 0755))
+				require.NoError(t, fs.MkdirAll(filepath.Join(ptr.Path, ptr.AlertDir), 0755))
+			}
+
+			cfg := &typesv1.ProjectsConfig{
+				Projects: tt.initProjects,
+			}
+
+			db := newWatch(ctx, t, cfg, fs, timeNow)
+
+			// Create a dashboard in the specified project
+			_, err := db.CreateDashboard(ctx, &dashboardv1.CreateDashboardRequest{
+				ProjectName: tt.createInProject,
+				Spec: &typesv1.DashboardSpec{
+					Name: tt.dashboardName,
+					PersesJson: []byte(fmt.Sprintf(`{
+						"kind": "Dashboard",
+						"metadata": {
+							"project": "%s",
+							"name": "%s"
+						},
+						"spec": {
+							"display": {
+								"name": "%s"
+							},
+							"panels": {},
+							"layouts": [],
+							"duration": "0s"
+						}
+					}`, tt.createInProject, tt.dashboardSlug, tt.dashboardName)),
+				},
+			})
+			require.NoError(t, err)
+
+			// Verify dashboard counts in all projects
+			for projectName, expectedCount := range tt.verifyProjects {
+				resp, err := db.GetProject(ctx, &projectv1.GetProjectRequest{Name: projectName})
+				require.NoError(t, err)
+				require.Len(t, resp.Dashboards, expectedCount,
+					"project %q should have exactly %d dashboards", projectName, expectedCount)
+
+				if expectedCount == 1 {
+					require.Equal(t, tt.dashboardName, resp.Dashboards[0].Spec.Name)
+				}
+			}
+
+			// Verify file was only created in the correct project directory
+			for _, proj := range tt.initProjects {
+				ptr := proj.Pointer.GetLocalhost()
+				dashPath := filepath.Join(ptr.Path, ptr.DashboardDir, tt.dashboardSlug+".yaml")
+				exists, err := fileExists(fs, dashPath)
+				require.NoError(t, err)
+
+				if proj.Name == tt.createInProject {
+					require.True(t, exists, "dashboard file should exist in %s", proj.Name)
+				} else {
+					require.False(t, exists, "dashboard file should NOT exist in %s", proj.Name)
+				}
+			}
+		})
+	}
+}
+
+func TestProjectDirectoryConflictWarnings(t *testing.T) {
+	now := time.Date(2025, 10, 21, 10, 56, 42, 123456, time.UTC)
+	timeNow := func() time.Time { return now }
+
+	tests := []struct {
+		name             string
+		initProjects     []*typesv1.ProjectsConfig_Project
+		checkProject     string
+		expectWarnings   int
+		warningContains  []string
+	}{
+		{
+			name: "no warnings when projects have separate directories",
+			initProjects: []*typesv1.ProjectsConfig_Project{
+				projectConfig("project-a", localProjectPointer("project-a-dir", "dashboards", "alerts", false)),
+				projectConfig("project-b", localProjectPointer("project-b-dir", "dashboards", "alerts", false)),
+			},
+			checkProject:   "project-a",
+			expectWarnings: 0,
+		},
+		{
+			name: "warning when projects share dashboard directory",
+			initProjects: []*typesv1.ProjectsConfig_Project{
+				projectConfig("project-a", localProjectPointer("shared", "dashboards", "alerts-a", false)),
+				projectConfig("project-b", localProjectPointer("shared", "dashboards", "alerts-b", false)),
+			},
+			checkProject:    "project-a",
+			expectWarnings:  1,
+			warningContains: []string{"project-b", "dashboard directory", "shared/dashboards"},
+		},
+		{
+			name: "warning when projects share alert directory",
+			initProjects: []*typesv1.ProjectsConfig_Project{
+				projectConfig("project-x", localProjectPointer("shared", "dashboards-x", "alerts", false)),
+				projectConfig("project-y", localProjectPointer("shared", "dashboards-y", "alerts", false)),
+			},
+			checkProject:    "project-x",
+			expectWarnings:  1,
+			warningContains: []string{"project-y", "alert directory", "shared/alerts"},
+		},
+		{
+			name: "multiple warnings when projects share both directories",
+			initProjects: []*typesv1.ProjectsConfig_Project{
+				projectConfig("proj-1", localProjectPointer("shared", "dashboards", "alerts", false)),
+				projectConfig("proj-2", localProjectPointer("shared", "dashboards", "alerts", false)),
+			},
+			checkProject:    "proj-1",
+			expectWarnings:  2,
+			warningContains: []string{"proj-2", "dashboard directory", "alert directory"},
+		},
+		{
+			name: "warnings for multiple conflicting projects",
+			initProjects: []*typesv1.ProjectsConfig_Project{
+				projectConfig("main", localProjectPointer("dir", "dashboards", "alerts", false)),
+				projectConfig("clone-1", localProjectPointer("dir", "dashboards", "alerts", false)),
+				projectConfig("clone-2", localProjectPointer("dir", "dashboards", "alerts", false)),
+			},
+			checkProject:    "main",
+			expectWarnings:  4, // 2 warnings per conflicting project (dashboard + alert)
+			warningContains: []string{"clone-1", "clone-2"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			fs := memfs.New()
+
+			// Create project directories
+			for _, proj := range tt.initProjects {
+				ptr := proj.Pointer.GetLocalhost()
+				require.NoError(t, fs.MkdirAll(filepath.Join(ptr.Path, ptr.DashboardDir), 0755))
+				require.NoError(t, fs.MkdirAll(filepath.Join(ptr.Path, ptr.AlertDir), 0755))
+			}
+
+			cfg := &typesv1.ProjectsConfig{
+				Projects: tt.initProjects,
+			}
+
+			db := newWatch(ctx, t, cfg, fs, timeNow)
+
+			// Get the project to check warnings
+			resp, err := db.GetProject(ctx, &projectv1.GetProjectRequest{Name: tt.checkProject})
+			require.NoError(t, err)
+			require.NotNil(t, resp.Project)
+
+			// Verify warning count
+			require.Len(t, resp.Project.Status.Warnings, tt.expectWarnings,
+				"expected %d warnings but got %d: %v", tt.expectWarnings, len(resp.Project.Status.Warnings), resp.Project.Status.Warnings)
+
+			// Verify warning content
+			if len(tt.warningContains) > 0 {
+				allWarnings := strings.Join(resp.Project.Status.Warnings, " ")
+				for _, expectedSubstr := range tt.warningContains {
+					require.Contains(t, allWarnings, expectedSubstr,
+						"warning should contain %q", expectedSubstr)
+				}
+			}
+		})
+	}
 }
 
 func TestDashboardSlugValidation(t *testing.T) {
