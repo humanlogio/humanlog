@@ -648,6 +648,16 @@ func (wt *watch) lockedWithAlertByName(ctx context.Context, projectName, groupNa
 	})
 }
 
+// sharedDashboardDirWarning returns a warning message for projects sharing the same dashboard directory
+func sharedDashboardDirWarning(otherProjectName, dirPath string) string {
+	return fmt.Sprintf("Project %q shares the same dashboard directory (%s). Changes in one project will affect the other.", otherProjectName, dirPath)
+}
+
+// sharedAlertDirWarning returns a warning message for projects sharing the same alert directory
+func sharedAlertDirWarning(otherProjectName, dirPath string) string {
+	return fmt.Sprintf("Project %q shares the same alert directory (%s). Changes in one project will affect the other.", otherProjectName, dirPath)
+}
+
 // addDirectoryConflictWarnings checks if this project shares directories with other projects
 // and adds warnings to the project status if conflicts are found
 func (wt *watch) addDirectoryConflictWarnings(project *typesv1.Project, currentPtr *typesv1.ProjectsConfig_Project) {
@@ -681,14 +691,14 @@ func (wt *watch) addDirectoryConflictWarnings(project *typesv1.Project, currentP
 		currentDashDir := filepath.Join(localhost.Path, localhost.DashboardDir)
 		otherDashDir := filepath.Join(otherLocalhost.Path, otherLocalhost.DashboardDir)
 		if currentDashDir == otherDashDir {
-			conflicts = append(conflicts, fmt.Sprintf("Project %q shares the same dashboard directory (%s). Changes in one project will affect the other.", otherProj.Name, currentDashDir))
+			conflicts = append(conflicts, sharedDashboardDirWarning(otherProj.Name, currentDashDir))
 		}
 
 		// Check if alert directories match
 		currentAlertDir := filepath.Join(localhost.Path, localhost.AlertDir)
 		otherAlertDir := filepath.Join(otherLocalhost.Path, otherLocalhost.AlertDir)
 		if currentAlertDir == otherAlertDir {
-			conflicts = append(conflicts, fmt.Sprintf("Project %q shares the same alert directory (%s). Changes in one project will affect the other.", otherProj.Name, currentAlertDir))
+			conflicts = append(conflicts, sharedAlertDirWarning(otherProj.Name, currentAlertDir))
 		}
 	}
 
