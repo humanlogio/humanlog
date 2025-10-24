@@ -2069,7 +2069,7 @@ func TestProjectDirectoryConflictWarnings(t *testing.T) {
 			},
 			checkProject:    "project-a",
 			expectWarnings:  1,
-			warningContains: []string{"project-b", "dashboard directory", "shared/dashboards"},
+			warningContains: []string{sharedDashboardDirWarning("project-b", filepath.Join("shared", "dashboards"))},
 		},
 		{
 			name: "warning when projects share alert directory",
@@ -2079,7 +2079,7 @@ func TestProjectDirectoryConflictWarnings(t *testing.T) {
 			},
 			checkProject:    "project-x",
 			expectWarnings:  1,
-			warningContains: []string{"project-y", "alert directory", "shared/alerts"},
+			warningContains: []string{sharedAlertDirWarning("project-y", filepath.Join("shared", "alerts"))},
 		},
 		{
 			name: "multiple warnings when projects share both directories",
@@ -2087,9 +2087,12 @@ func TestProjectDirectoryConflictWarnings(t *testing.T) {
 				projectConfig("proj-1", localProjectPointer("shared", "dashboards", "alerts", false)),
 				projectConfig("proj-2", localProjectPointer("shared", "dashboards", "alerts", false)),
 			},
-			checkProject:    "proj-1",
-			expectWarnings:  2,
-			warningContains: []string{"proj-2", "dashboard directory", "alert directory"},
+			checkProject:   "proj-1",
+			expectWarnings: 2,
+			warningContains: []string{
+				sharedDashboardDirWarning("proj-2", filepath.Join("shared", "dashboards")),
+				sharedAlertDirWarning("proj-2", filepath.Join("shared", "alerts")),
+			},
 		},
 		{
 			name: "warnings for multiple conflicting projects",
@@ -2098,9 +2101,14 @@ func TestProjectDirectoryConflictWarnings(t *testing.T) {
 				projectConfig("clone-1", localProjectPointer("dir", "dashboards", "alerts", false)),
 				projectConfig("clone-2", localProjectPointer("dir", "dashboards", "alerts", false)),
 			},
-			checkProject:    "main",
-			expectWarnings:  4, // 2 warnings per conflicting project (dashboard + alert)
-			warningContains: []string{"clone-1", "clone-2"},
+			checkProject:   "main",
+			expectWarnings: 4, // 2 warnings per conflicting project (dashboard + alert)
+			warningContains: []string{
+				sharedDashboardDirWarning("clone-1", filepath.Join("dir", "dashboards")),
+				sharedAlertDirWarning("clone-1", filepath.Join("dir", "alerts")),
+				sharedDashboardDirWarning("clone-2", filepath.Join("dir", "dashboards")),
+				sharedAlertDirWarning("clone-2", filepath.Join("dir", "alerts")),
+			},
 		},
 	}
 
