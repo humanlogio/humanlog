@@ -2,6 +2,7 @@ package localproject
 
 import (
 	"context"
+	"encoding/json"
 	"net/url"
 	"slices"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	typesv1 "github.com/humanlogio/api/go/types/v1"
 	"github.com/humanlogio/humanlog/internal/localstate"
 	"github.com/humanlogio/humanlog/internal/pkg/config"
+	persesv1 "github.com/perses/perses/pkg/model/api/v1"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -47,6 +49,17 @@ spec:
     display:
         name: "my dashboard"
         description: "it's a nice dashboard"`)
+	}
+	mkExpectedPersesJSON := func() []byte {
+		dash := &persesv1.Dashboard{}
+		if err := dash.UnmarshalJSON(mkDashboardDataJSON()); err != nil {
+			t.Fatalf("failed to unmarshal dashboard: %v", err)
+		}
+		data, err := json.Marshal(dash)
+		if err != nil {
+			t.Fatalf("failed to marshal dashboard: %v", err)
+		}
+		return data
 	}
 	mkAlertGroupData := func() []byte {
 		return []byte(alertGroupYAML)
@@ -167,7 +180,7 @@ spec:
 									"my dashboard",
 									"it's a nice dashboard",
 									true,
-									mkDashboardDataJSON(),
+									mkExpectedPersesJSON(),
 									"project1dir/dashdir/dash1.json",
 									now, now,
 								),
@@ -176,7 +189,7 @@ spec:
 									"my dashboard",
 									"it's a nice dashboard",
 									true,
-									mkDashboardDataYAML(),
+									mkExpectedPersesJSON(),
 									"project1dir/dashdir/dash2.yaml",
 									now,
 									now,
@@ -186,7 +199,7 @@ spec:
 									"my dashboard",
 									"it's a nice dashboard",
 									true,
-									mkDashboardDataYAML(),
+									mkExpectedPersesJSON(),
 									"project1dir/dashdir/dash3.yml",
 									now,
 									now,
@@ -281,7 +294,7 @@ spec:
 							"my dashboard",
 							"it's a nice dashboard",
 							true,
-							mkDashboardDataJSON(),
+							mkExpectedPersesJSON(),
 							"project1dir/dashdir/dash1.json",
 							now,
 							now,
@@ -315,7 +328,7 @@ spec:
 							"my dashboard",
 							"it's a nice dashboard",
 							true,
-							mkDashboardDataJSON(),
+							mkExpectedPersesJSON(),
 							"project1dir/dashdir/dash1.json",
 							now,
 							now,
@@ -337,10 +350,10 @@ spec:
 		{
 			name: "partial results with corrupt files",
 			fs: fstest.MapFS{
-				"project1dir/dashdir/good1.json":  &fstest.MapFile{Data: mkDashboardDataJSON()},
-				"project1dir/dashdir/corrupt.yaml": &fstest.MapFile{Data: []byte("this is not valid yaml: [[[")},
-				"project1dir/dashdir/good2.yaml":  &fstest.MapFile{Data: mkDashboardDataYAML()},
-				"project1dir/alertdir/good-alert.yaml": &fstest.MapFile{Data: mkAlertGroupData()},
+				"project1dir/dashdir/good1.json":         &fstest.MapFile{Data: mkDashboardDataJSON()},
+				"project1dir/dashdir/corrupt.yaml":       &fstest.MapFile{Data: []byte("this is not valid yaml: [[[")},
+				"project1dir/dashdir/good2.yaml":         &fstest.MapFile{Data: mkDashboardDataYAML()},
+				"project1dir/alertdir/good-alert.yaml":   &fstest.MapFile{Data: mkAlertGroupData()},
 				"project1dir/alertdir/corrupt-alert.yml": &fstest.MapFile{Data: []byte("invalid: {{{")},
 			},
 			cfg: &typesv1.ProjectsConfig{

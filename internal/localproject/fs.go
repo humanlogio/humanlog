@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -586,7 +587,12 @@ func parseProjectDashboard(ctx context.Context, ffs billy.Filesystem, projectNam
 		out.Meta.Id = dashboardID(projectName, in.Metadata.Project, in.Metadata.Name)
 
 		out.Spec.Name = in.Metadata.Name
-		out.Spec.PersesJson = data
+		// Always store as JSON, even if source file is YAML
+		jsonData, err := json.Marshal(in)
+		if err != nil {
+			return nil, fmt.Errorf("marshaling dashboard to JSON: %w", err)
+		}
+		out.Spec.PersesJson = jsonData
 		if in.Spec.Display != nil {
 			out.Spec.Name = in.Spec.Display.Name
 			out.Spec.Description = in.Spec.Display.Description

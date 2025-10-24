@@ -16,6 +16,7 @@ import (
 	typesv1 "github.com/humanlogio/api/go/types/v1"
 	"github.com/humanlogio/humanlog/internal/localstate"
 	"github.com/humanlogio/humanlog/internal/pkg/config"
+	persesv1 "github.com/perses/perses/pkg/model/api/v1"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -1538,6 +1539,143 @@ spec:
 						path:        "project1/dashboards/test-dashboard.yaml",
 						shouldExist: true,
 						contains:    []string{"# humanlog.is_readonly: true", "Final Content"},
+					},
+				},
+			},
+		},
+		{
+			name: "persesJson is always JSON regardless of file format",
+			initProject: projectConfig("test-project",
+				localProjectPointer("project1", "dashboards", "alerts", false),
+			),
+			initFS: fsState{
+				"project1/dashboards/yaml-dashboard.yaml": []byte(`# managed-by: humanlog
+kind: Dashboard
+metadata:
+  name: yaml-dashboard
+  project: test-project
+  createdAt: 0001-01-01T00:00:00Z
+  updatedAt: 0001-01-01T00:00:00Z
+  version: 0
+spec:
+  display:
+    name: YAML Dashboard
+    description: This dashboard is stored as YAML
+  datasources:
+    prometheus:
+      default: true
+      plugin:
+        kind: PrometheusDatasource
+        spec:
+          directUrl: http://localhost:9090
+  panels: {}
+  layouts:
+    - kind: Grid
+      spec:
+        display:
+          title: Test Section
+          collapse:
+            open: true
+        items: []
+  duration: 1h
+  refreshInterval: 30s
+`),
+				"project1/dashboards/json-dashboard.json": []byte(`{
+  "kind": "Dashboard",
+  "metadata": {
+    "name": "json-dashboard",
+    "project": "test-project",
+    "createdAt": "0001-01-01T00:00:00Z",
+    "updatedAt": "0001-01-01T00:00:00Z",
+    "version": 0
+  },
+  "spec": {
+    "display": {
+      "name": "JSON Dashboard",
+      "description": "This dashboard is stored as JSON"
+    },
+    "datasources": {
+      "prometheus": {
+        "default": true,
+        "plugin": {
+          "kind": "PrometheusDatasource",
+          "spec": {
+            "directUrl": "http://localhost:9090"
+          }
+        }
+      }
+    },
+    "panels": {},
+    "layouts": [
+      {
+        "kind": "Grid",
+        "spec": {
+          "display": {
+            "title": "Test Section",
+            "collapse": {
+              "open": true
+            }
+          },
+          "items": []
+        }
+      }
+    ],
+    "duration": "1h",
+    "refreshInterval": "30s"
+  }
+}`),
+			},
+			transitions: []transition{
+				{
+					name: "YAML file persesJson field contains valid JSON",
+					operation: func(ctx context.Context, t *testing.T, db localstate.DB, fs billy.Filesystem) error {
+						resp, err := db.GetDashboard(ctx, &dashboardv1.GetDashboardRequest{
+							ProjectName: "test-project",
+							Id:          dashboardID("test-project", "test-project", "yaml-dashboard"),
+						})
+						require.NoError(t, err)
+						require.NotNil(t, resp.Dashboard)
+
+						// Verify persesJson is valid JSON (not YAML)
+						persesJSON := resp.Dashboard.Spec.PersesJson
+						require.NotEmpty(t, persesJSON, "persesJson should not be empty")
+
+						var persesDash persesv1.Dashboard
+						err = persesDash.UnmarshalJSON(persesJSON)
+						require.NoError(t, err, "persesJson must be valid JSON even when source file is YAML")
+
+						// Verify content is correct
+						require.Equal(t, "yaml-dashboard", persesDash.Metadata.Name)
+						require.Equal(t, "YAML Dashboard", persesDash.Spec.Display.Name)
+						require.Equal(t, "This dashboard is stored as YAML", persesDash.Spec.Display.Description)
+
+						return nil
+					},
+				},
+				{
+					name: "JSON file persesJson field contains valid JSON",
+					operation: func(ctx context.Context, t *testing.T, db localstate.DB, fs billy.Filesystem) error {
+						resp, err := db.GetDashboard(ctx, &dashboardv1.GetDashboardRequest{
+							ProjectName: "test-project",
+							Id:          dashboardID("test-project", "test-project", "json-dashboard"),
+						})
+						require.NoError(t, err)
+						require.NotNil(t, resp.Dashboard)
+
+						// Verify persesJson is valid JSON
+						persesJSON := resp.Dashboard.Spec.PersesJson
+						require.NotEmpty(t, persesJSON, "persesJson should not be empty")
+
+						var persesDash persesv1.Dashboard
+						err = persesDash.UnmarshalJSON(persesJSON)
+						require.NoError(t, err, "persesJson must be valid JSON")
+
+						// Verify content is correct
+						require.Equal(t, "json-dashboard", persesDash.Metadata.Name)
+						require.Equal(t, "JSON Dashboard", persesDash.Spec.Display.Name)
+						require.Equal(t, "This dashboard is stored as JSON", persesDash.Spec.Display.Description)
+
+						return nil
 					},
 				},
 			},
