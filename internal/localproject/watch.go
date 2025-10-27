@@ -205,6 +205,8 @@ func (wt *watch) CreateProject(ctx context.Context, req *projectv1.CreateProject
 		}
 		return storage.getProject(ctx, ptr.Name, ptr.Pointer, func(p *typesv1.Project) error {
 			out = p
+			// Enrich project with all warnings
+			wt.enrichProjectWithWarnings(p, ptr)
 			return nil
 		})
 	})
@@ -233,7 +235,14 @@ func (wt *watch) UpdateProject(ctx context.Context, req *projectv1.UpdateProject
 			return err
 		}
 		projects := wt.cfg.GetRuntime().GetExperimentalFeatures().GetProjects()
-		if err := wt.validateProjectPointer(ctx, projects.Projects, candidate.Name, candidate, storage); err != nil {
+		// Filter out the project being updated to avoid false conflicts when keeping the same name
+		otherProjects := make([]*typesv1.ProjectsConfig_Project, 0, len(projects.Projects)-1)
+		for _, p := range projects.Projects {
+			if p.Name != req.Name { // req.Name is the OLD name
+				otherProjects = append(otherProjects, p)
+			}
+		}
+		if err := wt.validateProjectPointer(ctx, otherProjects, candidate.Name, candidate, storage); err != nil {
 			return err
 		}
 		wt.cfg.GetRuntime().GetExperimentalFeatures().Projects = projects
@@ -255,6 +264,8 @@ func (wt *watch) UpdateProject(ctx context.Context, req *projectv1.UpdateProject
 		}
 		return storage.getProject(ctx, ptr.Name, ptr.Pointer, func(p *typesv1.Project) error {
 			out = p
+			// Enrich project with all warnings
+			wt.enrichProjectWithWarnings(p, ptr)
 			return nil
 		})
 	})
@@ -299,8 +310,8 @@ func (wt *watch) GetProject(ctx context.Context, req *projectv1.GetProjectReques
 			dashboards = d
 			alertGroups = ag
 
-			// Check for directory conflicts with other projects
-			wt.addDirectoryConflictWarnings(p, ptr)
+			// Enrich project with all warnings
+			wt.enrichProjectWithWarnings(p, ptr)
 
 			return nil
 		})
@@ -348,6 +359,8 @@ func (wt *watch) ListProject(ctx context.Context, req *projectv1.ListProjectRequ
 					return err
 				}
 				return storage.getProject(ctx, sp.Name, sp.Pointer, func(p *typesv1.Project) error {
+					// Enrich project with all warnings
+					wt.enrichProjectWithWarnings(p, sp)
 					out = append(out, &projectv1.ListProjectResponse_ListItem{Project: p})
 					return nil
 				})
@@ -705,6 +718,13 @@ func sharedDashboardDirWarning(otherProjectName, dirPath string) string {
 // sharedAlertDirWarning returns a warning message for projects sharing the same alert directory
 func sharedAlertDirWarning(otherProjectName, dirPath string) string {
 	return fmt.Sprintf("Project %q shares the same alert directory (%s). Changes in one project will affect the other.", otherProjectName, dirPath)
+}
+
+// enrichProjectWithWarnings populates all warnings for a project
+// This should be called whenever returning a project to ensure warnings are up-to-date
+func (wt *watch) enrichProjectWithWarnings(project *typesv1.Project, ptr *typesv1.ProjectsConfig_Project) {
+	wt.addDirectoryConflictWarnings(project, ptr)
+	// Future warning checks can be added here
 }
 
 // addDirectoryConflictWarnings checks if this project shares directories with other projects

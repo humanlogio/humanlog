@@ -2045,18 +2045,26 @@ func TestProjectDirectoryConflictWarnings(t *testing.T) {
 	now := time.Date(2025, 10, 21, 10, 56, 42, 123456, time.UTC)
 	timeNow := func() time.Time { return now }
 
+	type operation string
+	const (
+		opGet    operation = "GetProject"
+		opCreate operation = "CreateProject"
+		opUpdate operation = "UpdateProject"
+		opList   operation = "ListProject"
+	)
+
 	tests := []struct {
-		name             string
-		initProjects     []*typesv1.ProjectsConfig_Project
-		checkProject     string
-		expectWarnings   int
-		warningContains  []string
+		name            string
+		initProjects    []*typesv1.ProjectsConfig_Project
+		checkProject    string
+		expectWarnings  int
+		warningContains []string
 	}{
 		{
 			name: "no warnings when projects have separate directories",
 			initProjects: []*typesv1.ProjectsConfig_Project{
-				projectConfig("project-a", localProjectPointer("project-a-dir", "dashboards", "alerts", false)),
-				projectConfig("project-b", localProjectPointer("project-b-dir", "dashboards", "alerts", false)),
+				projectConfig("project-a", localProjectPointer("/project-a-dir", "dashboards", "alerts", false)),
+				projectConfig("project-b", localProjectPointer("/project-b-dir", "dashboards", "alerts", false)),
 			},
 			checkProject:   "project-a",
 			expectWarnings: 0,
@@ -2064,90 +2072,171 @@ func TestProjectDirectoryConflictWarnings(t *testing.T) {
 		{
 			name: "warning when projects share dashboard directory",
 			initProjects: []*typesv1.ProjectsConfig_Project{
-				projectConfig("project-a", localProjectPointer("shared", "dashboards", "alerts-a", false)),
-				projectConfig("project-b", localProjectPointer("shared", "dashboards", "alerts-b", false)),
+				projectConfig("project-a", localProjectPointer("/shared", "dashboards", "alerts-a", false)),
+				projectConfig("project-b", localProjectPointer("/shared", "dashboards", "alerts-b", false)),
 			},
 			checkProject:    "project-a",
 			expectWarnings:  1,
-			warningContains: []string{sharedDashboardDirWarning("project-b", filepath.Join("shared", "dashboards"))},
+			warningContains: []string{sharedDashboardDirWarning("project-b", filepath.Join("/shared", "dashboards"))},
 		},
 		{
 			name: "warning when projects share alert directory",
 			initProjects: []*typesv1.ProjectsConfig_Project{
-				projectConfig("project-x", localProjectPointer("shared", "dashboards-x", "alerts", false)),
-				projectConfig("project-y", localProjectPointer("shared", "dashboards-y", "alerts", false)),
+				projectConfig("project-x", localProjectPointer("/shared", "dashboards-x", "alerts", false)),
+				projectConfig("project-y", localProjectPointer("/shared", "dashboards-y", "alerts", false)),
 			},
 			checkProject:    "project-x",
 			expectWarnings:  1,
-			warningContains: []string{sharedAlertDirWarning("project-y", filepath.Join("shared", "alerts"))},
+			warningContains: []string{sharedAlertDirWarning("project-y", filepath.Join("/shared", "alerts"))},
 		},
 		{
 			name: "multiple warnings when projects share both directories",
 			initProjects: []*typesv1.ProjectsConfig_Project{
-				projectConfig("proj-1", localProjectPointer("shared", "dashboards", "alerts", false)),
-				projectConfig("proj-2", localProjectPointer("shared", "dashboards", "alerts", false)),
+				projectConfig("proj-1", localProjectPointer("/shared", "dashboards", "alerts", false)),
+				projectConfig("proj-2", localProjectPointer("/shared", "dashboards", "alerts", false)),
 			},
 			checkProject:   "proj-1",
 			expectWarnings: 2,
 			warningContains: []string{
-				sharedDashboardDirWarning("proj-2", filepath.Join("shared", "dashboards")),
-				sharedAlertDirWarning("proj-2", filepath.Join("shared", "alerts")),
+				sharedDashboardDirWarning("proj-2", filepath.Join("/shared", "dashboards")),
+				sharedAlertDirWarning("proj-2", filepath.Join("/shared", "alerts")),
 			},
 		},
 		{
 			name: "warnings for multiple conflicting projects",
 			initProjects: []*typesv1.ProjectsConfig_Project{
-				projectConfig("main", localProjectPointer("dir", "dashboards", "alerts", false)),
-				projectConfig("clone-1", localProjectPointer("dir", "dashboards", "alerts", false)),
-				projectConfig("clone-2", localProjectPointer("dir", "dashboards", "alerts", false)),
+				projectConfig("main", localProjectPointer("/dir", "dashboards", "alerts", false)),
+				projectConfig("clone-1", localProjectPointer("/dir", "dashboards", "alerts", false)),
+				projectConfig("clone-2", localProjectPointer("/dir", "dashboards", "alerts", false)),
 			},
 			checkProject:   "main",
 			expectWarnings: 4, // 2 warnings per conflicting project (dashboard + alert)
 			warningContains: []string{
-				sharedDashboardDirWarning("clone-1", filepath.Join("dir", "dashboards")),
-				sharedAlertDirWarning("clone-1", filepath.Join("dir", "alerts")),
-				sharedDashboardDirWarning("clone-2", filepath.Join("dir", "dashboards")),
-				sharedAlertDirWarning("clone-2", filepath.Join("dir", "alerts")),
+				sharedDashboardDirWarning("clone-1", filepath.Join("/dir", "dashboards")),
+				sharedAlertDirWarning("clone-1", filepath.Join("/dir", "alerts")),
+				sharedDashboardDirWarning("clone-2", filepath.Join("/dir", "dashboards")),
+				sharedAlertDirWarning("clone-2", filepath.Join("/dir", "alerts")),
 			},
 		},
 	}
 
+	operations := []operation{opGet, opCreate, opUpdate, opList}
+
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.Background()
-			fs := memfs.New()
+		for _, op := range operations {
+			testName := fmt.Sprintf("%s/%s", tt.name, op)
+			t.Run(testName, func(t *testing.T) {
+				ctx := context.Background()
+				fs := memfs.New()
 
-			// Create project directories
-			for _, proj := range tt.initProjects {
-				ptr := proj.Pointer.GetLocalhost()
-				require.NoError(t, fs.MkdirAll(filepath.Join(ptr.Path, ptr.DashboardDir), 0755))
-				require.NoError(t, fs.MkdirAll(filepath.Join(ptr.Path, ptr.AlertDir), 0755))
-			}
-
-			cfg := &typesv1.ProjectsConfig{
-				Projects: tt.initProjects,
-			}
-
-			db := newWatch(ctx, t, cfg, fs, timeNow)
-
-			// Get the project to check warnings
-			resp, err := db.GetProject(ctx, &projectv1.GetProjectRequest{Name: tt.checkProject})
-			require.NoError(t, err)
-			require.NotNil(t, resp.Project)
-
-			// Verify warning count
-			require.Len(t, resp.Project.Status.Warnings, tt.expectWarnings,
-				"expected %d warnings but got %d: %v", tt.expectWarnings, len(resp.Project.Status.Warnings), resp.Project.Status.Warnings)
-
-			// Verify warning content
-			if len(tt.warningContains) > 0 {
-				allWarnings := strings.Join(resp.Project.Status.Warnings, " ")
-				for _, expectedSubstr := range tt.warningContains {
-					require.Contains(t, allWarnings, expectedSubstr,
-						"warning should contain %q", expectedSubstr)
+				// For CreateProject, we need one less project in the initial config
+				initProjects := tt.initProjects
+				if op == opCreate {
+					// Find the project we're going to create and exclude it from init
+					var filtered []*typesv1.ProjectsConfig_Project
+					for _, proj := range tt.initProjects {
+						if proj.Name != tt.checkProject {
+							filtered = append(filtered, proj)
+						}
+					}
+					initProjects = filtered
 				}
-			}
-		})
+
+				// Create project directories
+				for _, proj := range tt.initProjects {
+					ptr := proj.Pointer.GetLocalhost()
+					require.NoError(t, fs.MkdirAll(filepath.Join(ptr.Path, ptr.DashboardDir), 0755))
+					require.NoError(t, fs.MkdirAll(filepath.Join(ptr.Path, ptr.AlertDir), 0755))
+				}
+
+				cfg := &typesv1.ProjectsConfig{
+					Projects: initProjects,
+				}
+
+				db := newWatch(ctx, t, cfg, fs, timeNow)
+
+				var project *typesv1.Project
+
+				switch op {
+				case opGet:
+					resp, err := db.GetProject(ctx, &projectv1.GetProjectRequest{Name: tt.checkProject})
+					require.NoError(t, err)
+					require.NotNil(t, resp.Project)
+					project = resp.Project
+
+				case opCreate:
+					// Find the project spec we're creating
+					var projectToCreate *typesv1.ProjectsConfig_Project
+					for _, proj := range tt.initProjects {
+						if proj.Name == tt.checkProject {
+							projectToCreate = proj
+							break
+						}
+					}
+					require.NotNil(t, projectToCreate, "test case must include the project being created")
+
+					resp, err := db.CreateProject(ctx, &projectv1.CreateProjectRequest{
+						Spec: &typesv1.ProjectSpec{
+							Name:    projectToCreate.Name,
+							Pointer: projectToCreate.Pointer,
+						},
+					})
+					require.NoError(t, err)
+					require.NotNil(t, resp.Project)
+					project = resp.Project
+
+				case opUpdate:
+					// Find the project spec to update
+					var projectToUpdate *typesv1.ProjectsConfig_Project
+					for _, proj := range tt.initProjects {
+						if proj.Name == tt.checkProject {
+							projectToUpdate = proj
+							break
+						}
+					}
+					require.NotNil(t, projectToUpdate, "test case must include the project being updated")
+
+					// Update the project (keeping same pointer to test warnings are populated)
+					resp, err := db.UpdateProject(ctx, &projectv1.UpdateProjectRequest{
+						Name: tt.checkProject,
+						Spec: &typesv1.ProjectSpec{
+							Name:    projectToUpdate.Name,
+							Pointer: projectToUpdate.Pointer,
+						},
+					})
+					require.NoError(t, err)
+					require.NotNil(t, resp.Project)
+					project = resp.Project
+
+				case opList:
+					resp, err := db.ListProject(ctx, &projectv1.ListProjectRequest{})
+					require.NoError(t, err)
+					require.NotEmpty(t, resp.Items)
+
+					// Find the project we're checking
+					for _, item := range resp.Items {
+						if item.Project.Spec.Name == tt.checkProject {
+							project = item.Project
+							break
+						}
+					}
+					require.NotNil(t, project, "project %q not found in list", tt.checkProject)
+				}
+
+				// Verify warning count
+				require.Len(t, project.Status.Warnings, tt.expectWarnings,
+					"expected %d warnings but got %d: %v", tt.expectWarnings, len(project.Status.Warnings), project.Status.Warnings)
+
+				// Verify warning content
+				if len(tt.warningContains) > 0 {
+					allWarnings := strings.Join(project.Status.Warnings, " ")
+					for _, expectedSubstr := range tt.warningContains {
+						require.Contains(t, allWarnings, expectedSubstr,
+							"warning should contain %q", expectedSubstr)
+					}
+				}
+			})
+		}
 	}
 }
 
