@@ -93,6 +93,9 @@ func ToAlert(ar rulefmt.Rule, parser func(string) (*typesv1.Query, error)) (*typ
 }
 
 func mapToObj(m map[string]string) *typesv1.Obj {
+	if len(m) == 0 {
+		return nil
+	}
 	out := make([]*typesv1.KV, 0, len(m))
 	for k, v := range m {
 		out = append(out, typesv1.KeyVal(

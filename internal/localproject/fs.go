@@ -375,6 +375,336 @@ func (store *localGitStorage) deleteDashboard(ctx context.Context, projectName s
 	return onDeleted()
 }
 
+func (store *localGitStorage) createAlertGroup(ctx context.Context, projectName string, ptr *typesv1.ProjectPointer, alertGroup *typesv1.AlertGroup, onCreated CreateAlertGroupFn) error {
+	sch, ok := ptr.Scheme.(*typesv1.ProjectPointer_Localhost)
+	if !ok {
+		return errInvalid("local git can only operate with projectpointers for localhost, but got %T", ptr.Scheme)
+	}
+	lh := sch.Localhost
+	if lh.ReadOnly {
+		return errInvalid("cannot create alert group in readonly project")
+	}
+
+	groupName := alertGroup.Spec.Name
+	filename := groupName + ".yaml"
+	alertGroupPath := path.Join(lh.Path, lh.AlertDir)
+	fpath := path.Join(alertGroupPath, filename)
+
+	if _, err := store.fs.Stat(fpath); err == nil {
+		return errInvalid("an alert group already exists at path %q, use another name to avoid conflicts", fpath)
+	}
+
+	if err := store.fs.MkdirAll(alertGroupPath, 0755); err != nil {
+		return errInternal("creating alert directory: %v", err)
+	}
+
+	f, err := store.fs.Create(fpath)
+	if err != nil {
+		return errInternal("creating alert group file: %v", err)
+	}
+	success := false
+	defer func() {
+		if !success {
+			_ = f.Close()
+			_ = os.Remove(f.Name())
+		}
+	}()
+
+	// Convert to Prometheus format and marshal to YAML
+	ruleGroup := alertGroupToRulefmt(alertGroup.Spec)
+	groups := struct {
+		Groups []interface{} `yaml:"groups"`
+	}{
+		Groups: []interface{}{ruleGroup},
+	}
+
+	yamlData, err := yaml.Marshal(&groups)
+	if err != nil {
+		return errInternal("marshaling alert group to YAML: %v", err)
+	}
+
+	// Add humanlog metadata header
+	meta := &HumanlogMetadata{
+		IsReadonly: &alertGroup.Spec.IsReadonly,
+	}
+	headerData, err := encodeHeadComment(meta)
+	if err != nil {
+		return errInternal("encoding alert group metadata: %v", err)
+	}
+
+	fileData := append(headerData, yamlData...)
+	if _, err := f.Write(fileData); err != nil {
+		return errInternal("writing alert group data: %v", err)
+	}
+	if err := f.Close(); err != nil {
+		return errInternal("closing alert group file: %v", err)
+	}
+	success = true
+
+	// Parse back to get the created group with proper status
+	created, err := parseProjectAlertGroupFromFile(ctx, store.fs, alertGroupPath, filename, store.logQlParser)
+	if err != nil {
+		return errInternal("parsing created alert group: %v", err)
+	}
+
+	return onCreated(created)
+}
+
+func (store *localGitStorage) updateAlertGroup(ctx context.Context, projectName string, ptr *typesv1.ProjectPointer, groupName string, alertGroup *typesv1.AlertGroup, onUpdated UpdateAlertGroupFn) error {
+	sch, ok := ptr.Scheme.(*typesv1.ProjectPointer_Localhost)
+	if !ok {
+		return errInvalid("local git can only operate with projectpointers for localhost, but got %T", ptr.Scheme)
+	}
+	lh := sch.Localhost
+	if lh.ReadOnly {
+		return errInvalid("cannot update alert group in read-only project")
+	}
+
+	// Get existing alert group (without hydrating rule statuses)
+	items, err := parseProjectAlertGroups(ctx, store.fs, projectName, lh.Path, lh.AlertDir, store.logQlParser)
+	if err != nil {
+		return errInternal("parsing project alert groups: %v", err)
+	}
+
+	var existing *typesv1.AlertGroup
+	for _, ag := range items {
+		if ag.Spec.Name == groupName {
+			existing = ag
+			break
+		}
+	}
+	if existing == nil {
+		return errInvalid("alert group %q not found", groupName)
+	}
+
+	// Check if it's readonly
+	if existing.Spec.IsReadonly && !alertGroup.Spec.IsReadonly {
+		// Adopting a readonly group - this is allowed
+	} else if existing.Spec.IsReadonly {
+		return errInvalid("cannot update readonly alert group %q", groupName)
+	}
+
+	// Get the file path from existing status
+	var fpath string
+	switch origin := existing.Status.Origin.(type) {
+	case *typesv1.AlertGroupStatus_Managed:
+		fpath = origin.Managed.Path
+	case *typesv1.AlertGroupStatus_Discovered:
+		fpath = origin.Discovered.Path
+	case *typesv1.AlertGroupStatus_Generated:
+		return errInvalid("cannot update generated alert group %q", groupName)
+	default:
+		return errInvalid("alert group %q has no origin information", groupName)
+	}
+
+	// Convert to Prometheus format and marshal to YAML
+	ruleGroup := alertGroupToRulefmt(alertGroup.Spec)
+	groups := struct {
+		Groups []interface{} `yaml:"groups"`
+	}{
+		Groups: []interface{}{ruleGroup},
+	}
+
+	yamlData, err := yaml.Marshal(&groups)
+	if err != nil {
+		return errInternal("marshaling alert group to YAML: %v", err)
+	}
+
+	// Add humanlog metadata header
+	meta := &HumanlogMetadata{
+		IsReadonly: &alertGroup.Spec.IsReadonly,
+	}
+	headerData, err := encodeHeadComment(meta)
+	if err != nil {
+		return errInternal("encoding alert group metadata: %v", err)
+	}
+
+	f, err := store.fs.Create(fpath)
+	if err != nil {
+		return errInternal("opening alert group file for write: %v", err)
+	}
+	defer f.Close()
+
+	fileData := append(headerData, yamlData...)
+	if _, err := f.Write(fileData); err != nil {
+		return errInternal("writing alert group data: %v", err)
+	}
+
+	// Parse back to get the updated group with proper status
+	alertGroupPath := path.Dir(fpath)
+	filename := path.Base(fpath)
+	updated, err := parseProjectAlertGroupFromFile(ctx, store.fs, alertGroupPath, filename, store.logQlParser)
+	if err != nil {
+		return errInternal("parsing updated alert group: %v", err)
+	}
+
+	return onUpdated(updated)
+}
+
+func (store *localGitStorage) deleteAlertGroup(ctx context.Context, projectName string, ptr *typesv1.ProjectPointer, groupName string, onDeleted DeleteAlertGroupFn) error {
+	sch, ok := ptr.Scheme.(*typesv1.ProjectPointer_Localhost)
+	if !ok {
+		return errInvalid("local git can only operate with projectpointers for localhost, but got %T", ptr.Scheme)
+	}
+	lh := sch.Localhost
+	if lh.ReadOnly {
+		return errInvalid("cannot delete alert group in read-only project")
+	}
+
+	// Get existing alert group (without hydrating rule statuses)
+	items, err := parseProjectAlertGroups(ctx, store.fs, projectName, lh.Path, lh.AlertDir, store.logQlParser)
+	if err != nil {
+		return errInternal("parsing project alert groups: %v", err)
+	}
+
+	var existing *typesv1.AlertGroup
+	for _, ag := range items {
+		if ag.Spec.Name == groupName {
+			existing = ag
+			break
+		}
+	}
+	if existing == nil {
+		return errInvalid("alert group %q not found", groupName)
+	}
+
+	if existing.Status.Origin == nil {
+		return errInvalid("alert group %q has no origin information", groupName)
+	}
+	if _, ok := existing.Status.Origin.(*typesv1.AlertGroupStatus_Managed); !ok {
+		return errInvalid("cannot delete readonly alert group %q", groupName)
+	}
+
+	managedOrigin := existing.Status.Origin.(*typesv1.AlertGroupStatus_Managed)
+	fpath := managedOrigin.Managed.Path
+
+	if err := store.fs.Remove(fpath); err != nil {
+		return errInternal("deleting alert group file: %v", err)
+	}
+
+	return onDeleted()
+}
+
+// Helper function to convert AlertGroupSpec to Prometheus rulefmt format
+func alertGroupToRulefmt(spec *typesv1.AlertGroupSpec) map[string]interface{} {
+	group := map[string]interface{}{
+		"name":     spec.Name,
+		"interval": spec.Interval.AsDuration().String(),
+	}
+
+	if spec.QueryOffset != nil && spec.QueryOffset.AsDuration() > 0 {
+		group["query_offset"] = spec.QueryOffset.AsDuration().String()
+	}
+
+	if spec.Limit > 0 {
+		group["limit"] = spec.Limit
+	}
+
+	if spec.Labels != nil && len(spec.Labels.Kvs) > 0 {
+		labels := make(map[string]string)
+		for _, kv := range spec.Labels.Kvs {
+			if strVal, ok := kv.Value.Kind.(*typesv1.Val_Str); ok {
+				labels[kv.Key] = strVal.Str
+			}
+		}
+		// Only add labels if we have any
+		if len(labels) > 0 {
+			group["labels"] = labels
+		}
+	}
+	// Note: Do not add empty labels map to avoid YAML output like "labels: {}"
+
+	rules := make([]map[string]interface{}, 0, len(spec.Rules))
+	for _, namedRule := range spec.Rules {
+		rule := alertRuleToRulefmt(namedRule.Spec)
+		rules = append(rules, rule)
+	}
+	group["rules"] = rules
+
+	return group
+}
+
+// Helper function to extract expression string from Query (simplified for test compatibility)
+func queryToString(q *typesv1.Query) string {
+	if q == nil || q.Query == nil {
+		return ""
+	}
+	// Extract the expression string from the first statement
+	if len(q.Query.Statements) > 0 {
+		stmt := q.Query.Statements[0]
+		if filter, ok := stmt.Stmt.(*typesv1.Statement_Filter); ok && filter.Filter != nil && filter.Filter.Expr != nil {
+			// Try identifier first (used by test parseQuery)
+			if ident, ok := filter.Filter.Expr.Expr.(*typesv1.Expr_Identifier); ok && ident.Identifier != nil {
+				return ident.Identifier.Name
+			}
+			// Fall back to literal (for backward compatibility)
+			if lit, ok := filter.Filter.Expr.Expr.(*typesv1.Expr_Literal); ok && lit.Literal != nil {
+				if strVal, ok := lit.Literal.Kind.(*typesv1.Val_Str); ok {
+					return strVal.Str
+				}
+			}
+		}
+	}
+	return "unknown"
+}
+
+// Helper function to convert AlertRuleSpec to Prometheus rulefmt format
+func alertRuleToRulefmt(spec *typesv1.AlertRuleSpec) map[string]interface{} {
+	rule := map[string]interface{}{
+		"alert": spec.Name,
+		"expr":  queryToString(spec.Expr),
+	}
+
+	if spec.For != nil && spec.For.AsDuration() > 0 {
+		rule["for"] = spec.For.AsDuration().String()
+	}
+
+	if spec.KeepFiringFor != nil && spec.KeepFiringFor.AsDuration() > 0 {
+		rule["keep_firing_for"] = spec.KeepFiringFor.AsDuration().String()
+	}
+
+	if spec.Labels != nil && len(spec.Labels.Kvs) > 0 {
+		labels := make(map[string]string)
+		for _, kv := range spec.Labels.Kvs {
+			if strVal, ok := kv.Value.Kind.(*typesv1.Val_Str); ok {
+				labels[kv.Key] = strVal.Str
+			}
+		}
+		if len(labels) > 0 {
+			rule["labels"] = labels
+		}
+	}
+
+	if spec.Annotations != nil && len(spec.Annotations.Kvs) > 0 {
+		annotations := make(map[string]string)
+		for _, kv := range spec.Annotations.Kvs {
+			if strVal, ok := kv.Value.Kind.(*typesv1.Val_Str); ok {
+				annotations[kv.Key] = strVal.Str
+			}
+		}
+		if len(annotations) > 0 {
+			rule["annotations"] = annotations
+		}
+	}
+
+	return rule
+}
+
+// Helper function to parse a single alert group file
+func parseProjectAlertGroupFromFile(ctx context.Context, ffs billy.Filesystem, alertGroupPath, filename string, logQlParser func(string) (*typesv1.Query, error)) (*typesv1.AlertGroup, error) {
+	groups, err := parseProjectAlertGroupsFromFile(ctx, ffs, alertGroupPath, filename, logQlParser)
+	if err != nil {
+		return nil, err
+	}
+	if len(groups) == 0 {
+		return nil, errInvalid("no alert groups found in file %q", filename)
+	}
+	if len(groups) > 1 {
+		return nil, errInvalid("expected exactly one alert group in file %q, found %d", filename, len(groups))
+	}
+	return groups[0], nil
+}
+
 func (store *localGitStorage) getAlertGroup(ctx context.Context, alertState localstorage.Alertable, projectName string, ptr *typesv1.ProjectPointer, groupName string, onAlertGroup GetAlertGroupFn) error {
 	sch, ok := ptr.Scheme.(*typesv1.ProjectPointer_Localhost)
 	if !ok {
@@ -401,7 +731,8 @@ func (store *localGitStorage) getAlertGroup(ctx context.Context, alertState loca
 					return &typesv1.AlertRuleStatus{Status: &typesv1.AlertRuleStatus_Unknown{Unknown: &typesv1.AlertUnknown{}}}
 				})
 				if err != nil {
-					return fmt.Errorf("fetching alert status for rule %q: %w", named.Id, err)
+					// If project doesn't exist in alert state yet, use default unknown status
+					state = &typesv1.AlertRuleStatus{Status: &typesv1.AlertRuleStatus_Unknown{Unknown: &typesv1.AlertUnknown{}}}
 				}
 				ag.Status.Rules = append(ag.Status.Rules, &typesv1.AlertGroupStatus_NamedAlertRuleStatus{
 					Id:     named.Id,
@@ -439,7 +770,8 @@ func (store *localGitStorage) getAlertRule(ctx context.Context, alertState local
 					return &typesv1.AlertRuleStatus{Status: &typesv1.AlertRuleStatus_Unknown{Unknown: &typesv1.AlertUnknown{}}}
 				})
 				if err != nil {
-					return fmt.Errorf("fetching alert status for rule %q: %w", named.Id, err)
+					// If project doesn't exist in alert state yet, use default unknown status
+					state = &typesv1.AlertRuleStatus{Status: &typesv1.AlertRuleStatus_Unknown{Unknown: &typesv1.AlertUnknown{}}}
 				}
 
 				// Construct full AlertRule with hydrated status
@@ -825,6 +1157,37 @@ func extractYAMLComments(node *yaml.Node) []string {
 	return comments
 }
 
+// detectGenerationMarker checks for common code generation markers in file content
+func detectGenerationMarker(data []byte) string {
+	scanner := bufio.NewScanner(bytes.NewReader(data))
+	codegenMarkers := []string{
+		"generated-by",
+		"Generated by",
+		"DO NOT EDIT",
+		"@generated",
+		"Code generated",
+		"This file is automatically generated",
+	}
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		trimmed := strings.TrimSpace(line)
+
+		// Only check comment lines
+		if !strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+
+		for _, marker := range codegenMarkers {
+			if strings.Contains(line, marker) {
+				return fmt.Sprintf("file contains '# %s' marker", marker)
+			}
+		}
+	}
+
+	return ""
+}
+
 func parseProjectAlertGroups(ctx context.Context, ffs billy.Filesystem, projectName, projectPath, alertGroupDir string, logQlParser func(string) (*typesv1.Query, error)) ([]*typesv1.AlertGroup, error) {
 	alertGroupPath := path.Join(projectPath, alertGroupDir)
 	files, err := ffs.ReadDir(alertGroupPath)
@@ -868,8 +1231,22 @@ func parseProjectAlertGroupsFromFile(ctx context.Context, ffs billy.Filesystem, 
 	if err != nil {
 		return nil, errInternal("opening alert group file at %q: %v", filepath, err)
 	}
+	defer file.Close()
 
-	out, err := alertmanager.ParseRules(file, logQlParser)
+	// Read raw data to check for humanlog markers
+	rawData, err := io.ReadAll(file)
+	if err != nil {
+		return nil, errInternal("reading alert group file at %q: %v", filepath, err)
+	}
+
+	// Check for humanlog metadata markers
+	meta, isManaged, err := decodeHeadComment(rawData)
+	if err != nil {
+		return nil, errInternal("parsing humanlog metadata from %q: %v", filepath, err)
+	}
+
+	// Parse the alert groups
+	out, err := alertmanager.ParseRules(bytes.NewReader(rawData), logQlParser)
 	if err != nil {
 		// Parse errors are user config errors - return partial result with error in status
 		// Don't fail the operation, allow reconciliation to continue
@@ -882,5 +1259,61 @@ func parseProjectAlertGroupsFromFile(ctx context.Context, ffs billy.Filesystem, 
 		})
 		return out, nil
 	}
+
+	// Get file stat for timestamps
+	fileInfo, err := ffs.Stat(filepath)
+	var modTime time.Time
+	if err == nil {
+		modTime = fileInfo.ModTime()
+	} else {
+		modTime = time.Now()
+	}
+
+	// Apply humanlog metadata to all groups in the file
+	for _, group := range out {
+		// Set ID from group name
+		group.Meta.Id = group.Spec.Name
+
+		// Set is_readonly based on metadata
+		if meta != nil && meta.IsReadonly != nil {
+			group.Spec.IsReadonly = *meta.IsReadonly
+		} else if isManaged {
+			group.Spec.IsReadonly = false
+		} else {
+			group.Spec.IsReadonly = true
+		}
+
+		// Set timestamps
+		group.Status.CreatedAt = timestamppb.New(modTime)
+		group.Status.UpdatedAt = timestamppb.New(modTime)
+
+		// Set origin based on markers
+		if isManaged {
+			group.Status.Origin = &typesv1.AlertGroupStatus_Managed{
+				Managed: &typesv1.AlertGroupStatus_ManagedAlertGroup{
+					Path: filepath,
+				},
+			}
+		} else {
+			// Check for generation markers
+			detectionReason := detectGenerationMarker(rawData)
+			if detectionReason != "" {
+				group.Status.Origin = &typesv1.AlertGroupStatus_Generated{
+					Generated: &typesv1.AlertGroupStatus_GeneratedAlertGroup{
+						Path:            filepath,
+						DetectionReason: detectionReason,
+					},
+				}
+			} else {
+				// Detected as discovered/external
+				group.Status.Origin = &typesv1.AlertGroupStatus_Discovered{
+					Discovered: &typesv1.AlertGroupStatus_DiscoveredAlertGroup{
+						Path: filepath,
+					},
+				}
+			}
+		}
+	}
+
 	return out, nil
 }

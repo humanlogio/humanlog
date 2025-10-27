@@ -316,7 +316,8 @@ func (store *remoteGitStorage) getAlertGroup(ctx context.Context, alertState loc
 					return &typesv1.AlertRuleStatus{Status: &typesv1.AlertRuleStatus_Unknown{Unknown: &typesv1.AlertUnknown{}}}
 				})
 				if err != nil {
-					return errInternal("fetching alert status for rule %q: %w", named.Id, err)
+					// If project doesn't exist in alert state yet, use default unknown status
+					state = &typesv1.AlertRuleStatus{Status: &typesv1.AlertRuleStatus_Unknown{Unknown: &typesv1.AlertUnknown{}}}
 				}
 				ag.Status.Rules = append(ag.Status.Rules, &typesv1.AlertGroupStatus_NamedAlertRuleStatus{
 					Id:     named.Id,
@@ -358,7 +359,8 @@ func (store *remoteGitStorage) getAlertRule(ctx context.Context, alertState loca
 						return &typesv1.AlertRuleStatus{Status: &typesv1.AlertRuleStatus_Unknown{Unknown: &typesv1.AlertUnknown{}}}
 					})
 					if err != nil {
-						return errInternal("fetching alert status for rule %q: %w", named.Id, err)
+						// If project doesn't exist in alert state yet, use default unknown status
+						state = &typesv1.AlertRuleStatus{Status: &typesv1.AlertRuleStatus_Unknown{Unknown: &typesv1.AlertUnknown{}}}
 					}
 
 					// Construct full AlertRule with hydrated status
@@ -376,6 +378,18 @@ func (store *remoteGitStorage) getAlertRule(ctx context.Context, alertState loca
 		}
 	}
 	return errAlertRuleNotFound(name, groupName, ruleName)
+}
+
+func (store *remoteGitStorage) createAlertGroup(ctx context.Context, projectName string, ptr *typesv1.ProjectPointer, alertGroup *typesv1.AlertGroup, onCreated CreateAlertGroupFn) error {
+	return errInvalid("cannot create alert group in remote project")
+}
+
+func (store *remoteGitStorage) updateAlertGroup(ctx context.Context, projectName string, ptr *typesv1.ProjectPointer, groupName string, alertGroup *typesv1.AlertGroup, onUpdated UpdateAlertGroupFn) error {
+	return errInvalid("cannot update alert group in remote project")
+}
+
+func (store *remoteGitStorage) deleteAlertGroup(ctx context.Context, projectName string, ptr *typesv1.ProjectPointer, groupName string, onDeleted DeleteAlertGroupFn) error {
+	return errInvalid("cannot delete alert group in remote project")
 }
 
 func (store *remoteGitStorage) validateProjectPointer(ctx context.Context, ptr *typesv1.ProjectPointer) error {
