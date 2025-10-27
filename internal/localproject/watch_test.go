@@ -61,7 +61,33 @@ spec:
 		}
 		return data
 	}
-	mkAlertGroupData := func() []byte {
+	mkAlertGroupData1 := func() []byte {
+		return []byte(`groups:
+  - name: my-group-name
+    interval: 30s # defaults to global interval
+    rules:
+      - alert: HighErrors
+        expr: filter severity_text == "error"
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          description: "stuff's happening with {{ $.labels.service }}"
+`)
+	}
+	mkAlertGroupData2 := func() []byte {
+		return []byte(`groups:
+  - name: my-another-name
+    interval: 30s # defaults to global interval
+    rules:
+      - alert: HighErrors
+        expr: filter severity_text == "error"
+        for: 5m
+        labels:
+          severity: critical
+`)
+	}
+	mkAlertGroupDataBoth := func() []byte {
 		return []byte(alertGroupYAML)
 	}
 	now := time.Date(2025, 9, 25, 17, 24, 19, 0, time.UTC)
@@ -71,6 +97,7 @@ spec:
 		protocmp.Transform(),
 		protocmp.IgnoreFields(&typesv1.DashboardStatus{}, "created_at", "updated_at"),
 		protocmp.IgnoreFields(&typesv1.ProjectStatus{}, "created_at", "updated_at"),
+		protocmp.IgnoreFields(&typesv1.AlertGroupStatus{}, "created_at", "updated_at"),
 	}
 
 	type subtest struct {
@@ -91,8 +118,8 @@ spec:
 				"project1dir/dashdir/dash2.yaml":   &fstest.MapFile{Data: mkDashboardDataYAML()},
 				"project1dir/dashdir/dash3.yml":    &fstest.MapFile{Data: mkDashboardDataYAML()},
 				"project1dir/dashdir/ignored":      &fstest.MapFile{},
-				"project1dir/alertdir/alert1.yaml": &fstest.MapFile{Data: mkAlertGroupData()},
-				"project1dir/alertdir/alert2.yml":  &fstest.MapFile{Data: mkAlertGroupData()},
+				"project1dir/alertdir/alert1.yaml": &fstest.MapFile{Data: mkAlertGroupData1()},
+				"project1dir/alertdir/alert2.yml":  &fstest.MapFile{Data: mkAlertGroupData2()},
 				"project1dir/alertdir/ignored":     &fstest.MapFile{},
 				"project1dir/ignored":              &fstest.MapFile{},
 
@@ -206,10 +233,11 @@ spec:
 								),
 							),
 							AlertGroups: alertGroups(
-								alertGroup(
+								alertGroupWithPath(
 									"my-group-name",
 									30*time.Second,
 									&typesv1.Obj{},
+									"project1dir/alertdir/alert1.yaml",
 									alertRules(
 										alertRule(
 											"HighErrors",
@@ -226,46 +254,11 @@ spec:
 										),
 									),
 								),
-								alertGroup(
+								alertGroupWithPath(
 									"my-another-name",
 									30*time.Second,
 									&typesv1.Obj{},
-									alertRules(
-										alertRule(
-											"HighErrors",
-											mustParseQuery(`filter severity_text == "error"`),
-											withFor(5*time.Minute),
-											withLabels(&typesv1.Obj{Kvs: []*typesv1.KV{
-												typesv1.KeyVal("severity", typesv1.ValStr("critical")),
-											}}),
-											withAnnotations(&typesv1.Obj{}),
-										),
-									),
-								),
-								alertGroup(
-									"my-group-name",
-									30*time.Second,
-									&typesv1.Obj{},
-									alertRules(
-										alertRule(
-											"HighErrors",
-											mustParseQuery(`filter severity_text == "error"`),
-											withFor(5*time.Minute),
-											withLabels(&typesv1.Obj{
-												Kvs: []*typesv1.KV{
-													typesv1.KeyVal("severity", typesv1.ValStr("critical")),
-												},
-											}),
-											withAnnotations(&typesv1.Obj{Kvs: []*typesv1.KV{
-												typesv1.KeyVal("description", typesv1.ValStr("stuff's happening with {{ $.labels.service }}")),
-											}}),
-										),
-									),
-								),
-								alertGroup(
-									"my-another-name",
-									30*time.Second,
-									&typesv1.Obj{},
+									"project1dir/alertdir/alert2.yml",
 									alertRules(
 										alertRule(
 											"HighErrors",
@@ -353,7 +346,7 @@ spec:
 				"project1dir/dashdir/good1.json":         &fstest.MapFile{Data: mkDashboardDataJSON()},
 				"project1dir/dashdir/corrupt.yaml":       &fstest.MapFile{Data: []byte("this is not valid yaml: [[[")},
 				"project1dir/dashdir/good2.yaml":         &fstest.MapFile{Data: mkDashboardDataYAML()},
-				"project1dir/alertdir/good-alert.yaml":   &fstest.MapFile{Data: mkAlertGroupData()},
+				"project1dir/alertdir/good-alert.yaml":   &fstest.MapFile{Data: mkAlertGroupDataBoth()},
 				"project1dir/alertdir/corrupt-alert.yml": &fstest.MapFile{Data: []byte("invalid: {{{")},
 			},
 			cfg: &typesv1.ProjectsConfig{
@@ -593,23 +586,48 @@ func alertGroups(in ...*typesv1.AlertGroup) []*typesv1.AlertGroup {
 }
 
 func alertGroup(name string, interval time.Duration, labels *typesv1.Obj, rules []*typesv1.AlertRuleSpec) *typesv1.AlertGroup {
-	// Wrap specs in NamedAlertRuleSpec
+	return alertGroupWithPath(name, interval, labels, "", rules)
+}
+
+func alertGroupWithPath(name string, interval time.Duration, labels *typesv1.Obj, path string, rules []*typesv1.AlertRuleSpec) *typesv1.AlertGroup {
+	// Wrap specs in NamedAlertRuleSpec and normalize empty annotations to nil
 	namedRules := make([]*typesv1.AlertGroupSpec_NamedAlertRuleSpec, len(rules))
 	for i, spec := range rules {
+		// Normalize empty annotations to nil (matching parser behavior)
+		if spec.Annotations != nil && len(spec.Annotations.Kvs) == 0 {
+			spec.Annotations = nil
+		}
 		namedRules[i] = &typesv1.AlertGroupSpec_NamedAlertRuleSpec{
 			Id:   spec.Name,
 			Spec: spec,
 		}
 	}
+
+	// Normalize empty labels to nil (matching parse behavior)
+	if labels != nil && len(labels.Kvs) == 0 {
+		labels = nil
+	}
+
 	return &typesv1.AlertGroup{
-		Meta: &typesv1.AlertGroupMeta{},
-		Spec: &typesv1.AlertGroupSpec{
-			Name:     name,
-			Interval: durationpb.New(interval),
-			Labels:   labels,
-			Rules:    namedRules,
+		Meta: &typesv1.AlertGroupMeta{
+			Id: name,
 		},
-		Status: &typesv1.AlertGroupStatus{},
+		Spec: &typesv1.AlertGroupSpec{
+			Name:       name,
+			Interval:   durationpb.New(interval),
+			IsReadonly: true, // Discovered groups are readonly
+			Labels:     labels,
+			Rules:      namedRules,
+		},
+		Status: &typesv1.AlertGroupStatus{
+			// Note: Rules statuses are NOT populated for GetProject list responses
+			// They are only hydrated in GetAlertGroup individual fetches
+			Origin: &typesv1.AlertGroupStatus_Discovered{
+				Discovered: &typesv1.AlertGroupStatus_DiscoveredAlertGroup{
+					Path: path,
+				},
+			},
+		},
 	}
 }
 

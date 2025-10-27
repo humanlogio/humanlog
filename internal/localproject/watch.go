@@ -45,6 +45,9 @@ type CreateDashboardFn func(*typesv1.Dashboard) error
 type UpdateDashboardFn func(*typesv1.Dashboard) error
 type DeleteDashboardFn func() error
 type GetAlertGroupFn func(*typesv1.AlertGroup) error
+type CreateAlertGroupFn func(*typesv1.AlertGroup) error
+type UpdateAlertGroupFn func(*typesv1.AlertGroup) error
+type DeleteAlertGroupFn func() error
 type GetAlertRuleFn func(*typesv1.AlertRule) error
 
 type projectStorage interface {
@@ -57,6 +60,9 @@ type projectStorage interface {
 	updateDashboard(ctx context.Context, projectName string, ptr *typesv1.ProjectPointer, id string, dashboard *typesv1.Dashboard, onUpdated UpdateDashboardFn) error
 	deleteDashboard(ctx context.Context, projectName string, ptr *typesv1.ProjectPointer, id string, onDeleted DeleteDashboardFn) error
 	getAlertGroup(ctx context.Context, alertState localstorage.Alertable, projectName string, ptr *typesv1.ProjectPointer, groupName string, onAlertGroup GetAlertGroupFn) error
+	createAlertGroup(ctx context.Context, projectName string, ptr *typesv1.ProjectPointer, alertGroup *typesv1.AlertGroup, onCreated CreateAlertGroupFn) error
+	updateAlertGroup(ctx context.Context, projectName string, ptr *typesv1.ProjectPointer, groupName string, alertGroup *typesv1.AlertGroup, onUpdated UpdateAlertGroupFn) error
+	deleteAlertGroup(ctx context.Context, projectName string, ptr *typesv1.ProjectPointer, groupName string, onDeleted DeleteAlertGroupFn) error
 	getAlertRule(ctx context.Context, alertState localstorage.Alertable, projectName string, ptr *typesv1.ProjectPointer, groupName, ruleName string, onAlertRule GetAlertRuleFn) error
 	validateProjectPointer(ctx context.Context, ptr *typesv1.ProjectPointer) error
 }
@@ -442,13 +448,55 @@ func (wt *watch) ListDashboard(ctx context.Context, req *dashboardv1.ListDashboa
 }
 
 func (wt *watch) CreateAlertGroup(ctx context.Context, req *alertv1.CreateAlertGroupRequest) (*alertv1.CreateAlertGroupResponse, error) {
-	return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("localhost alertgroups are created on the filesystem"))
+	var out *typesv1.AlertGroup
+	err := wt.lockedWithProjectByName(ctx, req.ProjectName, func(ptr *typesv1.ProjectsConfig_Project) error {
+		storage, err := wt.storageForPointer(ptr.Pointer)
+		if err != nil {
+			return err
+		}
+		alertGroup := &typesv1.AlertGroup{
+			Meta:   &typesv1.AlertGroupMeta{Id: req.Spec.Name}, // ID from group name
+			Spec:   req.Spec,
+			Status: &typesv1.AlertGroupStatus{},
+		}
+		return storage.createAlertGroup(ctx, ptr.Name, ptr.Pointer, alertGroup, func(alertGroup *typesv1.AlertGroup) error {
+			out = alertGroup
+			return nil
+		})
+	})
+	return &alertv1.CreateAlertGroupResponse{AlertGroup: out}, err
 }
+
 func (wt *watch) UpdateAlertGroup(ctx context.Context, req *alertv1.UpdateAlertGroupRequest) (*alertv1.UpdateAlertGroupResponse, error) {
-	return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("localhost alertgroups are updated on the filesystem"))
+	var out *typesv1.AlertGroup
+	err := wt.lockedWithProjectByName(ctx, req.ProjectName, func(ptr *typesv1.ProjectsConfig_Project) error {
+		storage, err := wt.storageForPointer(ptr.Pointer)
+		if err != nil {
+			return err
+		}
+		alertGroup := &typesv1.AlertGroup{
+			Meta:   &typesv1.AlertGroupMeta{Id: req.Name},
+			Spec:   req.Spec,
+			Status: &typesv1.AlertGroupStatus{},
+		}
+		return storage.updateAlertGroup(ctx, ptr.Name, ptr.Pointer, req.Name, alertGroup, func(alertGroup *typesv1.AlertGroup) error {
+			out = alertGroup
+			return nil
+		})
+	})
+	return &alertv1.UpdateAlertGroupResponse{AlertGroup: out}, err
 }
 func (wt *watch) DeleteAlertGroup(ctx context.Context, req *alertv1.DeleteAlertGroupRequest) (*alertv1.DeleteAlertGroupResponse, error) {
-	return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("localhost alertgroups are deleted on the filesystem"))
+	err := wt.lockedWithProjectByName(ctx, req.ProjectName, func(ptr *typesv1.ProjectsConfig_Project) error {
+		storage, err := wt.storageForPointer(ptr.Pointer)
+		if err != nil {
+			return err
+		}
+		return storage.deleteAlertGroup(ctx, ptr.Name, ptr.Pointer, req.Name, func() error {
+			return nil
+		})
+	})
+	return &alertv1.DeleteAlertGroupResponse{}, err
 }
 func (wt *watch) GetAlertGroup(ctx context.Context, req *alertv1.GetAlertGroupRequest) (*alertv1.GetAlertGroupResponse, error) {
 	var out *typesv1.AlertGroup
@@ -474,7 +522,8 @@ func (wt *watch) GetAlertGroup(ctx context.Context, req *alertv1.GetAlertGroupRe
 			return &typesv1.AlertRuleStatus{Status: &typesv1.AlertRuleStatus_Unknown{}}
 		})
 		if err != nil {
-			return nil, fmt.Errorf("getting alert status for rule %q: %w", namedRule.Id, err)
+			// If project doesn't exist in alert state yet, use default unknown status
+			status = &typesv1.AlertRuleStatus{Status: &typesv1.AlertRuleStatus_Unknown{}}
 		}
 
 		// Check if status already exists in the array

@@ -106,6 +106,18 @@ func (store *dbStorage) getAlertRule(ctx context.Context, alertState localstorag
 	panic("todo")
 }
 
+func (store *dbStorage) createAlertGroup(ctx context.Context, projectName string, ptr *typesv1.ProjectPointer, alertGroup *typesv1.AlertGroup, onCreated CreateAlertGroupFn) error {
+	panic("todo")
+}
+
+func (store *dbStorage) updateAlertGroup(ctx context.Context, projectName string, ptr *typesv1.ProjectPointer, groupName string, alertGroup *typesv1.AlertGroup, onUpdated UpdateAlertGroupFn) error {
+	panic("todo")
+}
+
+func (store *dbStorage) deleteAlertGroup(ctx context.Context, projectName string, ptr *typesv1.ProjectPointer, groupName string, onDeleted DeleteAlertGroupFn) error {
+	panic("todo")
+}
+
 func (store *dbStorage) validateProjectPointer(ctx context.Context, ptr *typesv1.ProjectPointer) error {
 	panic("todo")
 }
