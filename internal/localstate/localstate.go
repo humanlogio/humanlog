@@ -10,6 +10,7 @@ import (
 
 type DB interface {
 	CreateProject(context.Context, *projectv1.CreateProjectRequest) (*projectv1.CreateProjectResponse, error)
+	ValidateProject(context.Context, *projectv1.ValidateProjectRequest) (*projectv1.ValidateProjectResponse, error)
 	GetProject(context.Context, *projectv1.GetProjectRequest) (*projectv1.GetProjectResponse, error)
 	SyncProject(context.Context, *projectv1.SyncProjectRequest) (*projectv1.SyncProjectResponse, error)
 	UpdateProject(context.Context, *projectv1.UpdateProjectRequest) (*projectv1.UpdateProjectResponse, error)

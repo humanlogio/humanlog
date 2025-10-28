@@ -663,6 +663,15 @@ func (svc *Service) CreateProject(ctx context.Context, req *connect.Request[proj
 	return connect.NewResponse(out), nil
 }
 
+func (svc *Service) ValidateProject(ctx context.Context, req *connect.Request[projectv1.ValidateProjectRequest]) (*connect.Response[projectv1.ValidateProjectResponse], error) {
+	msg := req.Msg
+	out, err := svc.db.ValidateProject(ctx, msg)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(out), nil
+}
+
 func (svc *Service) GetProject(ctx context.Context, req *connect.Request[projectv1.GetProjectRequest]) (*connect.Response[projectv1.GetProjectResponse], error) {
 	msg := req.Msg
 	out, err := svc.db.GetProject(ctx, msg)
