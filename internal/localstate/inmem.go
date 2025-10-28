@@ -120,6 +120,23 @@ func (db *Mem) CreateProject(ctx context.Context, req *projectv1.CreateProjectRe
 	return &projectv1.CreateProjectResponse{Project: out}, nil
 }
 
+func (db *Mem) ValidateProject(ctx context.Context, req *projectv1.ValidateProjectRequest) (*projectv1.ValidateProjectResponse, error) {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+
+	// Run the same validation as CreateProject
+	for _, project := range db.projects {
+		if project.project.Spec.Name == req.Spec.Name {
+			return nil, connect.NewError(connect.CodeAlreadyExists, fmt.Errorf("project %q already uses the name %q", project.project.Meta.Id, req.Spec.Name))
+		}
+	}
+
+	// In-memory projects don't have directory conflicts, so return empty status
+	return &projectv1.ValidateProjectResponse{
+		Status: &typesv1.ProjectStatus{},
+	}, nil
+}
+
 func (db *Mem) SyncProject(ctx context.Context, req *projectv1.SyncProjectRequest) (*projectv1.SyncProjectResponse, error) {
 	var (
 		out         *typesv1.Project

@@ -2047,10 +2047,11 @@ func TestProjectDirectoryConflictWarnings(t *testing.T) {
 
 	type operation string
 	const (
-		opGet    operation = "GetProject"
-		opCreate operation = "CreateProject"
-		opUpdate operation = "UpdateProject"
-		opList   operation = "ListProject"
+		opGet      operation = "GetProject"
+		opCreate   operation = "CreateProject"
+		opValidate operation = "ValidateProject"
+		opUpdate   operation = "UpdateProject"
+		opList     operation = "ListProject"
 	)
 
 	tests := []struct {
@@ -2120,7 +2121,7 @@ func TestProjectDirectoryConflictWarnings(t *testing.T) {
 		},
 	}
 
-	operations := []operation{opGet, opCreate, opUpdate, opList}
+	operations := []operation{opGet, opCreate, opValidate, opUpdate, opList}
 
 	for _, tt := range tests {
 		for _, op := range operations {
@@ -2129,10 +2130,10 @@ func TestProjectDirectoryConflictWarnings(t *testing.T) {
 				ctx := context.Background()
 				fs := memfs.New()
 
-				// For CreateProject, we need one less project in the initial config
+				// For CreateProject and ValidateProject, we need one less project in the initial config
 				initProjects := tt.initProjects
-				if op == opCreate {
-					// Find the project we're going to create and exclude it from init
+				if op == opCreate || op == opValidate {
+					// Find the project we're going to create/validate and exclude it from init
 					var filtered []*typesv1.ProjectsConfig_Project
 					for _, proj := range tt.initProjects {
 						if proj.Name != tt.checkProject {
@@ -2184,6 +2185,30 @@ func TestProjectDirectoryConflictWarnings(t *testing.T) {
 					require.NoError(t, err)
 					require.NotNil(t, resp.Project)
 					project = resp.Project
+
+				case opValidate:
+					// Find the project spec we're validating
+					var projectToValidate *typesv1.ProjectsConfig_Project
+					for _, proj := range tt.initProjects {
+						if proj.Name == tt.checkProject {
+							projectToValidate = proj
+							break
+						}
+					}
+					require.NotNil(t, projectToValidate, "test case must include the project being validated")
+
+					resp, err := db.ValidateProject(ctx, &projectv1.ValidateProjectRequest{
+						Spec: &typesv1.ProjectSpec{
+							Name:    projectToValidate.Name,
+							Pointer: projectToValidate.Pointer,
+						},
+					})
+					require.NoError(t, err)
+					require.NotNil(t, resp.Status)
+					// Create a dummy project with the returned status for consistent assertion logic
+					project = &typesv1.Project{
+						Status: resp.Status,
+					}
 
 				case opUpdate:
 					// Find the project spec to update

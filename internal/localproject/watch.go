@@ -206,11 +206,60 @@ func (wt *watch) CreateProject(ctx context.Context, req *projectv1.CreateProject
 		return storage.getProject(ctx, ptr.Name, ptr.Pointer, func(p *typesv1.Project) error {
 			out = p
 			// Enrich project with all warnings
-			wt.enrichProjectWithWarnings(p, ptr)
+			wt.enrichProjectWithWarnings(p.Status, ptr)
 			return nil
 		})
 	})
 	return &projectv1.CreateProjectResponse{Project: out}, err
+}
+
+func (wt *watch) ValidateProject(ctx context.Context, req *projectv1.ValidateProjectRequest) (*projectv1.ValidateProjectResponse, error) {
+	name := req.Spec.Name
+
+	var status *typesv1.ProjectStatus
+	err := func() error {
+		wt.mu.Lock()
+		defer wt.mu.Unlock()
+		cfg, err := wt.cfg.Reload()
+		if err != nil {
+			return fmt.Errorf("reading config file: %v", err)
+		}
+		wt.cfg = cfg
+		if cfg.Runtime == nil {
+			cfg.Runtime = &typesv1.RuntimeConfig{}
+		}
+		if cfg.Runtime.ExperimentalFeatures == nil {
+			cfg.Runtime.ExperimentalFeatures = &typesv1.RuntimeConfig_ExperimentalFeatures{}
+		}
+		if cfg.Runtime.ExperimentalFeatures.Projects == nil {
+			cfg.Runtime.ExperimentalFeatures.Projects = &typesv1.ProjectsConfig{}
+		}
+		projects := cfg.Runtime.ExperimentalFeatures.Projects
+
+		sp := &typesv1.ProjectsConfig_Project{
+			Name:    name,
+			Pointer: req.Spec.Pointer,
+		}
+
+		storage, err := wt.storageForPointer(req.Spec.Pointer)
+		if err != nil {
+			return err
+		}
+		// Run the same validation as CreateProject
+		if err := wt.validateProjectPointer(ctx, projects.Projects, name, sp, storage); err != nil {
+			return err
+		}
+
+		// Create a status object to compute warnings using the same code path
+		status = &typesv1.ProjectStatus{}
+		wt.enrichProjectWithWarnings(status, sp)
+		return nil
+	}()
+	if err != nil {
+		return nil, err
+	}
+
+	return &projectv1.ValidateProjectResponse{Status: status}, nil
 }
 
 func (wt *watch) validateProjectPointer(ctx context.Context, projects []*typesv1.ProjectsConfig_Project, name string, sp *typesv1.ProjectsConfig_Project, storage projectStorage) error {
@@ -265,7 +314,7 @@ func (wt *watch) UpdateProject(ctx context.Context, req *projectv1.UpdateProject
 		return storage.getProject(ctx, ptr.Name, ptr.Pointer, func(p *typesv1.Project) error {
 			out = p
 			// Enrich project with all warnings
-			wt.enrichProjectWithWarnings(p, ptr)
+			wt.enrichProjectWithWarnings(p.Status, ptr)
 			return nil
 		})
 	})
@@ -311,7 +360,7 @@ func (wt *watch) GetProject(ctx context.Context, req *projectv1.GetProjectReques
 			alertGroups = ag
 
 			// Enrich project with all warnings
-			wt.enrichProjectWithWarnings(p, ptr)
+			wt.enrichProjectWithWarnings(p.Status, ptr)
 
 			return nil
 		})
@@ -360,7 +409,7 @@ func (wt *watch) ListProject(ctx context.Context, req *projectv1.ListProjectRequ
 				}
 				return storage.getProject(ctx, sp.Name, sp.Pointer, func(p *typesv1.Project) error {
 					// Enrich project with all warnings
-					wt.enrichProjectWithWarnings(p, sp)
+					wt.enrichProjectWithWarnings(p.Status, sp)
 					out = append(out, &projectv1.ListProjectResponse_ListItem{Project: p})
 					return nil
 				})
@@ -720,33 +769,24 @@ func sharedAlertDirWarning(otherProjectName, dirPath string) string {
 	return fmt.Sprintf("Project %q shares the same alert directory (%s). Changes in one project will affect the other.", otherProjectName, dirPath)
 }
 
-// enrichProjectWithWarnings populates all warnings for a project
+// enrichProjectWithWarnings populates all warnings for a project status
 // This should be called whenever returning a project to ensure warnings are up-to-date
-func (wt *watch) enrichProjectWithWarnings(project *typesv1.Project, ptr *typesv1.ProjectsConfig_Project) {
-	wt.addDirectoryConflictWarnings(project, ptr)
+func (wt *watch) enrichProjectWithWarnings(status *typesv1.ProjectStatus, ptr *typesv1.ProjectsConfig_Project) {
+	wt.addDirectoryConflictWarnings(status, ptr)
 	// Future warning checks can be added here
 }
 
-// addDirectoryConflictWarnings checks if this project shares directories with other projects
-// and adds warnings to the project status if conflicts are found
-func (wt *watch) addDirectoryConflictWarnings(project *typesv1.Project, currentPtr *typesv1.ProjectsConfig_Project) {
+// computeProjectWarnings computes warnings for a project without modifying it
+// Used by ValidateProject to preview warnings before creating the project
+func (wt *watch) computeProjectWarnings(currentPtr *typesv1.ProjectsConfig_Project, allProjects []*typesv1.ProjectsConfig_Project) []string {
 	// Only check for localhost projects
 	localhost := currentPtr.Pointer.GetLocalhost()
 	if localhost == nil {
-		return
-	}
-
-	cfg, err := wt.cfg.Reload()
-	if err != nil {
-		return // Can't check, skip
-	}
-
-	if cfg.Runtime == nil || cfg.Runtime.ExperimentalFeatures == nil || cfg.Runtime.ExperimentalFeatures.Projects == nil {
-		return
+		return nil
 	}
 
 	var conflicts []string
-	for _, otherProj := range cfg.Runtime.ExperimentalFeatures.Projects.Projects {
+	for _, otherProj := range allProjects {
 		if otherProj.Name == currentPtr.Name {
 			continue // Skip self
 		}
@@ -771,8 +811,24 @@ func (wt *watch) addDirectoryConflictWarnings(project *typesv1.Project, currentP
 		}
 	}
 
+	return conflicts
+}
+
+// addDirectoryConflictWarnings checks if this project shares directories with other projects
+// and adds warnings to the project status if conflicts are found
+func (wt *watch) addDirectoryConflictWarnings(status *typesv1.ProjectStatus, currentPtr *typesv1.ProjectsConfig_Project) {
+	cfg, err := wt.cfg.Reload()
+	if err != nil {
+		return // Can't check, skip
+	}
+
+	if cfg.Runtime == nil || cfg.Runtime.ExperimentalFeatures == nil || cfg.Runtime.ExperimentalFeatures.Projects == nil {
+		return
+	}
+
+	conflicts := wt.computeProjectWarnings(currentPtr, cfg.Runtime.ExperimentalFeatures.Projects.Projects)
 	if len(conflicts) > 0 {
-		project.Status.Warnings = append(project.Status.Warnings, conflicts...)
+		status.Warnings = append(status.Warnings, conflicts...)
 	}
 }
 
