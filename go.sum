@@ -158,8 +158,9 @@ github.com/clipperhouse/uax29/v2 v2.2.0 h1:ChwIKnQN3kcZteTXMgb1wztSgaU+ZemkgWdoh
 github.com/clipperhouse/uax29/v2 v2.2.0/go.mod h1:EFJ2TJMRUaplDxHKj1qAEhCtQPW2tJSwu5BF98AuoVM=
 github.com/cloudflare/circl v1.6.1 h1:zqIqSPIndyBh1bjLVVDHMPpVKqp8Su/V+6MeDzzQBQ0=
 github.com/cloudflare/circl v1.6.1/go.mod h1:uddAzsPgqdMAYatqJ0lsjX1oECcQLIlRpzZh3pJrofs=
-github.com/cpuguy83/go-md2man/v2 v2.0.2 h1:p1EgwI/C7NhT0JmVkwCD2ZBK8j4aeHQX2pMHHBfMQ6w=
 github.com/cpuguy83/go-md2man/v2 v2.0.2/go.mod h1:tgQtvFlXSQOSOSIRvRPT7W67SCa46tRHOmNcaadrF8o=
+github.com/cpuguy83/go-md2man/v2 v2.0.7 h1:zbFlGlXEAKlwXpmvle3d8Oe3YnkKIK4xSRTd3sHPnBo=
+github.com/cpuguy83/go-md2man/v2 v2.0.7/go.mod h1:oOW0eioCTA6cOiMLiUPZOpcVxMig6NIQQ7OS05n1F4g=
 github.com/crazy3lf/colorconv v1.2.0 h1:UM7kSZWnwFMGiC+PpYrjxQSOd6sEyWb+dRKKTd3KslA=
 github.com/crazy3lf/colorconv v1.2.0/go.mod h1:2jTJ7QCWCj2sSLOhF4Gzi0J5/hoX8/VY8VzNvXAlD1I=
 github.com/creack/pty v1.1.24 h1:bJrF4RRfyJnbTJqzRLHzcGaZK1NeM5kTC9jGgovnR1s=
@@ -295,8 +296,8 @@ github.com/hexops/gotextdiff v1.0.3 h1:gitA9+qJrrTCsiCl7+kh75nPqQt1cx4ZkudSTLoUq
 github.com/hexops/gotextdiff v1.0.3/go.mod h1:pSWU5MAI3yDq+fZBTazCSJysOMbxWL1BSow5/V2vxeg=
 github.com/humanlogio/api/go v0.0.0-20251028054037-a3dc5f8b40d4 h1:DIZBVHyvRTN0Plo50ASud1xgtf4hJjr9Mc64jYEoTQo=
 github.com/humanlogio/api/go v0.0.0-20251028054037-a3dc5f8b40d4/go.mod h1:LDiXtryiWroW5eks9W3nl4RqwIRi26S71W+pnePHIC8=
-github.com/humanlogio/humanlog-pro v0.0.0-20251112040216-b0435909e413 h1:jbIQohtyN2PAQhLC7OWpJsRWmUpSFNtmkdccRZIO16w=
-github.com/humanlogio/humanlog-pro v0.0.0-20251112040216-b0435909e413/go.mod h1:rOxl0fqbOgYRV/HuozSjbnqaOAsxa4KXadhOfDQCSbA=
+github.com/humanlogio/humanlog-pro v0.0.0-20251112090105-db4f72ed22b2 h1:oNW1hEOcArofGEdSLvXbGPC7WFWorSKRqhw79ob0ijY=
+github.com/humanlogio/humanlog-pro v0.0.0-20251112090105-db4f72ed22b2/go.mod h1:Nwbx8nAw3cx+a8jaUzF7qyAJHBBmkQoREEKj11OVVD4=
 github.com/jpillora/backoff v1.0.0 h1:uvFg412JmmHBHw7iwprIxkPMI+sGQ4kzOWsMeHnm2EA=
 github.com/jpillora/backoff v1.0.0/go.mod h1:J/6gKK9jxlEcS3zixgDgUAsiuZ7yrSoa/FX5e0EB2j4=
 github.com/kardianos/service v1.2.2 h1:ZvePhAHfvo0A7Mftk/tEzqEZ7Q4lgnR8sGz4xu1YX60=
