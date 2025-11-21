@@ -63,6 +63,8 @@ type Storage interface {
 	Queryable
 	SinkFor(ctx context.Context, res *typesv1.Resource, scope *typesv1.Scope) (_ sink.Sink, _ error)
 	ReportMetrics(ctx context.Context, report MetricsReporterFunc) error
+	// TODO: uncomment the line below when storage implementation ready for this method
+	// Trim(ctx context.Context, opts TrimOptions) (logsTrimmed uint64, spansTrimmed uint64, metricsTrimmed uint64, _ error)
 	Close() error
 
 	OTLPLogger
@@ -136,4 +138,15 @@ type Cursor interface {
 	Event(*typesv1.LogEvent) error
 	Err() error
 	Close() error
+}
+
+type TrimOptions struct {
+	ForLogs    TrimOption
+	ForSpans   TrimOption
+	ForMetrics TrimOption
+}
+
+type TrimOption struct {
+	ByTime *time.Time
+	BySize *uint64
 }
