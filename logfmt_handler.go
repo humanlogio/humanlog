@@ -9,7 +9,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-// LogfmtHandler can handle logs emmited by logrus.TextFormatter loggers.
+// LogfmtHandler can handle logs emitted by logrus.TextFormatter loggers.
 type LogfmtHandler struct {
 	Opts *HandlerOptions
 
