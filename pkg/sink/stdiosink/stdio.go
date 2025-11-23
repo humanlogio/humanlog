@@ -81,10 +81,10 @@ var DefaultStdioOpts = StdioOpts{
 func StdioOptsFrom(cfg *typesv1.FormatConfig) (StdioOpts, []error) {
 	var errs []error
 	opts := DefaultStdioOpts
-	if cfg.SkipFields != nil && len(cfg.SkipFields) > 0 {
+	if len(cfg.SkipFields) > 0 {
 		opts.Skip = cfg.SkipFields
 	}
-	if cfg.KeepFields != nil && len(cfg.KeepFields) > 0 {
+	if len(cfg.KeepFields) > 0 {
 		opts.Keep = cfg.KeepFields
 	}
 	if cfg.SortLongest != nil {
