@@ -778,7 +778,7 @@ For more details:
 							msg += "\n\n- " + cerr.Error()
 						}
 					} else {
-						msg += "\n\n" + "An unexpected error occured while trying to ingest your logs, see your terminal for details."
+						msg += "\n\n" + "An unexpected error occurred while trying to ingest your logs, see your terminal for details."
 						logerror("err=%T", err)
 					}
 
