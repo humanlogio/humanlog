@@ -12,7 +12,7 @@ Read more at 👉 [how to install](https://humanlog.io/docs/get-started/installa
 
 # Getting started
 
-You can use `humanlog` in the CLI to make your logs prettier. You can also use it as a localhost observability platform to be able to explore the logs and traces that you ingested. Logs parsed by humanlog are persisted in a local database. Similary, traces are ingested and persisted in a local database when sent via OpenTelemetry/OTLP.
+You can use `humanlog` in the CLI to make your logs prettier. You can also use it as a localhost observability platform to be able to explore the logs and traces that you ingested. Logs parsed by humanlog are persisted in a local database. Similarly, traces are ingested and persisted in a local database when sent via OpenTelemetry/OTLP.
 
 Read more at 👉 [how to get started](https://humanlog.io/docs/get-started/basic-usage) in our docs.
 
