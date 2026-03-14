@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	typesv1 "github.com/humanlogio/api/go/types/v1"
+	typesv1 "github.com/minitape/api/go/types/v1"
 )
 
 func VisitScalars(v *typesv1.Val, onScalar func(keys []string, scalar *typesv1.Val) error, prefixes ...string) error {

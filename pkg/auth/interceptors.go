@@ -5,7 +5,7 @@ import (
 	"log/slog"
 
 	"connectrpc.com/connect"
-	typesv1 "github.com/humanlogio/api/go/types/v1"
+	typesv1 "github.com/minitape/api/go/types/v1"
 )
 
 func Interceptors(ll *slog.Logger, tokenSource *UserRefreshableTokenSource) []connect.Interceptor {

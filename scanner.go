@@ -7,7 +7,7 @@ import (
 	"errors"
 	"io"
 
-	typesv1 "github.com/humanlogio/api/go/types/v1"
+	typesv1 "github.com/minitape/api/go/types/v1"
 	"github.com/humanlogio/humanlog/pkg/sink"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )

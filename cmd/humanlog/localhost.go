@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/humanlogio/api/go/svc/ingest/v1/ingestv1connect"
-	typesv1 "github.com/humanlogio/api/go/types/v1"
+	"github.com/minitape/api/go/svc/ingest/v1/ingestv1connect"
+	typesv1 "github.com/minitape/api/go/types/v1"
 	"github.com/humanlogio/humanlog/pkg/sink"
 	"github.com/humanlogio/humanlog/pkg/sink/logsvcsink"
 )

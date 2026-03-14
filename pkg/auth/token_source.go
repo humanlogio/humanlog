@@ -7,7 +7,7 @@ import (
 	"sync"
 
 	"github.com/99designs/keyring"
-	typesv1 "github.com/humanlogio/api/go/types/v1"
+	typesv1 "github.com/minitape/api/go/types/v1"
 	"google.golang.org/protobuf/proto"
 )
 

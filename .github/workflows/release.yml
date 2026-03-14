@@ -39,7 +39,6 @@ jobs:
         targets:
         - name: linux-amd64
           runner: ubuntu-latest
-          tags: pro
           goos: linux
           goarch: amd64
           gobin: /usr/local/bin/
@@ -53,19 +52,16 @@ jobs:
           preinstall: sudo apt-get update && sudo apt install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu # gcc libgtk-3-dev libayatana-appindicator3-dev libc6-dev-i386
         - name: darwin-amd64
           runner: macos-latest
-          tags: pro
           goos: darwin
           goarch: amd64
           gobin: /usr/local/bin/
         - name: darwin-arm64
           runner: macos-latest
-          tags: pro
           goos: darwin
           goarch: arm64
           gobin: /usr/local/bin/
         - name: windows-amd64
           runner: windows-latest
-          tags: pro
           goos: windows
           goarch: amd64
           gobin: C:\Users\runneradmin\go\bin
@@ -73,8 +69,6 @@ jobs:
     runs-on: ${{ matrix.targets.runner }}
     env:
       GOEXPERIMENT: jsonv2
-      GOPRIVATE: "github.com/humanlogio/humanlog-pro"
-      GH_ACCESS_TOKEN_FOR_HUMANLOGPRO: ${{ secrets.GH_ACCESS_TOKEN_FOR_HUMANLOGPRO }}
       CGO_ENABLED: 1
       GOBIN: ${{ matrix.targets.gobin }}
       HUMANLOG_DEBUG: true
@@ -97,7 +91,6 @@ jobs:
       - run: echo "${HOME}/.humanlog/bin" >> $GITHUB_PATH
       - run: curl https://humanlog.io/install_apictl.sh | bash
       - run: git config --global --add safe.directory '*'
-      - run: git config --global url.https://$GH_ACCESS_TOKEN_FOR_HUMANLOGPRO@github.com/.insteadOf https://github.com/
       - run: go install github.com/goware/modvendor@latest
       - run: go mod tidy
       - run: go mod vendor

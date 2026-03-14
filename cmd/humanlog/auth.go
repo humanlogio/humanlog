@@ -8,8 +8,8 @@ import (
 	"os"
 
 	"connectrpc.com/connect"
-	userpb "github.com/humanlogio/api/go/svc/user/v1"
-	"github.com/humanlogio/api/go/svc/user/v1/userv1connect"
+	userpb "github.com/minitape/api/go/svc/user/v1"
+	"github.com/minitape/api/go/svc/user/v1/userv1connect"
 	"github.com/humanlogio/humanlog/internal/pkg/config"
 	"github.com/humanlogio/humanlog/internal/pkg/state"
 	"github.com/humanlogio/humanlog/pkg/auth"
@@ -78,8 +78,7 @@ func authCmd(
 					printFact("username", res.Msg.User.Username)
 					printFact("email", res.Msg.User.Email)
 					printFact("verified", res.Msg.User.EmailVerified)
-					printFact("first name", res.Msg.User.FirstName)
-					printFact("last name", res.Msg.User.LastName)
+					printFact("name", res.Msg.User.Name)
 					printFact("registered since", res.Msg.User.CreatedAt.AsTime())
 					printFact("logged into org", res.Msg.CurrentOrganization.Name)
 

@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/charmbracelet/lipgloss"
-	typesv1 "github.com/humanlogio/api/go/types/v1"
+	typesv1 "github.com/minitape/api/go/types/v1"
 	"github.com/lucasb-eyer/go-colorful"
 )
 

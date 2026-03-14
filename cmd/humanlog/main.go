@@ -27,7 +27,7 @@ import (
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/huh"
 	"github.com/gen2brain/beeep"
-	types "github.com/humanlogio/api/go/types/v1"
+	types "github.com/minitape/api/go/types/v1"
 	"github.com/humanlogio/humanlog"
 	"github.com/humanlogio/humanlog/internal/pkg/config"
 	"github.com/humanlogio/humanlog/internal/pkg/state"

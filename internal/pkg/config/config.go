@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	typesv1 "github.com/humanlogio/api/go/types/v1"
+	typesv1 "github.com/minitape/api/go/types/v1"
 	"github.com/humanlogio/humanlog/internal/pkg/state"
 	"github.com/humanlogio/humanlog/pkg/sink/stdiosink"
 	"google.golang.org/protobuf/encoding/protojson"

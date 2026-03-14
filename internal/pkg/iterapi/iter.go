@@ -3,7 +3,7 @@ package iterapi
 import (
 	"context"
 
-	typesv1 "github.com/humanlogio/api/go/types/v1"
+	typesv1 "github.com/minitape/api/go/types/v1"
 )
 
 type Lister[Elem any] func(ctx context.Context, cursor *typesv1.Cursor, limit int32) ([]Elem, *typesv1.Cursor, error)

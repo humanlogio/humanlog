@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/go-logfmt/logfmt"
-	typesv1 "github.com/humanlogio/api/go/types/v1"
+	typesv1 "github.com/minitape/api/go/types/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
