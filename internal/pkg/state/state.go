@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/blang/semver"
-	typesv1 "github.com/humanlogio/api/go/types/v1"
+	typesv1 "github.com/minitape/api/go/types/v1"
 	"github.com/mitchellh/go-homedir"
 )
 

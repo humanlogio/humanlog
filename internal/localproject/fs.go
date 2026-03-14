@@ -17,7 +17,7 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/go-git/go-billy/v6"
-	typesv1 "github.com/humanlogio/api/go/types/v1"
+	typesv1 "github.com/minitape/api/go/types/v1"
 	"github.com/humanlogio/humanlog/internal/compat/alertmanager"
 	"github.com/humanlogio/humanlog/pkg/localstorage"
 	persesv1 "github.com/perses/perses/pkg/model/api/v1"

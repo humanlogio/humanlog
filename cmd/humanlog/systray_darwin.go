@@ -12,7 +12,7 @@ import (
 	"github.com/blang/semver"
 	"github.com/gen2brain/beeep"
 	"github.com/getlantern/systray"
-	typesv1 "github.com/humanlogio/api/go/types/v1"
+	typesv1 "github.com/minitape/api/go/types/v1"
 	"github.com/humanlogio/humanlog/internal/logqleval"
 	"github.com/pkg/browser"
 )
@@ -238,7 +238,7 @@ func (ctrl *systrayController) NotifyAuthenticated(ctx context.Context, user *ty
 	if wasSignedOff {
 		err := beeep.Notify(
 			"humanlog: signed in",
-			fmt.Sprintf("humanlog is signed in as %s (%s)", user.FirstName, user.Email),
+			fmt.Sprintf("humanlog is signed in as %s (%s)", user.Name, user.Email),
 			"",
 		)
 		if err != nil {
@@ -312,7 +312,7 @@ func (ctrl *systrayController) renderLoginMenuItem(ctx context.Context) error {
 	mi := ctrl.mUserMenuItem
 	if mdl.user != nil {
 		ctrl.ll.InfoContext(ctx, "rendering as authenticated")
-		mi.SetTitle(fmt.Sprintf("%s (%s)", mdl.user.FirstName, mdl.user.Email))
+		mi.SetTitle(fmt.Sprintf("%s (%s)", mdl.user.Name, mdl.user.Email))
 		ctrl.mUserMenuItem_Sub_Settings.Show()
 		ctrl.mUserMenuItem_Sub_Login.Hide()
 		ctrl.mUserMenuItem_Sub_Logout.Show()

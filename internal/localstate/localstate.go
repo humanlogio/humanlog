@@ -3,9 +3,9 @@ package localstate
 import (
 	"context"
 
-	alertv1 "github.com/humanlogio/api/go/svc/alert/v1"
-	dashboardv1 "github.com/humanlogio/api/go/svc/dashboard/v1"
-	projectv1 "github.com/humanlogio/api/go/svc/project/v1"
+	alertv1 "github.com/minitape/api/go/svc/alert/v1"
+	dashboardv1 "github.com/minitape/api/go/svc/dashboard/v1"
+	projectv1 "github.com/minitape/api/go/svc/project/v1"
 )
 
 type DB interface {

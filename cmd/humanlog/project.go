@@ -8,9 +8,9 @@ import (
 	"os"
 
 	"connectrpc.com/connect"
-	projectv1 "github.com/humanlogio/api/go/svc/project/v1"
-	"github.com/humanlogio/api/go/svc/project/v1/projectv1connect"
-	typesv1 "github.com/humanlogio/api/go/types/v1"
+	projectv1 "github.com/minitape/api/go/svc/project/v1"
+	"github.com/minitape/api/go/svc/project/v1/projectv1connect"
+	typesv1 "github.com/minitape/api/go/types/v1"
 	"github.com/humanlogio/humanlog/internal/pkg/config"
 	"github.com/humanlogio/humanlog/internal/pkg/state"
 	"github.com/humanlogio/humanlog/pkg/auth"

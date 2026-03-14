@@ -6,7 +6,7 @@ import (
 	"context"
 	"log/slog"
 
-	typesv1 "github.com/humanlogio/api/go/types/v1"
+	typesv1 "github.com/minitape/api/go/types/v1"
 )
 
 func runSystray(ctx context.Context, ll *slog.Logger, svcHandler *serviceHandler, version *typesv1.Version, baseSiteURL string) error {

@@ -7,12 +7,10 @@ import (
 	"net/http"
 
 	"connectrpc.com/connect"
-	"github.com/charmbracelet/huh"
-	"github.com/humanlogio/api/go/svc/auth/v1/authv1connect"
-	organizationv1 "github.com/humanlogio/api/go/svc/organization/v1"
-	"github.com/humanlogio/api/go/svc/organization/v1/organizationv1connect"
-	userv1 "github.com/humanlogio/api/go/svc/user/v1"
-	"github.com/humanlogio/api/go/svc/user/v1/userv1connect"
+	"github.com/minitape/api/go/svc/auth/v1/authv1connect"
+	"github.com/minitape/api/go/svc/organization/v1/organizationv1connect"
+	userv1 "github.com/minitape/api/go/svc/user/v1"
+	"github.com/minitape/api/go/svc/user/v1/userv1connect"
 	"github.com/humanlogio/humanlog/internal/pkg/config"
 	"github.com/humanlogio/humanlog/internal/pkg/iterapi"
 	"github.com/humanlogio/humanlog/internal/pkg/state"
@@ -34,13 +32,6 @@ func organizationCmd(
 	getHTTPClient func(cctx *cli.Context, apiURL string) *http.Client,
 	getConnectOpts func(*cli.Context) []connect.ClientOption,
 ) cli.Command {
-
-	var (
-		createOrgNameFlag = cli.StringFlag{
-			Name:  "name",
-			Usage: "name of the org to create",
-		}
-	)
 
 	return cli.Command{
 		Hidden:    hideUnreleasedFeatures == "true",
@@ -158,49 +149,6 @@ func organizationCmd(
 				},
 			},
 			{
-				Name:  "create",
-				Usage: "create an org",
-				Flags: []cli.Flag{createOrgNameFlag},
-				Action: func(cctx *cli.Context) error {
-					ctx := getCtx(cctx)
-					ll := getLogger(cctx)
-					tokenSource := getTokenSource(cctx)
-					apiURL := getAPIUrl(cctx)
-					httpClient := getHTTPClient(cctx, apiURL)
-					clOpts := getConnectOpts(cctx)
-
-					clOpts = append(clOpts, connect.WithInterceptors(
-						auth.Interceptors(ll, tokenSource)...,
-					))
-					userClient := userv1connect.NewUserServiceClient(httpClient, apiURL, clOpts...)
-
-					req := &userv1.CreateOrganizationRequest{
-						Name: cctx.String(createOrgNameFlag.Name),
-					}
-
-					if req.Name == "" {
-						err := huh.NewInput().
-							Title("How should this org be named?").
-							Value(&req.Name).
-							WithTheme(huhTheme).
-							Run()
-						if err != nil {
-							return fmt.Errorf("requesting name from user: %v", err)
-						}
-					}
-
-					res, err := userClient.CreateOrganization(ctx, connect.NewRequest(req))
-					if err != nil {
-						return err
-					}
-					org := res.Msg.Organization
-					printFact("id", org.Id)
-					printFact("name", org.Name)
-					printFact("created at", org.CreatedAt.AsTime())
-					return nil
-				},
-			},
-			{
 				Name:      "get",
 				Usage:     "get an org's details",
 				ArgsUsage: "<name>",
@@ -290,68 +238,6 @@ func organizationCmd(
 						return err
 					}
 
-					return nil
-				},
-			},
-			{
-				Name:      "invite",
-				Usage:     "invite someone to access an org",
-				ArgsUsage: `<email>`,
-				Action: func(cctx *cli.Context) error {
-					ctx := getCtx(cctx)
-					ll := getLogger(cctx)
-					state := getState(cctx)
-					tokenSource := getTokenSource(cctx)
-					apiURL := getAPIUrl(cctx)
-					httpClient := getHTTPClient(cctx, apiURL)
-					clOpts := getConnectOpts(cctx)
-					_ = ctx
-					_ = state
-					_ = tokenSource
-					_ = apiURL
-					_ = httpClient
-
-					email := cctx.Args().First()
-					if email == "" {
-						return fmt.Errorf("an email is required")
-					}
-
-					clOpts = append(clOpts, connect.WithInterceptors(
-						auth.Interceptors(ll, tokenSource)...,
-					))
-					organizationClient := organizationv1connect.NewOrganizationServiceClient(httpClient, apiURL, clOpts...)
-					res, err := organizationClient.InviteUser(ctx, connect.NewRequest(&organizationv1.InviteUserRequest{
-						UserEmail: email,
-					}))
-					if err != nil {
-						return fmt.Errorf("inviting user: %v", err)
-					}
-					_ = res
-					return nil
-				},
-			},
-			{
-				Name:  "revoke",
-				Usage: "revoke someone's access to an org",
-				Action: func(cctx *cli.Context) error {
-					ctx := getCtx(cctx)
-					ll := getLogger(cctx)
-					state := getState(cctx)
-					tokenSource := getTokenSource(cctx)
-					apiURL := getAPIUrl(cctx)
-					httpClient := getHTTPClient(cctx, apiURL)
-					clOpts := getConnectOpts(cctx)
-					_ = ctx
-					_ = state
-					_ = tokenSource
-					_ = apiURL
-					_ = httpClient
-
-					clOpts = append(clOpts, connect.WithInterceptors(
-						auth.Interceptors(ll, tokenSource)...,
-					))
-					organizationClient := organizationv1connect.NewOrganizationServiceClient(httpClient, apiURL, clOpts...)
-					_ = organizationClient
 					return nil
 				},
 			},

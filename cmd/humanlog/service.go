@@ -21,13 +21,13 @@ import (
 	otelconnect "connectrpc.com/otelconnect"
 	"github.com/blang/semver"
 	"github.com/go-git/go-billy/v6/osfs"
-	"github.com/humanlogio/api/go/svc/auth/v1/authv1connect"
-	cliupdatepb "github.com/humanlogio/api/go/svc/cliupdate/v1"
-	"github.com/humanlogio/api/go/svc/cliupdate/v1/cliupdatev1connect"
-	"github.com/humanlogio/api/go/svc/feature/v1/featurev1connect"
-	userv1 "github.com/humanlogio/api/go/svc/user/v1"
-	"github.com/humanlogio/api/go/svc/user/v1/userv1connect"
-	typesv1 "github.com/humanlogio/api/go/types/v1"
+	"github.com/minitape/api/go/svc/auth/v1/authv1connect"
+	cliupdatepb "github.com/minitape/api/go/svc/cliupdate/v1"
+	"github.com/minitape/api/go/svc/cliupdate/v1/cliupdatev1connect"
+	"github.com/minitape/api/go/svc/feature/v1/featurev1connect"
+	userv1 "github.com/minitape/api/go/svc/user/v1"
+	"github.com/minitape/api/go/svc/user/v1/userv1connect"
+	typesv1 "github.com/minitape/api/go/types/v1"
 	"github.com/humanlogio/humanlog/internal/localproject"
 	"github.com/humanlogio/humanlog/internal/localserver"
 	"github.com/humanlogio/humanlog/internal/localstate"
@@ -52,9 +52,6 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.34.0"
 	"golang.org/x/sync/errgroup"
-
-	// imported for side-effect of `init()` registration
-	_ "github.com/humanlogio/humanlog/internal/diskstorage"
 )
 
 const (

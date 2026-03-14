@@ -6,7 +6,7 @@ import (
 
 	"github.com/go-git/go-billy/v6"
 	"github.com/go-git/go-billy/v6/memfs"
-	typesv1 "github.com/humanlogio/api/go/types/v1"
+	typesv1 "github.com/minitape/api/go/types/v1"
 	"github.com/stretchr/testify/require"
 )
 

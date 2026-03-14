@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	typesv1 "github.com/humanlogio/api/go/types/v1"
+	typesv1 "github.com/minitape/api/go/types/v1"
 	"github.com/humanlogio/humanlog/pkg/sink"
 	"github.com/oklog/ulid/v2"
 	semconv "go.opentelemetry.io/otel/semconv/v1.34.0"

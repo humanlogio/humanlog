@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	typesv1 "github.com/humanlogio/api/go/types/v1"
+	typesv1 "github.com/minitape/api/go/types/v1"
 	"github.com/prometheus/prometheus/model/rulefmt"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"gopkg.in/yaml.v3"

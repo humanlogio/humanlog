@@ -14,20 +14,19 @@ import (
 	"connectrpc.com/connect"
 	"github.com/charmbracelet/huh"
 	"github.com/fatih/color"
-	authv1 "github.com/humanlogio/api/go/svc/auth/v1"
-	"github.com/humanlogio/api/go/svc/auth/v1/authv1connect"
-	organizationv1 "github.com/humanlogio/api/go/svc/organization/v1"
-	"github.com/humanlogio/api/go/svc/organization/v1/organizationv1connect"
-	productv1 "github.com/humanlogio/api/go/svc/product/v1"
-	"github.com/humanlogio/api/go/svc/product/v1/productv1connect"
-	projectv1 "github.com/humanlogio/api/go/svc/project/v1"
-	"github.com/humanlogio/api/go/svc/project/v1/projectv1connect"
-	tokenv1 "github.com/humanlogio/api/go/svc/token/v1"
-	"github.com/humanlogio/api/go/svc/token/v1/tokenv1connect"
-	userpb "github.com/humanlogio/api/go/svc/user/v1"
-	userv1 "github.com/humanlogio/api/go/svc/user/v1"
-	"github.com/humanlogio/api/go/svc/user/v1/userv1connect"
-	typesv1 "github.com/humanlogio/api/go/types/v1"
+	authv1 "github.com/minitape/api/go/svc/auth/v1"
+	"github.com/minitape/api/go/svc/auth/v1/authv1connect"
+	organizationv1 "github.com/minitape/api/go/svc/organization/v1"
+	"github.com/minitape/api/go/svc/organization/v1/organizationv1connect"
+	productv1 "github.com/minitape/api/go/svc/product/v1"
+	"github.com/minitape/api/go/svc/product/v1/productv1connect"
+	projectv1 "github.com/minitape/api/go/svc/project/v1"
+	"github.com/minitape/api/go/svc/project/v1/projectv1connect"
+	tokenv1 "github.com/minitape/api/go/svc/token/v1"
+	"github.com/minitape/api/go/svc/token/v1/tokenv1connect"
+	userv1 "github.com/minitape/api/go/svc/user/v1"
+	"github.com/minitape/api/go/svc/user/v1/userv1connect"
+	typesv1 "github.com/minitape/api/go/types/v1"
 	"github.com/humanlogio/humanlog/internal/pkg/iterapi"
 	"github.com/humanlogio/humanlog/internal/pkg/state"
 	"github.com/humanlogio/humanlog/pkg/auth"
@@ -211,13 +210,6 @@ poll_for_tokens:
 }
 
 func performLogoutFlow(ctx context.Context, userSvc userv1connect.UserServiceClient, tokenSource *auth.UserRefreshableTokenSource, returnToURL string) error {
-	res, err := userSvc.GetLogoutURL(ctx, connect.NewRequest(&userpb.GetLogoutURLRequest{ReturnTo: returnToURL}))
-	if err != nil {
-		return fmt.Errorf("retrieving logout URL")
-	}
-	if err := browser.OpenURL(res.Msg.GetLogoutUrl()); err != nil {
-		return fmt.Errorf("opening logout URL")
-	}
 	return tokenSource.ClearToken(ctx)
 }
 

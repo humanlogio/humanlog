@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	alertv1 "github.com/humanlogio/api/go/svc/alert/v1"
-	typesv1 "github.com/humanlogio/api/go/types/v1"
+	alertv1 "github.com/minitape/api/go/svc/alert/v1"
+	typesv1 "github.com/minitape/api/go/types/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/durationpb"

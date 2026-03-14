@@ -3,7 +3,7 @@ package humanlog
 import (
 	"regexp"
 
-	typesv1 "github.com/humanlogio/api/go/types/v1"
+	typesv1 "github.com/minitape/api/go/types/v1"
 )
 
 // dcLogsPrefixRe parses out a prefix like 'web_1 | ' from docker-compose

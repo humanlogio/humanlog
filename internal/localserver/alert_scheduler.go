@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	alertv1 "github.com/humanlogio/api/go/svc/alert/v1"
-	projectv1 "github.com/humanlogio/api/go/svc/project/v1"
-	typesv1 "github.com/humanlogio/api/go/types/v1"
+	alertv1 "github.com/minitape/api/go/svc/alert/v1"
+	projectv1 "github.com/minitape/api/go/svc/project/v1"
+	typesv1 "github.com/minitape/api/go/types/v1"
 	"github.com/humanlogio/humanlog/internal/localalert"
 	"github.com/humanlogio/humanlog/internal/pkg/iterapi"
 	"github.com/humanlogio/humanlog/pkg/localstorage"

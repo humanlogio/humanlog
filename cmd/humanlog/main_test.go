@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	typesv1 "github.com/humanlogio/api/go/types/v1"
+	typesv1 "github.com/minitape/api/go/types/v1"
 	"github.com/humanlogio/humanlog/internal/pkg/config"
 	"github.com/stretchr/testify/require"
 )

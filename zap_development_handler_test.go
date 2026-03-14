@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	typesv1 "github.com/humanlogio/api/go/types/v1"
+	typesv1 "github.com/minitape/api/go/types/v1"
 )
 
 var logLinesByLevel = map[string][]byte{
