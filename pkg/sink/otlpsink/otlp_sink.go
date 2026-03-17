@@ -2,12 +2,10 @@ package otlpink
 
 import (
 	"context"
-	"errors"
 	"io"
 	"log/slog"
 	"time"
 
-	"connectrpc.com/connect"
 	typesv1 "github.com/minitape/api/go/types/v1"
 	"github.com/humanlogio/humanlog/pkg/sink"
 	"github.com/oklog/ulid/v2"
@@ -74,14 +72,9 @@ func StartOTLPSink(
 				close(snk.doneFlushing)
 				return
 			}
-			var cerr *connect.Error
-			if errors.As(err, &cerr) && cerr.Code() == connect.CodeResourceExhausted {
-				close(snk.doneFlushing)
-				notifyUnableToIngest(err)
-				return
-			}
 			if err != nil {
 				ll.DebugContext(ctx, "failed to send logs", slog.Any("err", err))
+				notifyUnableToIngest(err)
 			}
 			if time.Since(startedAt) < time.Second {
 				select {

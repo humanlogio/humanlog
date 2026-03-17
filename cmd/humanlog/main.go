@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"crypto/tls"
-	"errors"
 	"fmt"
 	"log"
 	"log/slog"
@@ -12,33 +11,31 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
-
-	otelresource "go.opentelemetry.io/otel/sdk/resource"
-	semconv "go.opentelemetry.io/otel/semconv/v1.34.0"
 
 	"connectrpc.com/connect"
 	"github.com/99designs/keyring"
 	"github.com/aybabtme/rgbterm"
 	"github.com/blang/semver"
-	"github.com/charmbracelet/glamour"
-	"github.com/charmbracelet/huh"
-	"github.com/gen2brain/beeep"
 	types "github.com/minitape/api/go/types/v1"
 	"github.com/humanlogio/humanlog"
 	"github.com/humanlogio/humanlog/internal/pkg/config"
 	"github.com/humanlogio/humanlog/internal/pkg/state"
 	"github.com/humanlogio/humanlog/pkg/auth"
 	"github.com/humanlogio/humanlog/pkg/sink"
+	otlpsink "github.com/humanlogio/humanlog/pkg/sink/otlpsink"
 	"github.com/humanlogio/humanlog/pkg/sink/stdiosink"
 	"github.com/humanlogio/humanlog/pkg/sink/teesink"
 	"github.com/mattn/go-colorable"
 	"github.com/mattn/go-isatty"
 	"github.com/urfave/cli"
 	"golang.org/x/net/http2"
+	collogpb "go.opentelemetry.io/proto/otlp/collector/logs/v1"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 var (
@@ -71,21 +68,9 @@ var (
 		}
 		return v
 	}()
-	defaultApiURL          = "https://api.humanlog.io"
-	defaultBaseSiteURL     = "https://humanlog.io"
-	defaultOtlpGrpcApiAddr = "otlp-grpc.humanlog.io:443"
-	defaultOtlpHttpApiURL  = "https://otlp-http.humanlog.io"
-	defaultReleaseChannel  = "main"
-	hideUnreleasedFeatures = ""
-
-	huhTheme = func() *huh.Theme {
-		base := huh.ThemeCatppuccin()
-		base.Focused.FocusedButton = base.Focused.FocusedButton.Bold(true).Underline(true)
-		base.Focused.BlurredButton = base.Focused.BlurredButton.Bold(false).Underline(false).Strikethrough(true)
-		base.Blurred.FocusedButton = base.Focused.FocusedButton.Bold(true).Underline(true)
-		base.Blurred.BlurredButton = base.Focused.BlurredButton.Bold(false).Underline(false).Strikethrough(true)
-		return base
-	}()
+	defaultApiURL      = "https://api.humanlog.io"
+	defaultBaseSiteURL = "https://humanlog.io"
+	defaultReleaseChannel = "main"
 )
 
 func fatalf(c *cli.Context, format string, args ...interface{}) {
@@ -207,20 +192,6 @@ func newApp() *cli.App {
 		EnvVar: "HUMANLOG_BASE_SITE_URL",
 		Hidden: true,
 	}
-	otlpGrpcApiServerAddr := cli.StringFlag{
-		Name:   "otlp.grpc",
-		Value:  defaultOtlpGrpcApiAddr,
-		Usage:  "address of the OTLP GRPC server",
-		EnvVar: "HUMANLOG_OTLP_GRPC_ADDR",
-		Hidden: true,
-	}
-	otlpHttpApiServerURL := cli.StringFlag{
-		Name:   "otlp.http",
-		Value:  defaultOtlpHttpApiURL,
-		Usage:  "address of the OTLP HTTP server",
-		EnvVar: "HUMANLOG_OTLP_HTTP_URL",
-		Hidden: true,
-	}
 
 	debug := cli.BoolFlag{
 		Name:   "debug",
@@ -239,87 +210,18 @@ func newApp() *cli.App {
 		Hidden: true,
 	}
 
+	otlpEndpoint := cli.StringFlag{
+		Name:   "otlp-endpoint",
+		Usage:  "OTLP gRPC endpoint to forward logs to (e.g. localhost:4317)",
+		EnvVar: "OTEL_EXPORTER_OTLP_ENDPOINT",
+	}
+
 	app := cli.NewApp()
 	app.Author = "humanlog.io"
 	app.Email = defaultBaseSiteURL + `/support`
 	app.Name = "humanlog"
 	app.Version = semverVersion.String()
-	app.Usage = "reads logs from stdin (and traces!), makes them pretty on stdout!"
-	app.Description = renderDescription(`
-# humanlog
-> an observability tool on your machine.
-
-Ingests logs and distributed tracing spans and makes them searchable and readable.
-
-When invoked with no argument, consumes stdin and parses it, attempting to make detected logs prettier on stdout.
-
-## Logging
-
-You can search the logs that were parsed. Run a query with:
-
-` + "```" + `bash
-humanlog query 'summarize count() by msg'
-` + "```" + `
-
-You can also watch streams of logs being ingested with streaming
-queries.
-
-` + "```" + `bash
-humanlog stream 'filter lvl == "ERROR"'
-` + "```" + `
-
-## Tracing
-
-Similarly for distributed tracing, point your application to
-
-` + "```" + `bash
-export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
-` + "```" + `
-
-Then query your spans and visualize them in traces.
-
-` + "```" + `bash
-humanlog query 'traces | where time > ago(30s) | take 1'
-` + "```" + `
-
-And like logs, you can watch your stream of spans:
-
-` + "```" + `bash
-humanlog stream 'traces | where service_name == "my_service"'
-` + "```" + `
-
-More complex queries are possible, same as for logs:
-
-` + "```" + `bash
-humanlog query 'traces | where time > ago(30s) | summarize span_count=count() by trace_id | sort by span_count desc | take 1'
-` + "```" + `
-
-
-## Ingesting data
-
-Ingestion of logs is typically done by invoking ` + "`" + `humanlog` + "`" + ` with no argument and feeding it via stdin.
-
-` + "```" + `bash
-# Feed it via stdin
-your_app | humanlog
-
-# Or replay log files
-humanlog < /var/log/yourlogfile
-
-# pull from elsewhere for quick debugging session
-kubectl logs -l app=yourapp -f | humanlog
-` + "```" + `
-
-If your application integrates twith **OpenTelemetry** you can point it to:
-- OTLP/gRPC: ` + "`" + `localhost:4317` + "`" + `
-- OTLP/json: ` + "`" + `localhost:4318` + "`" + `
-
-## Getting more help
-
-For more details:
-- read [our documentation](` + defaultBaseSiteURL + `/docs/get-started/introduction).
-- join [our community](` + defaultBaseSiteURL + `/link/discord).
-	`)
+	app.Usage = "reads structured logs from stdin, makes them pretty on stdout!"
 
 	var (
 		closers []func()
@@ -339,52 +241,18 @@ For more details:
 		httpClient = &http.Client{
 			Transport: httpTransport,
 		}
-		localhostHttpTransport = &http2.Transport{
-			AllowHTTP: true,
-			DialTLS: func(network, addr string, _ *tls.Config) (net.Conn, error) {
-				return dialer.Dial(network, addr)
-			},
-		}
-		localhostHttpClient = &http.Client{
-			Transport: localhostHttpTransport,
-		}
 		clOpts           []connect.ClientOption
 		promptedToUpdate *semver.Version
 		updateRes        <-chan *checkForUpdateRes
 		apiURL           = ""
 		baseSiteURL      = ""
-		otlpGrpcApiAddr  = ""
-		otlpHttpApiURL   = ""
 		keyringName      = "humanlog"
-
-		resource = &types.Resource{}
-		scope    = &types.Scope{}
 
 		getCtx      = func(*cli.Context) context.Context { return ctx }
 		getCfg      = func(*cli.Context) *config.Config { return cfg }
 		getState    = func(*cli.Context) *state.State { return statefile }
-		getResource = func(cctx *cli.Context) *types.Resource { return resource }
-		getScope    = func(*cli.Context) *types.Scope { return scope }
 		logOutput   = os.Stderr
-		usesLogFile = false
 		getLogger   = func(cctx *cli.Context) *slog.Logger {
-			if cctx.Command.Name == app.Name && !usesLogFile {
-				usesLogFile = true
-				logdir, err := defaultLogDir(getCfg(cctx), getState(cctx))
-				if err != nil {
-					panic(fmt.Sprintf("looking up log dir: %v", err))
-				}
-				if err := os.MkdirAll(logdir, 0700); err != nil {
-					panic(fmt.Sprintf("ensuring log dir exists: %v", err))
-				}
-				logfile := filepath.Join(logdir, "logs.json")
-
-				logOutput, err = os.OpenFile(logfile, os.O_APPEND|os.O_CREATE|os.O_SYNC, 0640)
-				if err != nil {
-					panic(fmt.Sprintf("creating log file: %v", err))
-				}
-				closers = append(closers, func() { _ = logOutput.Close() })
-			}
 			return slog.New(slog.NewJSONHandler(logOutput, &slog.HandlerOptions{
 				AddSource: true,
 				Level:     slogLevel(),
@@ -416,20 +284,6 @@ For more details:
 			logdebug("using api at %q", apiURL)
 			return apiURL
 		}
-		getOTLPGRPCAPIAddr = func(*cli.Context) string {
-			if otlpGrpcApiAddr == "" {
-				otlpGrpcApiAddr = defaultOtlpGrpcApiAddr
-			}
-			logdebug("using otlp grpc at %q", otlpGrpcApiAddr)
-			return otlpGrpcApiAddr
-		}
-		getOTLPHTTPAPIUrl = func(*cli.Context) string {
-			if otlpHttpApiURL == "" {
-				otlpHttpApiURL = defaultOtlpHttpApiURL
-			}
-			logdebug("using otlp http at %q", otlpHttpApiURL)
-			return otlpHttpApiURL
-		}
 		getBaseSiteURL = func(*cli.Context) string {
 			if baseSiteURL == "" {
 				baseSiteURL = defaultBaseSiteURL
@@ -440,13 +294,10 @@ For more details:
 		getHTTPClient = func(cctx *cli.Context, apiURL string) *http.Client {
 			u, _ := url.Parse(apiURL)
 			if host, _, _ := net.SplitHostPort(u.Host); host == "localhost" {
-				getLogger(cctx).Debug("using localhost client")
-				return localhostHttpClient
+				getLogger(cctx).Debug("using plain HTTP client for localhost")
+				return &http.Client{Transport: &http.Transport{}}
 			}
 			return httpClient
-		}
-		getLocalhostHTTPClient = func(*cli.Context) *http.Client {
-			return localhostHttpClient
 		}
 		getConnectOpts = func(cctx *cli.Context) []connect.ClientOption {
 			return clOpts
@@ -483,14 +334,6 @@ For more details:
 		if c.String(apiServerURL.Name) != "" {
 			apiURL = c.String(apiServerURL.Name)
 			logdebug("api URL set to %q (due to --%s flag or $%s env var)", apiURL, apiServerURL.Name, apiServerURL.EnvVar)
-		}
-		if c.String(otlpGrpcApiServerAddr.Name) != "" {
-			otlpGrpcApiAddr = c.String(otlpGrpcApiServerAddr.Name)
-			logdebug("otlp grpc addr set to %q (due to --%s flag or $%s env var)", otlpGrpcApiAddr, otlpGrpcApiServerAddr.Name, otlpGrpcApiServerAddr.EnvVar)
-		}
-		if c.String(otlpHttpApiServerURL.Name) != "" {
-			otlpHttpApiURL = c.String(otlpHttpApiServerURL.Name)
-			logdebug("otlp http URL set to %q (due to --%s flag or $%s env var)", otlpHttpApiURL, otlpHttpApiServerURL.Name, otlpHttpApiServerURL.EnvVar)
 		}
 		if c.String(baseSiteServerURL.Name) != "" {
 			baseSiteURL = c.String(baseSiteServerURL.Name)
@@ -571,31 +414,6 @@ For more details:
 			return fmt.Errorf("reading default config file: %v", err)
 		}
 
-		res, err := otelresource.New(ctx,
-			otelresource.WithAttributes(
-				semconv.ServiceName("humanlog"),
-			),
-			otelresource.WithHost(),
-			otelresource.WithFromEnv(),
-			otelresource.WithOS(),
-			otelresource.WithProcess(),
-			otelresource.WithContainer(),
-			otelresource.WithTelemetrySDK(),
-		)
-		if err != nil {
-			return fmt.Errorf("detecting resource: %v", err)
-		}
-		resource = types.NewResource(
-			"",
-			types.FromOTELAttributes(res.Attributes()),
-		)
-		scope = types.NewScope(
-			"",
-			"humanlog",
-			semverVersion.String(),
-			nil,
-		)
-
 		if shouldCheckForUpdate(c, cfg, statefile) {
 			if statefile.LatestKnownVersion != nil && statefile.LatestKnownVersion.GT(semverVersion) {
 				promptedToUpdate = statefile.LatestKnownVersion
@@ -640,23 +458,10 @@ For more details:
 	}
 	app.Commands = append(
 		app.Commands,
-		onboardingCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getBaseSiteURL, getHTTPClient, getConnectOpts),
-		demoCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getBaseSiteURL, getHTTPClient, getConnectOpts),
 		versionCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getBaseSiteURL, getHTTPClient, getConnectOpts),
-		authCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getHTTPClient, getConnectOpts),
-		apiCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getBaseSiteURL, getHTTPClient, getLocalhostHTTPClient, getConnectOpts),
-		serviceCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getBaseSiteURL, getHTTPClient, getConnectOpts),
-		configCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getBaseSiteURL, getHTTPClient, getConnectOpts),
-		stateCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getBaseSiteURL, getHTTPClient, getConnectOpts),
-		organizationCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getHTTPClient, getConnectOpts),
-		environmentCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getHTTPClient, getConnectOpts),
-		ingestCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getOTLPGRPCAPIAddr, getOTLPHTTPAPIUrl, getHTTPClient, getConnectOpts, getResource, getScope),
-		queryCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getBaseSiteURL, getHTTPClient, getConnectOpts),
-		projectCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getHTTPClient, getConnectOpts),
-		streamCmd(getCtx, getLogger, getCfg, getState, getTokenSource, getAPIUrl, getBaseSiteURL, getHTTPClient, getConnectOpts),
-		gennyCmd(getCtx, getLogger, getCfg, getState),
+		configCmd(getCfg),
 	)
-	app.Flags = []cli.Flag{configFlag, skipFlag, keepFlag, sortLongest, skipUnchanged, truncates, truncateLength, colorFlag, timeFormat, ignoreInterrupts, messageFieldsFlag, timeFieldsFlag, levelFieldsFlag, apiServerURL, otlpGrpcApiServerAddr, otlpHttpApiServerURL, baseSiteServerURL, debug, useHTTP1, useProtocol}
+	app.Flags = []cli.Flag{configFlag, skipFlag, keepFlag, sortLongest, skipUnchanged, truncates, truncateLength, colorFlag, timeFormat, ignoreInterrupts, messageFieldsFlag, timeFieldsFlag, levelFieldsFlag, otlpEndpoint, apiServerURL, baseSiteServerURL, debug, useHTTP1, useProtocol}
 	app.Action = func(cctx *cli.Context) error {
 		if len(cctx.Args()) > 0 {
 			return fmt.Errorf("unknown command: %s", strings.Join(cctx.Args(), " "))
@@ -751,100 +556,64 @@ For more details:
 			}
 		}
 		var (
-			sink sink.Sink
-			err  error
+			snk sink.Sink
+			err error
 		)
-		sink, err = stdiosink.NewStdio(colorable.NewColorableStdout(), sinkOpts)
+		snk, err = stdiosink.NewStdio(colorable.NewColorableStdout(), sinkOpts)
 		if err != nil {
 			return fmt.Errorf("preparing stdio printer: %v", err)
 		}
 		handlerOpts := humanlog.HandlerOptionsFrom(cfg.Parser)
 
-		rtcfg := cfg.Runtime
-		if rtcfg != nil && rtcfg.ExperimentalFeatures != nil {
-			expcfg := rtcfg.ExperimentalFeatures
-			if expcfg.SendLogsToCloud != nil && *expcfg.SendLogsToCloud {
-				ll := getLogger(cctx)
-				apiURL := getAPIUrl(cctx)
-				notifyUnableToIngest := func(err error) {
-					// TODO: notify using system notification?
-					logerror("configured to ingest, but unable to do so: %v", err)
-					msg := "Your logs are not being sent!"
-					var cerr *connect.Error
-					if errors.As(err, &cerr) {
-						if cerr.Code() == connect.CodeResourceExhausted {
-							msg += "\n\n- " + cerr.Message()
-						} else {
-							msg += "\n\n- " + cerr.Error()
-						}
-					} else {
-						msg += "\n\n" + "An unexpected error occurred while trying to ingest your logs, see your terminal for details."
-						logerror("err=%T", err)
-					}
+		// OTLP forwarding
+		if cctx.IsSet(otlpEndpoint.Name) {
+			endpoint := cctx.String(otlpEndpoint.Name)
+			ll := getLogger(cctx)
 
-					if err := beeep.Alert("humanlog has problems!", msg, ""); err != nil {
-						logerror("couldn't send desktop notification: %v", err)
-						if err := beeep.Beep(3000, 1); err != nil {
-							logerror("can't even beeep :'( -> %v", err)
-						}
-						os.Exit(1)
-					}
-				}
-
-				flushTimeout := 300 * time.Millisecond
-				ingestctx, ingestcancel := context.WithCancel(context.WithoutCancel(ctx))
-				go func() {
-					<-ctx.Done()
-					time.Sleep(2 * flushTimeout) // give it 2x timeout to flush before nipping the ctx entirely
-					ingestcancel()
-				}()
-				remotesink, err := ingest(ingestctx, ll, cctx, apiURL, getOTLPGRPCAPIAddr, getOTLPHTTPAPIUrl, getCfg, getState, getResource, getScope, getTokenSource, getHTTPClient, getConnectOpts, notifyUnableToIngest)
-				if err != nil {
-					return fmt.Errorf("can't send logs: %v", err)
-				}
-				defer func() {
-					ctx, cancel := context.WithTimeout(context.Background(), flushTimeout)
-					defer cancel()
-					ll.DebugContext(ctx, "flushing remote ingestion sink for up to 300ms")
-					if err := remotesink.Close(ctx); err != nil {
-						ll.ErrorContext(ctx, "couldn't flush buffered log", slog.Any("err", err))
-					} else {
-						ll.DebugContext(ctx, "done sending all logs")
-					}
-				}()
-				loginfo("saving to %s", apiURL)
-				sink = teesink.NewTeeSink(sink, remotesink)
+			var transportCreds grpc.DialOption
+			if u, err := url.Parse(endpoint); err == nil && u.Scheme == "http" {
+				transportCreds = grpc.WithTransportCredentials(insecure.NewCredentials())
+				// strip scheme for gRPC dial
+				endpoint = u.Host
+			} else {
+				transportCreds = grpc.WithTransportCredentials(credentials.NewTLS(nil))
 			}
 
-			if expcfg != nil && expcfg.ServeLocalhost != nil {
-				localhostCfg := expcfg.ServeLocalhost
-				// TODO(antoine): all logs to a single location, right now there's code logging
-				// randomly everywhere
-				ll := getLogger(cctx)
-
-				localhostSink, done, err := dialLocalhostServer(
-					ctx, ll, resource, scope, int(localhostCfg.Port),
-					getLocalhostHTTPClient(cctx),
-					func(err error) {
-						logerror("unable to ingest logs with localhost: %v", err)
-					},
-				)
-				if err != nil {
-					logerror("failed to start localhost service: %v", err)
-				} else {
-					sink = teesink.NewTeeSink(sink, localhostSink)
-					defer func() {
-						ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
-						defer cancel()
-						ll.DebugContext(ctx, "flushing localhost ingestion sink for up to 300ms")
-						if err := done(ctx); err != nil {
-							ll.DebugContext(ctx, "couldn't flush buffered log (localhost)", slog.Any("err", err))
-						} else {
-							ll.DebugContext(ctx, "done sending all logs")
-						}
-					}()
-				}
+			userAgent := "humanlog OTLP exporter/" + semverVersion.String()
+			conn, err := grpc.NewClient(endpoint,
+				grpc.WithUserAgent(userAgent),
+				transportCreds,
+			)
+			if err != nil {
+				return fmt.Errorf("connecting to OTLP endpoint %q: %v", endpoint, err)
 			}
+			closers = append(closers, func() { _ = conn.Close() })
+
+			client := collogpb.NewLogsServiceClient(conn)
+			resource := types.NewResource("", nil)
+			scope := types.NewScope("", "humanlog", semverVersion.String(), nil)
+
+			flushTimeout := 300 * time.Millisecond
+			otlpctx, otlpcancel := context.WithCancel(context.WithoutCancel(ctx))
+			go func() {
+				<-ctx.Done()
+				time.Sleep(2 * flushTimeout)
+				otlpcancel()
+			}()
+
+			otlpSink := otlpsink.StartOTLPSink(otlpctx, ll, client, "otlp", resource, scope, 1_000, 100*time.Millisecond, false, func(err error) {
+				logerror("unable to send logs to OTLP endpoint: %v", err)
+			})
+			defer func() {
+				fctx, fcancel := context.WithTimeout(context.Background(), flushTimeout)
+				defer fcancel()
+				ll.DebugContext(fctx, "flushing OTLP sink")
+				if err := otlpSink.Close(fctx); err != nil {
+					ll.ErrorContext(fctx, "couldn't flush OTLP sink", slog.Any("err", err))
+				}
+			}()
+			loginfo("forwarding logs to OTLP endpoint %s", endpoint)
+			snk = teesink.NewTeeSink(snk, otlpSink)
 		}
 
 		in := os.Stdin
@@ -864,7 +633,7 @@ For more details:
 			}
 		}()
 
-		if err := humanlog.Scan(ctx, in, sink, handlerOpts); err != nil {
+		if err := humanlog.Scan(ctx, in, snk, handlerOpts); err != nil {
 			logerror("scanning caught an error: %v", err)
 		}
 
@@ -883,19 +652,4 @@ func mustatoi(a string) int {
 		panic(err)
 	}
 	return i
-}
-
-func renderDescription(in string) string {
-	r, err := glamour.NewTermRenderer(
-		glamour.WithAutoStyle(),
-		glamour.WithWordWrap(120),
-	)
-	if err != nil {
-		panic(err)
-	}
-	out, err := r.Render(in)
-	if err != nil {
-		panic(err)
-	}
-	return out
 }
