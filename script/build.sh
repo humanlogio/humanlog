@@ -4,7 +4,6 @@ set -euox pipefail
 
 root=$(git rev-parse --show-toplevel)
 
-gotags="${HUMANLOG_GOTAGS:-}"
 goos="${GOOS:-$(go env GOOS)}"
 goarch="${GOARCH:-$(go env GOARCH)}"
 is_prod_build="${HUMANLOG_IS_PROD_BUILD:-}"
@@ -86,9 +85,6 @@ function main() {
     local tarname="humanlog_${version}_${goos}_${goarch}.tar.gz"
 
     local flags="-o ${output_path} -trimpath"
-    if [[ ! -z "${gotags}" ]]; then
-        flags+=" -tags ${gotags}"
-    fi
 
     ldflags="-s -w"
 
@@ -102,14 +98,13 @@ function main() {
     ldflags+=" -X main.versionBuild=${build}"
     if [[ "${is_prod_build}" != "true" ]]; then
         ldflags+=" -X main.versionPrerelease=${pre}"
-        ldflags+=" -X main.defaultApiAddr=https://api.humanlog.dev"
-        ldflags+=" -X main.defaultBaseSiteAddr=https://humanlog.dev"
+        ldflags+=" -X main.defaultApiURL=https://api.humanlog.dev"
+        ldflags+=" -X main.defaultBaseSiteURL=https://humanlog.dev"
         ldflags+=" -X main.defaultReleaseChannel=dev"
     else
         ldflags+=" -X main.versionPrerelease="
-        ldflags+=" -X main.hideUnreleasedFeatures=true"
-        ldflags+=" -X main.defaultApiAddr=https://api.humanlog.io"
-        ldflags+=" -X main.defaultBaseSiteAddr=https://humanlog.io"
+        ldflags+=" -X main.defaultApiURL=https://api.humanlog.io"
+        ldflags+=" -X main.defaultBaseSiteURL=https://humanlog.io"
         ldflags+=" -X main.defaultReleaseChannel=main"
     fi
 

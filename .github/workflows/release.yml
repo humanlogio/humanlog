@@ -98,7 +98,6 @@ jobs:
       - run: mkdir -p dist/${{ matrix.targets.goos }}-${{ matrix.targets.goarch }}
       - run: ${{ matrix.targets.goenvs }} ./script/build.sh
         env:
-          HUMANLOG_GOTAGS: ${{ matrix.targets.tags }}
           GOOS: ${{ matrix.targets.goos }}
           GOARCH: ${{ matrix.targets.goarch }}
           HUMANLOG_IS_PROD_BUILD: 'true'

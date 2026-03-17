@@ -6,16 +6,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"time"
 
 	typesv1 "github.com/minitape/api/go/types/v1"
-	"github.com/humanlogio/humanlog/internal/pkg/state"
 	"github.com/humanlogio/humanlog/pkg/sink/stdiosink"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
-	structpb "google.golang.org/protobuf/types/known/structpb"
 )
 
 func init() {
@@ -23,32 +20,9 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
-	_, err = GetDefaultLocalhostConfig()
-	if err != nil {
-		panic(err)
-	}
 }
 
-const (
-	runLocalhostByDefault    = false
-	sendLogsToCloudByDefault = false
-)
-
 func GetDefaultConfig(releaseChannel string) (*Config, error) {
-	var (
-		serveLocalhostCfg *typesv1.ServeLocalhostConfig
-		sendLogsToCloud   *bool
-		err               error
-	)
-	if runLocalhostByDefault {
-		serveLocalhostCfg, err = GetDefaultLocalhostConfig()
-		if err != nil {
-			return nil, err
-		}
-	}
-	if sendLogsToCloudByDefault {
-		sendLogsToCloud = ptr(true)
-	}
 	return &Config{
 		Version: currentConfigVersion,
 		CurrentConfig: &typesv1.LocalhostConfig{
@@ -84,39 +58,9 @@ func GetDefaultConfig(releaseChannel string) (*Config, error) {
 				SkipCheckForUpdates: ptr(false),
 				Features:            &typesv1.RuntimeConfig_Features{},
 				ExperimentalFeatures: &typesv1.RuntimeConfig_ExperimentalFeatures{
-					ReleaseChannel:  &releaseChannel,
-					SendLogsToCloud: sendLogsToCloud,
-					ServeLocalhost:  serveLocalhostCfg,
-					Projects:        &typesv1.ProjectsConfig{},
+					ReleaseChannel: &releaseChannel,
 				},
 			},
-		},
-	}, nil
-}
-
-func GetDefaultLocalhostConfig() (*typesv1.ServeLocalhostConfig, error) {
-	stateDir, err := state.GetDefaultStateDirpath()
-	if err != nil {
-		return nil, err
-	}
-	dbpath := filepath.Join(stateDir, "data", "db.humanlog")
-	logDir := filepath.Join(stateDir, "logs")
-
-	engineConfig, err := structpb.NewStruct(map[string]any{
-		"path": dbpath,
-	})
-	if err != nil {
-		return nil, err
-	}
-	return &typesv1.ServeLocalhostConfig{
-		Port:          32764,
-		Engine:        "advanced",
-		EngineConfig:  engineConfig,
-		ShowInSystray: ptr(true),
-		LogDir:        ptr(logDir),
-		Otlp: &typesv1.ServeLocalhostConfig_OTLP{
-			GrpcPort: 4317,
-			HttpPort: 4318,
 		},
 	}, nil
 }
@@ -523,10 +467,10 @@ func mergeRuntimeExperimentalFeatures(prev, next *typesv1.RuntimeConfig_Experime
 		out.SendLogsToCloud = next.SendLogsToCloud
 	}
 	if next.ServeLocalhost != nil {
-		out.ServeLocalhost = mergeRuntimeServeLocalhostConfig(prev.GetServeLocalhost(), next.ServeLocalhost)
+		out.ServeLocalhost = proto.Clone(next.ServeLocalhost).(*typesv1.ServeLocalhostConfig)
 	}
 	if next.Projects != nil {
-		out.Projects = mergeRuntimeProjectsConfig(prev.GetProjects(), next.Projects)
+		out.Projects = proto.Clone(next.Projects).(*typesv1.ProjectsConfig)
 	}
 	return out
 }
@@ -542,56 +486,6 @@ func mergeRuntimeClientConfig(prev, next *typesv1.RuntimeConfig_ClientConfig) *t
 	if next.RpcProtocol != nil {
 		out.RpcProtocol = next.RpcProtocol
 	}
-	return out
-}
-
-func mergeRuntimeServeLocalhostConfig(prev, next *typesv1.ServeLocalhostConfig) *typesv1.ServeLocalhostConfig {
-	out := proto.Clone(prev).(*typesv1.ServeLocalhostConfig)
-	if out == nil {
-		out = new(typesv1.ServeLocalhostConfig)
-	}
-	// next overrides everything, but not
-	// - ShowInSystray
-	// - LogDir
-	out.Port = next.Port
-	out.Engine = next.Engine
-	out.EngineConfig = next.EngineConfig
-	if next.ShowInSystray != nil {
-		out.ShowInSystray = next.ShowInSystray
-	}
-	if next.LogDir != nil {
-		out.LogDir = next.LogDir
-	}
-	if next.Otlp != nil {
-		out.Otlp = mergeRuntimeServeLocalhostConfigOltp(prev.GetOtlp(), next.Otlp)
-	}
-	return out
-}
-
-func mergeRuntimeServeLocalhostConfigOltp(prev, next *typesv1.ServeLocalhostConfig_OTLP) *typesv1.ServeLocalhostConfig_OTLP {
-	out := proto.Clone(prev).(*typesv1.ServeLocalhostConfig_OTLP)
-	if out == nil {
-		out = new(typesv1.ServeLocalhostConfig_OTLP)
-	}
-	out.GrpcPort = next.GrpcPort
-	out.HttpPort = next.HttpPort
-	return out
-}
-
-func mergeRuntimeProjectsConfig(prev, next *typesv1.ProjectsConfig) *typesv1.ProjectsConfig {
-	out := proto.Clone(prev).(*typesv1.ProjectsConfig)
-	if out == nil {
-		out = new(typesv1.ProjectsConfig)
-	}
-	out.Projects = mergeRuntimeProjectsConfig_Pointer(prev.Projects, next.Projects)
-	return out
-}
-
-func mergeRuntimeProjectsConfig_Pointer(prev, next []*typesv1.ProjectsConfig_Project) []*typesv1.ProjectsConfig_Project {
-	out := slices.Concat(prev, next)
-	slices.SortFunc(out, func(a, b *typesv1.ProjectsConfig_Project) int {
-		return strings.Compare(a.Name, b.Name)
-	})
 	return out
 }
 
