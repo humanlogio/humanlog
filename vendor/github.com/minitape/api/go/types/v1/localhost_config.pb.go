@@ -348,32 +348,33 @@ func (x *ParseConfig) GetKv() *ParseConfig_KV {
 	return nil
 }
 
-type ServeLocalhostConfig struct {
-	state         protoimpl.MessageState     `protogen:"open.v1"`
-	Port          int64                      `protobuf:"varint,1,opt,name=port,proto3" json:"port,omitempty"`
-	Engine        string                     `protobuf:"bytes,2,opt,name=engine,proto3" json:"engine,omitempty"`
-	EngineConfig  *structpb.Struct           `protobuf:"bytes,3,opt,name=engine_config,json=engineConfig,proto3" json:"engine_config,omitempty"`
-	ShowInSystray *bool                      `protobuf:"varint,4,opt,name=show_in_systray,json=showInSystray,proto3,oneof" json:"show_in_systray,omitempty"`
-	LogDir        *string                    `protobuf:"bytes,5,opt,name=log_dir,json=logDir,proto3,oneof" json:"log_dir,omitempty"`
-	Otlp          *ServeLocalhostConfig_OTLP `protobuf:"bytes,101,opt,name=otlp,proto3" json:"otlp,omitempty"`
+type ServerConfig struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Port          int64                  `protobuf:"varint,1,opt,name=port,proto3" json:"port,omitempty"`
+	Engine        string                 `protobuf:"bytes,2,opt,name=engine,proto3" json:"engine,omitempty"`
+	EngineConfig  *structpb.Struct       `protobuf:"bytes,3,opt,name=engine_config,json=engineConfig,proto3" json:"engine_config,omitempty"`
+	ShowInSystray *bool                  `protobuf:"varint,4,opt,name=show_in_systray,json=showInSystray,proto3,oneof" json:"show_in_systray,omitempty"`
+	LogDir        *string                `protobuf:"bytes,5,opt,name=log_dir,json=logDir,proto3,oneof" json:"log_dir,omitempty"`
+	BindAddress   string                 `protobuf:"bytes,6,opt,name=bind_address,json=bindAddress,proto3" json:"bind_address,omitempty"`
+	Otlp          *ServerConfig_OTLP     `protobuf:"bytes,101,opt,name=otlp,proto3" json:"otlp,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ServeLocalhostConfig) Reset() {
-	*x = ServeLocalhostConfig{}
+func (x *ServerConfig) Reset() {
+	*x = ServerConfig{}
 	mi := &file_types_v1_localhost_config_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ServeLocalhostConfig) String() string {
+func (x *ServerConfig) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ServeLocalhostConfig) ProtoMessage() {}
+func (*ServerConfig) ProtoMessage() {}
 
-func (x *ServeLocalhostConfig) ProtoReflect() protoreflect.Message {
+func (x *ServerConfig) ProtoReflect() protoreflect.Message {
 	mi := &file_types_v1_localhost_config_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -385,47 +386,54 @@ func (x *ServeLocalhostConfig) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ServeLocalhostConfig.ProtoReflect.Descriptor instead.
-func (*ServeLocalhostConfig) Descriptor() ([]byte, []int) {
+// Deprecated: Use ServerConfig.ProtoReflect.Descriptor instead.
+func (*ServerConfig) Descriptor() ([]byte, []int) {
 	return file_types_v1_localhost_config_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *ServeLocalhostConfig) GetPort() int64 {
+func (x *ServerConfig) GetPort() int64 {
 	if x != nil {
 		return x.Port
 	}
 	return 0
 }
 
-func (x *ServeLocalhostConfig) GetEngine() string {
+func (x *ServerConfig) GetEngine() string {
 	if x != nil {
 		return x.Engine
 	}
 	return ""
 }
 
-func (x *ServeLocalhostConfig) GetEngineConfig() *structpb.Struct {
+func (x *ServerConfig) GetEngineConfig() *structpb.Struct {
 	if x != nil {
 		return x.EngineConfig
 	}
 	return nil
 }
 
-func (x *ServeLocalhostConfig) GetShowInSystray() bool {
+func (x *ServerConfig) GetShowInSystray() bool {
 	if x != nil && x.ShowInSystray != nil {
 		return *x.ShowInSystray
 	}
 	return false
 }
 
-func (x *ServeLocalhostConfig) GetLogDir() string {
+func (x *ServerConfig) GetLogDir() string {
 	if x != nil && x.LogDir != nil {
 		return *x.LogDir
 	}
 	return ""
 }
 
-func (x *ServeLocalhostConfig) GetOtlp() *ServeLocalhostConfig_OTLP {
+func (x *ServerConfig) GetBindAddress() string {
+	if x != nil {
+		return x.BindAddress
+	}
+	return ""
+}
+
+func (x *ServerConfig) GetOtlp() *ServerConfig_OTLP {
 	if x != nil {
 		return x.Otlp
 	}
@@ -1816,7 +1824,7 @@ func (x *ParseConfig_KV) GetDetectDuration() bool {
 	return false
 }
 
-type ServeLocalhostConfig_OTLP struct {
+type ServerConfig_OTLP struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	GrpcPort      int64                  `protobuf:"varint,1,opt,name=grpc_port,json=grpcPort,proto3" json:"grpc_port,omitempty"`
 	HttpPort      int64                  `protobuf:"varint,2,opt,name=http_port,json=httpPort,proto3" json:"http_port,omitempty"`
@@ -1824,20 +1832,20 @@ type ServeLocalhostConfig_OTLP struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ServeLocalhostConfig_OTLP) Reset() {
-	*x = ServeLocalhostConfig_OTLP{}
+func (x *ServerConfig_OTLP) Reset() {
+	*x = ServerConfig_OTLP{}
 	mi := &file_types_v1_localhost_config_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ServeLocalhostConfig_OTLP) String() string {
+func (x *ServerConfig_OTLP) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ServeLocalhostConfig_OTLP) ProtoMessage() {}
+func (*ServerConfig_OTLP) ProtoMessage() {}
 
-func (x *ServeLocalhostConfig_OTLP) ProtoReflect() protoreflect.Message {
+func (x *ServerConfig_OTLP) ProtoReflect() protoreflect.Message {
 	mi := &file_types_v1_localhost_config_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -1849,19 +1857,19 @@ func (x *ServeLocalhostConfig_OTLP) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ServeLocalhostConfig_OTLP.ProtoReflect.Descriptor instead.
-func (*ServeLocalhostConfig_OTLP) Descriptor() ([]byte, []int) {
+// Deprecated: Use ServerConfig_OTLP.ProtoReflect.Descriptor instead.
+func (*ServerConfig_OTLP) Descriptor() ([]byte, []int) {
 	return file_types_v1_localhost_config_proto_rawDescGZIP(), []int{2, 0}
 }
 
-func (x *ServeLocalhostConfig_OTLP) GetGrpcPort() int64 {
+func (x *ServerConfig_OTLP) GetGrpcPort() int64 {
 	if x != nil {
 		return x.GrpcPort
 	}
 	return 0
 }
 
-func (x *ServeLocalhostConfig_OTLP) GetHttpPort() int64 {
+func (x *ServerConfig_OTLP) GetHttpPort() int64 {
 	if x != nil {
 		return x.HttpPort
 	}
@@ -1960,7 +1968,7 @@ type RuntimeConfig_ExperimentalFeatures struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
 	ReleaseChannel  *string                `protobuf:"bytes,1,opt,name=release_channel,json=releaseChannel,proto3,oneof" json:"release_channel,omitempty"`
 	SendLogsToCloud *bool                  `protobuf:"varint,2,opt,name=send_logs_to_cloud,json=sendLogsToCloud,proto3,oneof" json:"send_logs_to_cloud,omitempty"`
-	ServeLocalhost  *ServeLocalhostConfig  `protobuf:"bytes,3,opt,name=serve_localhost,json=serveLocalhost,proto3,oneof" json:"serve_localhost,omitempty"`
+	Server          *ServerConfig          `protobuf:"bytes,3,opt,name=server,proto3,oneof" json:"server,omitempty"`
 	Projects        *ProjectsConfig        `protobuf:"bytes,4,opt,name=projects,proto3,oneof" json:"projects,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
@@ -2010,9 +2018,9 @@ func (x *RuntimeConfig_ExperimentalFeatures) GetSendLogsToCloud() bool {
 	return false
 }
 
-func (x *RuntimeConfig_ExperimentalFeatures) GetServeLocalhost() *ServeLocalhostConfig {
+func (x *RuntimeConfig_ExperimentalFeatures) GetServer() *ServerConfig {
 	if x != nil {
-		return x.ServeLocalhost
+		return x.Server
 	}
 	return nil
 }
@@ -2240,14 +2248,15 @@ const file_types_v1_localhost_config_proto_rawDesc = "" +
 	"fieldNames\x1aX\n" +
 	"\x02KV\x12)\n" +
 	"\x10detect_timestamp\x18\x01 \x01(\bR\x0fdetectTimestamp\x12'\n" +
-	"\x0fdetect_duration\x18\x02 \x01(\bR\x0edetectDuration\"\xe6\x02\n" +
-	"\x14ServeLocalhostConfig\x12\x12\n" +
+	"\x0fdetect_duration\x18\x02 \x01(\bR\x0edetectDuration\"\xf9\x02\n" +
+	"\fServerConfig\x12\x12\n" +
 	"\x04port\x18\x01 \x01(\x03R\x04port\x12\x16\n" +
 	"\x06engine\x18\x02 \x01(\tR\x06engine\x12<\n" +
 	"\rengine_config\x18\x03 \x01(\v2\x17.google.protobuf.StructR\fengineConfig\x12+\n" +
 	"\x0fshow_in_systray\x18\x04 \x01(\bH\x00R\rshowInSystray\x88\x01\x01\x12\x1c\n" +
-	"\alog_dir\x18\x05 \x01(\tH\x01R\x06logDir\x88\x01\x01\x127\n" +
-	"\x04otlp\x18e \x01(\v2#.types.v1.ServeLocalhostConfig.OTLPR\x04otlp\x1a@\n" +
+	"\alog_dir\x18\x05 \x01(\tH\x01R\x06logDir\x88\x01\x01\x12!\n" +
+	"\fbind_address\x18\x06 \x01(\tR\vbindAddress\x12/\n" +
+	"\x04otlp\x18e \x01(\v2\x1b.types.v1.ServerConfig.OTLPR\x04otlp\x1a@\n" +
 	"\x04OTLP\x12\x1b\n" +
 	"\tgrpc_port\x18\x01 \x01(\x03R\bgrpcPort\x12\x1b\n" +
 	"\thttp_port\x18\x02 \x01(\x03R\bhttpPortB\x12\n" +
@@ -2258,7 +2267,7 @@ const file_types_v1_localhost_config_proto_rawDesc = "" +
 	"\bprojects\x18\x01 \x03(\v2 .types.v1.ProjectsConfig.ProjectR\bprojects\x1aQ\n" +
 	"\aProject\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x122\n" +
-	"\apointer\x18\x02 \x01(\v2\x18.types.v1.ProjectPointerR\apointer\"\x9c\b\n" +
+	"\apointer\x18\x02 \x01(\v2\x18.types.v1.ProjectPointerR\apointer\"\xfa\a\n" +
 	"\rRuntimeConfig\x12!\n" +
 	"\tinterrupt\x18\x01 \x01(\bH\x00R\tinterrupt\x88\x01\x01\x128\n" +
 	"\x16skip_check_for_updates\x18\x02 \x01(\bH\x01R\x13skipCheckForUpdates\x88\x01\x01\x12<\n" +
@@ -2267,15 +2276,15 @@ const file_types_v1_localhost_config_proto_rawDesc = "" +
 	"\n" +
 	"api_client\x18\x05 \x01(\v2$.types.v1.RuntimeConfig.ClientConfigR\tapiClient\x1a\n" +
 	"\n" +
-	"\bFeatures\x1a\xcb\x02\n" +
+	"\bFeatures\x1a\xa9\x02\n" +
 	"\x14ExperimentalFeatures\x12,\n" +
 	"\x0frelease_channel\x18\x01 \x01(\tH\x00R\x0ereleaseChannel\x88\x01\x01\x120\n" +
-	"\x12send_logs_to_cloud\x18\x02 \x01(\bH\x01R\x0fsendLogsToCloud\x88\x01\x01\x12L\n" +
-	"\x0fserve_localhost\x18\x03 \x01(\v2\x1e.types.v1.ServeLocalhostConfigH\x02R\x0eserveLocalhost\x88\x01\x01\x129\n" +
+	"\x12send_logs_to_cloud\x18\x02 \x01(\bH\x01R\x0fsendLogsToCloud\x88\x01\x01\x123\n" +
+	"\x06server\x18\x03 \x01(\v2\x16.types.v1.ServerConfigH\x02R\x06server\x88\x01\x01\x129\n" +
 	"\bprojects\x18\x04 \x01(\v2\x18.types.v1.ProjectsConfigH\x03R\bprojects\x88\x01\x01B\x12\n" +
 	"\x10_release_channelB\x15\n" +
-	"\x13_send_logs_to_cloudB\x12\n" +
-	"\x10_serve_localhostB\v\n" +
+	"\x13_send_logs_to_cloudB\t\n" +
+	"\a_serverB\v\n" +
 	"\t_projects\x1a\xc4\x02\n" +
 	"\fClientConfig\x12[\n" +
 	"\rhttp_protocol\x18\x01 \x01(\x0e21.types.v1.RuntimeConfig.ClientConfig.HTTPProtocolH\x00R\fhttpProtocol\x88\x01\x01\x12X\n" +
@@ -2319,7 +2328,7 @@ var file_types_v1_localhost_config_proto_goTypes = []any{
 	(RuntimeConfig_ClientConfig_RPCProtocol)(0),  // 2: types.v1.RuntimeConfig.ClientConfig.RPCProtocol
 	(*FormatConfig)(nil),                         // 3: types.v1.FormatConfig
 	(*ParseConfig)(nil),                          // 4: types.v1.ParseConfig
-	(*ServeLocalhostConfig)(nil),                 // 5: types.v1.ServeLocalhostConfig
+	(*ServerConfig)(nil),                         // 5: types.v1.ServerConfig
 	(*ProjectsConfig)(nil),                       // 6: types.v1.ProjectsConfig
 	(*RuntimeConfig)(nil),                        // 7: types.v1.RuntimeConfig
 	(*LocalhostConfig)(nil),                      // 8: types.v1.LocalhostConfig
@@ -2339,7 +2348,7 @@ var file_types_v1_localhost_config_proto_goTypes = []any{
 	(*ParseConfig_Message)(nil),                  // 22: types.v1.ParseConfig.Message
 	(*ParseConfig_Level)(nil),                    // 23: types.v1.ParseConfig.Level
 	(*ParseConfig_KV)(nil),                       // 24: types.v1.ParseConfig.KV
-	(*ServeLocalhostConfig_OTLP)(nil),            // 25: types.v1.ServeLocalhostConfig.OTLP
+	(*ServerConfig_OTLP)(nil),                    // 25: types.v1.ServerConfig.OTLP
 	(*ProjectsConfig_Project)(nil),               // 26: types.v1.ProjectsConfig.Project
 	(*RuntimeConfig_Features)(nil),               // 27: types.v1.RuntimeConfig.Features
 	(*RuntimeConfig_ExperimentalFeatures)(nil),   // 28: types.v1.RuntimeConfig.ExperimentalFeatures
@@ -2357,8 +2366,8 @@ var file_types_v1_localhost_config_proto_depIdxs = []int32{
 	22, // 6: types.v1.ParseConfig.message:type_name -> types.v1.ParseConfig.Message
 	23, // 7: types.v1.ParseConfig.level:type_name -> types.v1.ParseConfig.Level
 	24, // 8: types.v1.ParseConfig.kv:type_name -> types.v1.ParseConfig.KV
-	30, // 9: types.v1.ServeLocalhostConfig.engine_config:type_name -> google.protobuf.Struct
-	25, // 10: types.v1.ServeLocalhostConfig.otlp:type_name -> types.v1.ServeLocalhostConfig.OTLP
+	30, // 9: types.v1.ServerConfig.engine_config:type_name -> google.protobuf.Struct
+	25, // 10: types.v1.ServerConfig.otlp:type_name -> types.v1.ServerConfig.OTLP
 	26, // 11: types.v1.ProjectsConfig.projects:type_name -> types.v1.ProjectsConfig.Project
 	27, // 12: types.v1.RuntimeConfig.features:type_name -> types.v1.RuntimeConfig.Features
 	28, // 13: types.v1.RuntimeConfig.experimental_features:type_name -> types.v1.RuntimeConfig.ExperimentalFeatures
@@ -2426,7 +2435,7 @@ var file_types_v1_localhost_config_proto_depIdxs = []int32{
 	16, // 75: types.v1.FormatConfig.Themes.light:type_name -> types.v1.FormatConfig.Theme
 	16, // 76: types.v1.FormatConfig.Themes.dark:type_name -> types.v1.FormatConfig.Theme
 	31, // 77: types.v1.ProjectsConfig.Project.pointer:type_name -> types.v1.ProjectPointer
-	5,  // 78: types.v1.RuntimeConfig.ExperimentalFeatures.serve_localhost:type_name -> types.v1.ServeLocalhostConfig
+	5,  // 78: types.v1.RuntimeConfig.ExperimentalFeatures.server:type_name -> types.v1.ServerConfig
 	6,  // 79: types.v1.RuntimeConfig.ExperimentalFeatures.projects:type_name -> types.v1.ProjectsConfig
 	1,  // 80: types.v1.RuntimeConfig.ClientConfig.http_protocol:type_name -> types.v1.RuntimeConfig.ClientConfig.HTTPProtocol
 	2,  // 81: types.v1.RuntimeConfig.ClientConfig.rpc_protocol:type_name -> types.v1.RuntimeConfig.ClientConfig.RPCProtocol
