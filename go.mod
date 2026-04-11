@@ -18,7 +18,7 @@ require (
 	github.com/lucasb-eyer/go-colorful v1.3.0
 	github.com/mattn/go-colorable v0.1.14
 	github.com/mattn/go-isatty v0.0.20
-	github.com/minitape/api/go v0.0.0-20260314053553-971e5e26bafc
+	github.com/minitape/api/go v0.0.0-20260411020603-bb836e07534a
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/oklog/ulid/v2 v2.1.1
 	github.com/ryanuber/go-glob v1.0.0

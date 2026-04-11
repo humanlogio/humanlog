@@ -466,9 +466,6 @@ func mergeRuntimeExperimentalFeatures(prev, next *typesv1.RuntimeConfig_Experime
 	if next.SendLogsToCloud != nil {
 		out.SendLogsToCloud = next.SendLogsToCloud
 	}
-	if next.ServeLocalhost != nil {
-		out.ServeLocalhost = proto.Clone(next.ServeLocalhost).(*typesv1.ServeLocalhostConfig)
-	}
 	if next.Projects != nil {
 		out.Projects = proto.Clone(next.Projects).(*typesv1.ProjectsConfig)
 	}

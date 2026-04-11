@@ -5,7 +5,6 @@ import (
 
 	typesv1 "github.com/minitape/api/go/types/v1"
 	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/types/known/structpb"
 )
 
 type registeredVersion struct {
@@ -99,20 +98,6 @@ func migrateV1toV2(old *deprecatedV1Config, v int) *typesv1.LocalhostConfig {
 		if old.ExperimentalFeatures.SendLogsToCloud != nil {
 			runtimeCfg.ExperimentalFeatures.SendLogsToCloud = old.ExperimentalFeatures.SendLogsToCloud
 		}
-		if old.ExperimentalFeatures.ServeLocalhost != nil {
-			oldslh := old.ExperimentalFeatures.ServeLocalhost
-			cfg, err := structpb.NewStruct(oldslh.Cfg)
-			if err != nil {
-				panic(err)
-			}
-			runtimeCfg.ExperimentalFeatures.ServeLocalhost = &typesv1.ServeLocalhostConfig{
-				Port:          int64(oldslh.Port),
-				Engine:        oldslh.Engine,
-				EngineConfig:  cfg,
-				ShowInSystray: oldslh.ShowInSystray,
-				LogDir:        oldslh.LogDir,
-			}
-		}
 	}
 
 	cfg := &typesv1.LocalhostConfig{
@@ -147,17 +132,8 @@ type deprecatedV1Config struct {
 }
 
 type deprecatedV1Features struct {
-	ReleaseChannel  *string                     `json:"release_channel"`
-	SendLogsToCloud *bool                       `json:"send_logs_to_cloud"`
-	ServeLocalhost  *deprecatedV1ServeLocalhost `json:"serve_localhost"`
-}
-
-type deprecatedV1ServeLocalhost struct {
-	Port          int                    `json:"port"`
-	Engine        string                 `json:"engine"`
-	Cfg           map[string]interface{} `json:"engine_config"`
-	ShowInSystray *bool                  `json:"show_in_systray"`
-	LogDir        *string                `json:"log_dir"`
+	ReleaseChannel  *string `json:"release_channel"`
+	SendLogsToCloud *bool   `json:"send_logs_to_cloud"`
 }
 
 type deprecatedV1TextPalette struct {
