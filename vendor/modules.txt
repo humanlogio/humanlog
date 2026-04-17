@@ -111,7 +111,7 @@ github.com/mattn/go-isatty
 # github.com/mattn/go-runewidth v0.0.19
 ## explicit; go 1.20
 github.com/mattn/go-runewidth
-# github.com/minitape/api/go v0.0.0-20260411020603-bb836e07534a
+# github.com/minitape/api/go v0.0.0-20260416221704-c1ee4d0eb992
 ## explicit; go 1.25
 github.com/minitape/api/go/svc/cliupdate/v1
 github.com/minitape/api/go/svc/cliupdate/v1/cliupdatev1connect

@@ -120,7 +120,7 @@ func (x RuntimeConfig_ClientConfig_HTTPProtocol) Number() protoreflect.EnumNumbe
 
 // Deprecated: Use RuntimeConfig_ClientConfig_HTTPProtocol.Descriptor instead.
 func (RuntimeConfig_ClientConfig_HTTPProtocol) EnumDescriptor() ([]byte, []int) {
-	return file_types_v1_localhost_config_proto_rawDescGZIP(), []int{4, 2, 0}
+	return file_types_v1_localhost_config_proto_rawDescGZIP(), []int{4, 1, 0}
 }
 
 type RuntimeConfig_ClientConfig_RPCProtocol int32
@@ -169,7 +169,7 @@ func (x RuntimeConfig_ClientConfig_RPCProtocol) Number() protoreflect.EnumNumber
 
 // Deprecated: Use RuntimeConfig_ClientConfig_RPCProtocol.Descriptor instead.
 func (RuntimeConfig_ClientConfig_RPCProtocol) EnumDescriptor() ([]byte, []int) {
-	return file_types_v1_localhost_config_proto_rawDescGZIP(), []int{4, 2, 1}
+	return file_types_v1_localhost_config_proto_rawDescGZIP(), []int{4, 1, 1}
 }
 
 type FormatConfig struct {
@@ -485,14 +485,16 @@ func (x *ProjectsConfig) GetProjects() []*ProjectsConfig_Project {
 }
 
 type RuntimeConfig struct {
-	state                protoimpl.MessageState              `protogen:"open.v1"`
-	Interrupt            *bool                               `protobuf:"varint,1,opt,name=interrupt,proto3,oneof" json:"interrupt,omitempty"`
-	SkipCheckForUpdates  *bool                               `protobuf:"varint,2,opt,name=skip_check_for_updates,json=skipCheckForUpdates,proto3,oneof" json:"skip_check_for_updates,omitempty"`
-	Features             *RuntimeConfig_Features             `protobuf:"bytes,3,opt,name=features,proto3" json:"features,omitempty"`
-	ExperimentalFeatures *RuntimeConfig_ExperimentalFeatures `protobuf:"bytes,4,opt,name=experimental_features,json=experimentalFeatures,proto3" json:"experimental_features,omitempty"`
-	ApiClient            *RuntimeConfig_ClientConfig         `protobuf:"bytes,5,opt,name=api_client,json=apiClient,proto3" json:"api_client,omitempty"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
+	state               protoimpl.MessageState      `protogen:"open.v1"`
+	Interrupt           *bool                       `protobuf:"varint,1,opt,name=interrupt,proto3,oneof" json:"interrupt,omitempty"`
+	SkipCheckForUpdates *bool                       `protobuf:"varint,2,opt,name=skip_check_for_updates,json=skipCheckForUpdates,proto3,oneof" json:"skip_check_for_updates,omitempty"`
+	Features            *RuntimeConfig_Features     `protobuf:"bytes,3,opt,name=features,proto3" json:"features,omitempty"`
+	ApiClient           *RuntimeConfig_ClientConfig `protobuf:"bytes,5,opt,name=api_client,json=apiClient,proto3" json:"api_client,omitempty"`
+	ReleaseChannel      *string                     `protobuf:"bytes,6,opt,name=release_channel,json=releaseChannel,proto3,oneof" json:"release_channel,omitempty"`
+	Server              *ServerConfig               `protobuf:"bytes,8,opt,name=server,proto3,oneof" json:"server,omitempty"`
+	Projects            *ProjectsConfig             `protobuf:"bytes,9,opt,name=projects,proto3,oneof" json:"projects,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *RuntimeConfig) Reset() {
@@ -546,16 +548,30 @@ func (x *RuntimeConfig) GetFeatures() *RuntimeConfig_Features {
 	return nil
 }
 
-func (x *RuntimeConfig) GetExperimentalFeatures() *RuntimeConfig_ExperimentalFeatures {
+func (x *RuntimeConfig) GetApiClient() *RuntimeConfig_ClientConfig {
 	if x != nil {
-		return x.ExperimentalFeatures
+		return x.ApiClient
 	}
 	return nil
 }
 
-func (x *RuntimeConfig) GetApiClient() *RuntimeConfig_ClientConfig {
+func (x *RuntimeConfig) GetReleaseChannel() string {
+	if x != nil && x.ReleaseChannel != nil {
+		return *x.ReleaseChannel
+	}
+	return ""
+}
+
+func (x *RuntimeConfig) GetServer() *ServerConfig {
 	if x != nil {
-		return x.ApiClient
+		return x.Server
+	}
+	return nil
+}
+
+func (x *RuntimeConfig) GetProjects() *ProjectsConfig {
+	if x != nil {
+		return x.Projects
 	}
 	return nil
 }
@@ -1964,74 +1980,6 @@ func (*RuntimeConfig_Features) Descriptor() ([]byte, []int) {
 	return file_types_v1_localhost_config_proto_rawDescGZIP(), []int{4, 0}
 }
 
-type RuntimeConfig_ExperimentalFeatures struct {
-	state           protoimpl.MessageState `protogen:"open.v1"`
-	ReleaseChannel  *string                `protobuf:"bytes,1,opt,name=release_channel,json=releaseChannel,proto3,oneof" json:"release_channel,omitempty"`
-	SendLogsToCloud *bool                  `protobuf:"varint,2,opt,name=send_logs_to_cloud,json=sendLogsToCloud,proto3,oneof" json:"send_logs_to_cloud,omitempty"`
-	Server          *ServerConfig          `protobuf:"bytes,3,opt,name=server,proto3,oneof" json:"server,omitempty"`
-	Projects        *ProjectsConfig        `protobuf:"bytes,4,opt,name=projects,proto3,oneof" json:"projects,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
-}
-
-func (x *RuntimeConfig_ExperimentalFeatures) Reset() {
-	*x = RuntimeConfig_ExperimentalFeatures{}
-	mi := &file_types_v1_localhost_config_proto_msgTypes[25]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *RuntimeConfig_ExperimentalFeatures) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*RuntimeConfig_ExperimentalFeatures) ProtoMessage() {}
-
-func (x *RuntimeConfig_ExperimentalFeatures) ProtoReflect() protoreflect.Message {
-	mi := &file_types_v1_localhost_config_proto_msgTypes[25]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RuntimeConfig_ExperimentalFeatures.ProtoReflect.Descriptor instead.
-func (*RuntimeConfig_ExperimentalFeatures) Descriptor() ([]byte, []int) {
-	return file_types_v1_localhost_config_proto_rawDescGZIP(), []int{4, 1}
-}
-
-func (x *RuntimeConfig_ExperimentalFeatures) GetReleaseChannel() string {
-	if x != nil && x.ReleaseChannel != nil {
-		return *x.ReleaseChannel
-	}
-	return ""
-}
-
-func (x *RuntimeConfig_ExperimentalFeatures) GetSendLogsToCloud() bool {
-	if x != nil && x.SendLogsToCloud != nil {
-		return *x.SendLogsToCloud
-	}
-	return false
-}
-
-func (x *RuntimeConfig_ExperimentalFeatures) GetServer() *ServerConfig {
-	if x != nil {
-		return x.Server
-	}
-	return nil
-}
-
-func (x *RuntimeConfig_ExperimentalFeatures) GetProjects() *ProjectsConfig {
-	if x != nil {
-		return x.Projects
-	}
-	return nil
-}
-
 type RuntimeConfig_ClientConfig struct {
 	state         protoimpl.MessageState                   `protogen:"open.v1"`
 	HttpProtocol  *RuntimeConfig_ClientConfig_HTTPProtocol `protobuf:"varint,1,opt,name=http_protocol,json=httpProtocol,proto3,enum=types.v1.RuntimeConfig_ClientConfig_HTTPProtocol,oneof" json:"http_protocol,omitempty"`
@@ -2042,7 +1990,7 @@ type RuntimeConfig_ClientConfig struct {
 
 func (x *RuntimeConfig_ClientConfig) Reset() {
 	*x = RuntimeConfig_ClientConfig{}
-	mi := &file_types_v1_localhost_config_proto_msgTypes[26]
+	mi := &file_types_v1_localhost_config_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2054,7 +2002,7 @@ func (x *RuntimeConfig_ClientConfig) String() string {
 func (*RuntimeConfig_ClientConfig) ProtoMessage() {}
 
 func (x *RuntimeConfig_ClientConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_types_v1_localhost_config_proto_msgTypes[26]
+	mi := &file_types_v1_localhost_config_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2067,7 +2015,7 @@ func (x *RuntimeConfig_ClientConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RuntimeConfig_ClientConfig.ProtoReflect.Descriptor instead.
 func (*RuntimeConfig_ClientConfig) Descriptor() ([]byte, []int) {
-	return file_types_v1_localhost_config_proto_rawDescGZIP(), []int{4, 2}
+	return file_types_v1_localhost_config_proto_rawDescGZIP(), []int{4, 1}
 }
 
 func (x *RuntimeConfig_ClientConfig) GetHttpProtocol() RuntimeConfig_ClientConfig_HTTPProtocol {
@@ -2267,25 +2215,18 @@ const file_types_v1_localhost_config_proto_rawDesc = "" +
 	"\bprojects\x18\x01 \x03(\v2 .types.v1.ProjectsConfig.ProjectR\bprojects\x1aQ\n" +
 	"\aProject\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x122\n" +
-	"\apointer\x18\x02 \x01(\v2\x18.types.v1.ProjectPointerR\apointer\"\xfa\a\n" +
+	"\apointer\x18\x02 \x01(\v2\x18.types.v1.ProjectPointerR\apointer\"\xb5\x06\n" +
 	"\rRuntimeConfig\x12!\n" +
 	"\tinterrupt\x18\x01 \x01(\bH\x00R\tinterrupt\x88\x01\x01\x128\n" +
 	"\x16skip_check_for_updates\x18\x02 \x01(\bH\x01R\x13skipCheckForUpdates\x88\x01\x01\x12<\n" +
-	"\bfeatures\x18\x03 \x01(\v2 .types.v1.RuntimeConfig.FeaturesR\bfeatures\x12a\n" +
-	"\x15experimental_features\x18\x04 \x01(\v2,.types.v1.RuntimeConfig.ExperimentalFeaturesR\x14experimentalFeatures\x12C\n" +
+	"\bfeatures\x18\x03 \x01(\v2 .types.v1.RuntimeConfig.FeaturesR\bfeatures\x12C\n" +
 	"\n" +
-	"api_client\x18\x05 \x01(\v2$.types.v1.RuntimeConfig.ClientConfigR\tapiClient\x1a\n" +
+	"api_client\x18\x05 \x01(\v2$.types.v1.RuntimeConfig.ClientConfigR\tapiClient\x12,\n" +
+	"\x0frelease_channel\x18\x06 \x01(\tH\x02R\x0ereleaseChannel\x88\x01\x01\x123\n" +
+	"\x06server\x18\b \x01(\v2\x16.types.v1.ServerConfigH\x03R\x06server\x88\x01\x01\x129\n" +
+	"\bprojects\x18\t \x01(\v2\x18.types.v1.ProjectsConfigH\x04R\bprojects\x88\x01\x01\x1a\n" +
 	"\n" +
-	"\bFeatures\x1a\xa9\x02\n" +
-	"\x14ExperimentalFeatures\x12,\n" +
-	"\x0frelease_channel\x18\x01 \x01(\tH\x00R\x0ereleaseChannel\x88\x01\x01\x120\n" +
-	"\x12send_logs_to_cloud\x18\x02 \x01(\bH\x01R\x0fsendLogsToCloud\x88\x01\x01\x123\n" +
-	"\x06server\x18\x03 \x01(\v2\x16.types.v1.ServerConfigH\x02R\x06server\x88\x01\x01\x129\n" +
-	"\bprojects\x18\x04 \x01(\v2\x18.types.v1.ProjectsConfigH\x03R\bprojects\x88\x01\x01B\x12\n" +
-	"\x10_release_channelB\x15\n" +
-	"\x13_send_logs_to_cloudB\t\n" +
-	"\a_serverB\v\n" +
-	"\t_projects\x1a\xc4\x02\n" +
+	"\bFeatures\x1a\xc4\x02\n" +
 	"\fClientConfig\x12[\n" +
 	"\rhttp_protocol\x18\x01 \x01(\x0e21.types.v1.RuntimeConfig.ClientConfig.HTTPProtocolH\x00R\fhttpProtocol\x88\x01\x01\x12X\n" +
 	"\frpc_protocol\x18\x02 \x01(\x0e20.types.v1.RuntimeConfig.ClientConfig.RPCProtocolH\x01R\vrpcProtocol\x88\x01\x01\"$\n" +
@@ -2300,7 +2241,10 @@ const file_types_v1_localhost_config_proto_rawDesc = "" +
 	"\r_rpc_protocolB\f\n" +
 	"\n" +
 	"_interruptB\x19\n" +
-	"\x17_skip_check_for_updates\"\xc3\x01\n" +
+	"\x17_skip_check_for_updatesB\x12\n" +
+	"\x10_release_channelB\t\n" +
+	"\a_serverB\v\n" +
+	"\t_projects\"\xc3\x01\n" +
 	"\x0fLocalhostConfig\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\x03R\aversion\x124\n" +
 	"\tformatter\x18\x02 \x01(\v2\x16.types.v1.FormatConfigR\tformatter\x12-\n" +
@@ -2321,7 +2265,7 @@ func file_types_v1_localhost_config_proto_rawDescGZIP() []byte {
 }
 
 var file_types_v1_localhost_config_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_types_v1_localhost_config_proto_msgTypes = make([]protoimpl.MessageInfo, 27)
+var file_types_v1_localhost_config_proto_msgTypes = make([]protoimpl.MessageInfo, 26)
 var file_types_v1_localhost_config_proto_goTypes = []any{
 	(FormatConfig_ColorMode)(0),                  // 0: types.v1.FormatConfig.ColorMode
 	(RuntimeConfig_ClientConfig_HTTPProtocol)(0), // 1: types.v1.RuntimeConfig.ClientConfig.HTTPProtocol
@@ -2351,10 +2295,9 @@ var file_types_v1_localhost_config_proto_goTypes = []any{
 	(*ServerConfig_OTLP)(nil),                    // 25: types.v1.ServerConfig.OTLP
 	(*ProjectsConfig_Project)(nil),               // 26: types.v1.ProjectsConfig.Project
 	(*RuntimeConfig_Features)(nil),               // 27: types.v1.RuntimeConfig.Features
-	(*RuntimeConfig_ExperimentalFeatures)(nil),   // 28: types.v1.RuntimeConfig.ExperimentalFeatures
-	(*RuntimeConfig_ClientConfig)(nil),           // 29: types.v1.RuntimeConfig.ClientConfig
-	(*structpb.Struct)(nil),                      // 30: google.protobuf.Struct
-	(*ProjectPointer)(nil),                       // 31: types.v1.ProjectPointer
+	(*RuntimeConfig_ClientConfig)(nil),           // 28: types.v1.RuntimeConfig.ClientConfig
+	(*structpb.Struct)(nil),                      // 29: google.protobuf.Struct
+	(*ProjectPointer)(nil),                       // 30: types.v1.ProjectPointer
 }
 var file_types_v1_localhost_config_proto_depIdxs = []int32{
 	17, // 0: types.v1.FormatConfig.themes:type_name -> types.v1.FormatConfig.Themes
@@ -2366,84 +2309,83 @@ var file_types_v1_localhost_config_proto_depIdxs = []int32{
 	22, // 6: types.v1.ParseConfig.message:type_name -> types.v1.ParseConfig.Message
 	23, // 7: types.v1.ParseConfig.level:type_name -> types.v1.ParseConfig.Level
 	24, // 8: types.v1.ParseConfig.kv:type_name -> types.v1.ParseConfig.KV
-	30, // 9: types.v1.ServerConfig.engine_config:type_name -> google.protobuf.Struct
+	29, // 9: types.v1.ServerConfig.engine_config:type_name -> google.protobuf.Struct
 	25, // 10: types.v1.ServerConfig.otlp:type_name -> types.v1.ServerConfig.OTLP
 	26, // 11: types.v1.ProjectsConfig.projects:type_name -> types.v1.ProjectsConfig.Project
 	27, // 12: types.v1.RuntimeConfig.features:type_name -> types.v1.RuntimeConfig.Features
-	28, // 13: types.v1.RuntimeConfig.experimental_features:type_name -> types.v1.RuntimeConfig.ExperimentalFeatures
-	29, // 14: types.v1.RuntimeConfig.api_client:type_name -> types.v1.RuntimeConfig.ClientConfig
-	3,  // 15: types.v1.LocalhostConfig.formatter:type_name -> types.v1.FormatConfig
-	4,  // 16: types.v1.LocalhostConfig.parser:type_name -> types.v1.ParseConfig
-	7,  // 17: types.v1.LocalhostConfig.runtime:type_name -> types.v1.RuntimeConfig
-	9,  // 18: types.v1.FormatConfig.Style.foreground:type_name -> types.v1.FormatConfig.Color
-	9,  // 19: types.v1.FormatConfig.Style.background:type_name -> types.v1.FormatConfig.Color
-	10, // 20: types.v1.FormatConfig.NullStyle.style:type_name -> types.v1.FormatConfig.Style
-	10, // 21: types.v1.FormatConfig.LevelStyle.debug:type_name -> types.v1.FormatConfig.Style
-	10, // 22: types.v1.FormatConfig.LevelStyle.info:type_name -> types.v1.FormatConfig.Style
-	10, // 23: types.v1.FormatConfig.LevelStyle.warn:type_name -> types.v1.FormatConfig.Style
-	10, // 24: types.v1.FormatConfig.LevelStyle.error:type_name -> types.v1.FormatConfig.Style
-	10, // 25: types.v1.FormatConfig.LevelStyle.panic:type_name -> types.v1.FormatConfig.Style
-	10, // 26: types.v1.FormatConfig.LevelStyle.fatal:type_name -> types.v1.FormatConfig.Style
-	10, // 27: types.v1.FormatConfig.LevelStyle.unknown:type_name -> types.v1.FormatConfig.Style
-	10, // 28: types.v1.FormatConfig.LogTheme.key:type_name -> types.v1.FormatConfig.Style
-	10, // 29: types.v1.FormatConfig.LogTheme.value:type_name -> types.v1.FormatConfig.Style
-	10, // 30: types.v1.FormatConfig.LogTheme.time:type_name -> types.v1.FormatConfig.Style
-	10, // 31: types.v1.FormatConfig.LogTheme.msg:type_name -> types.v1.FormatConfig.Style
-	12, // 32: types.v1.FormatConfig.LogTheme.levels:type_name -> types.v1.FormatConfig.LevelStyle
-	10, // 33: types.v1.FormatConfig.LogTheme.absent_msg:type_name -> types.v1.FormatConfig.Style
-	10, // 34: types.v1.FormatConfig.LogTheme.absent_time:type_name -> types.v1.FormatConfig.Style
-	10, // 35: types.v1.FormatConfig.SpanTheme.trace_id:type_name -> types.v1.FormatConfig.Style
-	10, // 36: types.v1.FormatConfig.SpanTheme.span_id:type_name -> types.v1.FormatConfig.Style
-	10, // 37: types.v1.FormatConfig.SpanTheme.trace_state:type_name -> types.v1.FormatConfig.Style
-	10, // 38: types.v1.FormatConfig.SpanTheme.parent_span_id:type_name -> types.v1.FormatConfig.Style
-	10, // 39: types.v1.FormatConfig.SpanTheme.name:type_name -> types.v1.FormatConfig.Style
-	10, // 40: types.v1.FormatConfig.SpanTheme.kind:type_name -> types.v1.FormatConfig.Style
-	10, // 41: types.v1.FormatConfig.SpanTheme.service_name:type_name -> types.v1.FormatConfig.Style
-	10, // 42: types.v1.FormatConfig.SpanTheme.scope_name:type_name -> types.v1.FormatConfig.Style
-	10, // 43: types.v1.FormatConfig.SpanTheme.scope_version:type_name -> types.v1.FormatConfig.Style
-	10, // 44: types.v1.FormatConfig.SpanTheme.time:type_name -> types.v1.FormatConfig.Style
-	10, // 45: types.v1.FormatConfig.SpanTheme.duration:type_name -> types.v1.FormatConfig.Style
-	10, // 46: types.v1.FormatConfig.SpanTheme.resource_key:type_name -> types.v1.FormatConfig.Style
-	10, // 47: types.v1.FormatConfig.SpanTheme.resource_val:type_name -> types.v1.FormatConfig.Style
-	10, // 48: types.v1.FormatConfig.SpanTheme.attribute_key:type_name -> types.v1.FormatConfig.Style
-	10, // 49: types.v1.FormatConfig.SpanTheme.attribute_val:type_name -> types.v1.FormatConfig.Style
-	10, // 50: types.v1.FormatConfig.SpanTheme.status_message:type_name -> types.v1.FormatConfig.Style
-	10, // 51: types.v1.FormatConfig.SpanTheme.status_code:type_name -> types.v1.FormatConfig.Style
-	10, // 52: types.v1.FormatConfig.SpanTheme.event_time:type_name -> types.v1.FormatConfig.Style
-	10, // 53: types.v1.FormatConfig.SpanTheme.event_name:type_name -> types.v1.FormatConfig.Style
-	10, // 54: types.v1.FormatConfig.SpanTheme.event_key:type_name -> types.v1.FormatConfig.Style
-	10, // 55: types.v1.FormatConfig.SpanTheme.event_val:type_name -> types.v1.FormatConfig.Style
-	10, // 56: types.v1.FormatConfig.SpanTheme.link_trace_id:type_name -> types.v1.FormatConfig.Style
-	10, // 57: types.v1.FormatConfig.SpanTheme.link_span_id:type_name -> types.v1.FormatConfig.Style
-	10, // 58: types.v1.FormatConfig.SpanTheme.link_trace_state:type_name -> types.v1.FormatConfig.Style
-	10, // 59: types.v1.FormatConfig.SpanTheme.link_key:type_name -> types.v1.FormatConfig.Style
-	10, // 60: types.v1.FormatConfig.SpanTheme.link_val:type_name -> types.v1.FormatConfig.Style
-	10, // 61: types.v1.FormatConfig.SpanTheme.absent_parent_span_id:type_name -> types.v1.FormatConfig.Style
-	10, // 62: types.v1.FormatConfig.TableTheme.column_name:type_name -> types.v1.FormatConfig.Style
-	10, // 63: types.v1.FormatConfig.TableTheme.column_type:type_name -> types.v1.FormatConfig.Style
-	10, // 64: types.v1.FormatConfig.TableTheme.value:type_name -> types.v1.FormatConfig.Style
-	10, // 65: types.v1.FormatConfig.Theme.key:type_name -> types.v1.FormatConfig.Style
-	10, // 66: types.v1.FormatConfig.Theme.value:type_name -> types.v1.FormatConfig.Style
-	10, // 67: types.v1.FormatConfig.Theme.time:type_name -> types.v1.FormatConfig.Style
-	10, // 68: types.v1.FormatConfig.Theme.msg:type_name -> types.v1.FormatConfig.Style
-	12, // 69: types.v1.FormatConfig.Theme.levels:type_name -> types.v1.FormatConfig.LevelStyle
-	10, // 70: types.v1.FormatConfig.Theme.absent_msg:type_name -> types.v1.FormatConfig.Style
-	10, // 71: types.v1.FormatConfig.Theme.absent_time:type_name -> types.v1.FormatConfig.Style
-	13, // 72: types.v1.FormatConfig.Theme.logs:type_name -> types.v1.FormatConfig.LogTheme
-	14, // 73: types.v1.FormatConfig.Theme.spans:type_name -> types.v1.FormatConfig.SpanTheme
-	15, // 74: types.v1.FormatConfig.Theme.tables:type_name -> types.v1.FormatConfig.TableTheme
-	16, // 75: types.v1.FormatConfig.Themes.light:type_name -> types.v1.FormatConfig.Theme
-	16, // 76: types.v1.FormatConfig.Themes.dark:type_name -> types.v1.FormatConfig.Theme
-	31, // 77: types.v1.ProjectsConfig.Project.pointer:type_name -> types.v1.ProjectPointer
-	5,  // 78: types.v1.RuntimeConfig.ExperimentalFeatures.server:type_name -> types.v1.ServerConfig
-	6,  // 79: types.v1.RuntimeConfig.ExperimentalFeatures.projects:type_name -> types.v1.ProjectsConfig
-	1,  // 80: types.v1.RuntimeConfig.ClientConfig.http_protocol:type_name -> types.v1.RuntimeConfig.ClientConfig.HTTPProtocol
-	2,  // 81: types.v1.RuntimeConfig.ClientConfig.rpc_protocol:type_name -> types.v1.RuntimeConfig.ClientConfig.RPCProtocol
-	82, // [82:82] is the sub-list for method output_type
-	82, // [82:82] is the sub-list for method input_type
-	82, // [82:82] is the sub-list for extension type_name
-	82, // [82:82] is the sub-list for extension extendee
-	0,  // [0:82] is the sub-list for field type_name
+	28, // 13: types.v1.RuntimeConfig.api_client:type_name -> types.v1.RuntimeConfig.ClientConfig
+	5,  // 14: types.v1.RuntimeConfig.server:type_name -> types.v1.ServerConfig
+	6,  // 15: types.v1.RuntimeConfig.projects:type_name -> types.v1.ProjectsConfig
+	3,  // 16: types.v1.LocalhostConfig.formatter:type_name -> types.v1.FormatConfig
+	4,  // 17: types.v1.LocalhostConfig.parser:type_name -> types.v1.ParseConfig
+	7,  // 18: types.v1.LocalhostConfig.runtime:type_name -> types.v1.RuntimeConfig
+	9,  // 19: types.v1.FormatConfig.Style.foreground:type_name -> types.v1.FormatConfig.Color
+	9,  // 20: types.v1.FormatConfig.Style.background:type_name -> types.v1.FormatConfig.Color
+	10, // 21: types.v1.FormatConfig.NullStyle.style:type_name -> types.v1.FormatConfig.Style
+	10, // 22: types.v1.FormatConfig.LevelStyle.debug:type_name -> types.v1.FormatConfig.Style
+	10, // 23: types.v1.FormatConfig.LevelStyle.info:type_name -> types.v1.FormatConfig.Style
+	10, // 24: types.v1.FormatConfig.LevelStyle.warn:type_name -> types.v1.FormatConfig.Style
+	10, // 25: types.v1.FormatConfig.LevelStyle.error:type_name -> types.v1.FormatConfig.Style
+	10, // 26: types.v1.FormatConfig.LevelStyle.panic:type_name -> types.v1.FormatConfig.Style
+	10, // 27: types.v1.FormatConfig.LevelStyle.fatal:type_name -> types.v1.FormatConfig.Style
+	10, // 28: types.v1.FormatConfig.LevelStyle.unknown:type_name -> types.v1.FormatConfig.Style
+	10, // 29: types.v1.FormatConfig.LogTheme.key:type_name -> types.v1.FormatConfig.Style
+	10, // 30: types.v1.FormatConfig.LogTheme.value:type_name -> types.v1.FormatConfig.Style
+	10, // 31: types.v1.FormatConfig.LogTheme.time:type_name -> types.v1.FormatConfig.Style
+	10, // 32: types.v1.FormatConfig.LogTheme.msg:type_name -> types.v1.FormatConfig.Style
+	12, // 33: types.v1.FormatConfig.LogTheme.levels:type_name -> types.v1.FormatConfig.LevelStyle
+	10, // 34: types.v1.FormatConfig.LogTheme.absent_msg:type_name -> types.v1.FormatConfig.Style
+	10, // 35: types.v1.FormatConfig.LogTheme.absent_time:type_name -> types.v1.FormatConfig.Style
+	10, // 36: types.v1.FormatConfig.SpanTheme.trace_id:type_name -> types.v1.FormatConfig.Style
+	10, // 37: types.v1.FormatConfig.SpanTheme.span_id:type_name -> types.v1.FormatConfig.Style
+	10, // 38: types.v1.FormatConfig.SpanTheme.trace_state:type_name -> types.v1.FormatConfig.Style
+	10, // 39: types.v1.FormatConfig.SpanTheme.parent_span_id:type_name -> types.v1.FormatConfig.Style
+	10, // 40: types.v1.FormatConfig.SpanTheme.name:type_name -> types.v1.FormatConfig.Style
+	10, // 41: types.v1.FormatConfig.SpanTheme.kind:type_name -> types.v1.FormatConfig.Style
+	10, // 42: types.v1.FormatConfig.SpanTheme.service_name:type_name -> types.v1.FormatConfig.Style
+	10, // 43: types.v1.FormatConfig.SpanTheme.scope_name:type_name -> types.v1.FormatConfig.Style
+	10, // 44: types.v1.FormatConfig.SpanTheme.scope_version:type_name -> types.v1.FormatConfig.Style
+	10, // 45: types.v1.FormatConfig.SpanTheme.time:type_name -> types.v1.FormatConfig.Style
+	10, // 46: types.v1.FormatConfig.SpanTheme.duration:type_name -> types.v1.FormatConfig.Style
+	10, // 47: types.v1.FormatConfig.SpanTheme.resource_key:type_name -> types.v1.FormatConfig.Style
+	10, // 48: types.v1.FormatConfig.SpanTheme.resource_val:type_name -> types.v1.FormatConfig.Style
+	10, // 49: types.v1.FormatConfig.SpanTheme.attribute_key:type_name -> types.v1.FormatConfig.Style
+	10, // 50: types.v1.FormatConfig.SpanTheme.attribute_val:type_name -> types.v1.FormatConfig.Style
+	10, // 51: types.v1.FormatConfig.SpanTheme.status_message:type_name -> types.v1.FormatConfig.Style
+	10, // 52: types.v1.FormatConfig.SpanTheme.status_code:type_name -> types.v1.FormatConfig.Style
+	10, // 53: types.v1.FormatConfig.SpanTheme.event_time:type_name -> types.v1.FormatConfig.Style
+	10, // 54: types.v1.FormatConfig.SpanTheme.event_name:type_name -> types.v1.FormatConfig.Style
+	10, // 55: types.v1.FormatConfig.SpanTheme.event_key:type_name -> types.v1.FormatConfig.Style
+	10, // 56: types.v1.FormatConfig.SpanTheme.event_val:type_name -> types.v1.FormatConfig.Style
+	10, // 57: types.v1.FormatConfig.SpanTheme.link_trace_id:type_name -> types.v1.FormatConfig.Style
+	10, // 58: types.v1.FormatConfig.SpanTheme.link_span_id:type_name -> types.v1.FormatConfig.Style
+	10, // 59: types.v1.FormatConfig.SpanTheme.link_trace_state:type_name -> types.v1.FormatConfig.Style
+	10, // 60: types.v1.FormatConfig.SpanTheme.link_key:type_name -> types.v1.FormatConfig.Style
+	10, // 61: types.v1.FormatConfig.SpanTheme.link_val:type_name -> types.v1.FormatConfig.Style
+	10, // 62: types.v1.FormatConfig.SpanTheme.absent_parent_span_id:type_name -> types.v1.FormatConfig.Style
+	10, // 63: types.v1.FormatConfig.TableTheme.column_name:type_name -> types.v1.FormatConfig.Style
+	10, // 64: types.v1.FormatConfig.TableTheme.column_type:type_name -> types.v1.FormatConfig.Style
+	10, // 65: types.v1.FormatConfig.TableTheme.value:type_name -> types.v1.FormatConfig.Style
+	10, // 66: types.v1.FormatConfig.Theme.key:type_name -> types.v1.FormatConfig.Style
+	10, // 67: types.v1.FormatConfig.Theme.value:type_name -> types.v1.FormatConfig.Style
+	10, // 68: types.v1.FormatConfig.Theme.time:type_name -> types.v1.FormatConfig.Style
+	10, // 69: types.v1.FormatConfig.Theme.msg:type_name -> types.v1.FormatConfig.Style
+	12, // 70: types.v1.FormatConfig.Theme.levels:type_name -> types.v1.FormatConfig.LevelStyle
+	10, // 71: types.v1.FormatConfig.Theme.absent_msg:type_name -> types.v1.FormatConfig.Style
+	10, // 72: types.v1.FormatConfig.Theme.absent_time:type_name -> types.v1.FormatConfig.Style
+	13, // 73: types.v1.FormatConfig.Theme.logs:type_name -> types.v1.FormatConfig.LogTheme
+	14, // 74: types.v1.FormatConfig.Theme.spans:type_name -> types.v1.FormatConfig.SpanTheme
+	15, // 75: types.v1.FormatConfig.Theme.tables:type_name -> types.v1.FormatConfig.TableTheme
+	16, // 76: types.v1.FormatConfig.Themes.light:type_name -> types.v1.FormatConfig.Theme
+	16, // 77: types.v1.FormatConfig.Themes.dark:type_name -> types.v1.FormatConfig.Theme
+	30, // 78: types.v1.ProjectsConfig.Project.pointer:type_name -> types.v1.ProjectPointer
+	1,  // 79: types.v1.RuntimeConfig.ClientConfig.http_protocol:type_name -> types.v1.RuntimeConfig.ClientConfig.HTTPProtocol
+	2,  // 80: types.v1.RuntimeConfig.ClientConfig.rpc_protocol:type_name -> types.v1.RuntimeConfig.ClientConfig.RPCProtocol
+	81, // [81:81] is the sub-list for method output_type
+	81, // [81:81] is the sub-list for method input_type
+	81, // [81:81] is the sub-list for extension type_name
+	81, // [81:81] is the sub-list for extension extendee
+	0,  // [0:81] is the sub-list for field type_name
 }
 
 func init() { file_types_v1_localhost_config_proto_init() }
@@ -2459,14 +2401,13 @@ func file_types_v1_localhost_config_proto_init() {
 	file_types_v1_localhost_config_proto_msgTypes[16].OneofWrappers = []any{}
 	file_types_v1_localhost_config_proto_msgTypes[17].OneofWrappers = []any{}
 	file_types_v1_localhost_config_proto_msgTypes[25].OneofWrappers = []any{}
-	file_types_v1_localhost_config_proto_msgTypes[26].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_types_v1_localhost_config_proto_rawDesc), len(file_types_v1_localhost_config_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   27,
+			NumMessages:   26,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

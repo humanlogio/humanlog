@@ -57,9 +57,7 @@ func GetDefaultConfig(releaseChannel string) (*Config, error) {
 				Interrupt:           ptr(false),
 				SkipCheckForUpdates: ptr(false),
 				Features:            &typesv1.RuntimeConfig_Features{},
-				ExperimentalFeatures: &typesv1.RuntimeConfig_ExperimentalFeatures{
-					ReleaseChannel: &releaseChannel,
-				},
+				ReleaseChannel:      &releaseChannel,
 			},
 		},
 	}, nil
@@ -327,8 +325,14 @@ func mergeRuntime(prev, next *typesv1.RuntimeConfig) *typesv1.RuntimeConfig {
 	if next.Features != nil {
 		out.Features = mergeRuntimeFeatures(prev.GetFeatures(), next.Features)
 	}
-	if next.ExperimentalFeatures != nil {
-		out.ExperimentalFeatures = mergeRuntimeExperimentalFeatures(prev.GetExperimentalFeatures(), next.ExperimentalFeatures)
+	if next.ReleaseChannel != nil {
+		out.ReleaseChannel = next.ReleaseChannel
+	}
+	if next.Server != nil {
+		out.Server = proto.Clone(next.Server).(*typesv1.ServerConfig)
+	}
+	if next.Projects != nil {
+		out.Projects = proto.Clone(next.Projects).(*typesv1.ProjectsConfig)
 	}
 	if next.ApiClient != nil {
 		out.ApiClient = mergeRuntimeClientConfig(prev.GetApiClient(), next.ApiClient)
@@ -455,23 +459,6 @@ func mergeRuntimeFeatures(prev, next *typesv1.RuntimeConfig_Features) *typesv1.R
 	out := proto.Clone(next).(*typesv1.RuntimeConfig_Features)
 	return out
 }
-func mergeRuntimeExperimentalFeatures(prev, next *typesv1.RuntimeConfig_ExperimentalFeatures) *typesv1.RuntimeConfig_ExperimentalFeatures {
-	out := proto.Clone(prev).(*typesv1.RuntimeConfig_ExperimentalFeatures)
-	if out == nil {
-		out = new(typesv1.RuntimeConfig_ExperimentalFeatures)
-	}
-	if next.ReleaseChannel != nil {
-		out.ReleaseChannel = next.ReleaseChannel
-	}
-	if next.SendLogsToCloud != nil {
-		out.SendLogsToCloud = next.SendLogsToCloud
-	}
-	if next.Projects != nil {
-		out.Projects = proto.Clone(next.Projects).(*typesv1.ProjectsConfig)
-	}
-	return out
-}
-
 func mergeRuntimeClientConfig(prev, next *typesv1.RuntimeConfig_ClientConfig) *typesv1.RuntimeConfig_ClientConfig {
 	out := proto.Clone(prev).(*typesv1.RuntimeConfig_ClientConfig)
 	if out == nil {

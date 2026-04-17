@@ -88,6 +88,8 @@ github.com/minitape/api/go v0.0.0-20260314053553-971e5e26bafc h1:6/7Nfvqr75/Bty3
 github.com/minitape/api/go v0.0.0-20260314053553-971e5e26bafc/go.mod h1:g09nd/95pyUgLAPKZKd9/IwvnNpZQn8sVQVnyMKev6k=
 github.com/minitape/api/go v0.0.0-20260411020603-bb836e07534a h1:CzI22ORipWlmFzmUDWqFZE5ivhmDNvpDYJQgtOGgOaM=
 github.com/minitape/api/go v0.0.0-20260411020603-bb836e07534a/go.mod h1:g09nd/95pyUgLAPKZKd9/IwvnNpZQn8sVQVnyMKev6k=
+github.com/minitape/api/go v0.0.0-20260416221704-c1ee4d0eb992 h1:q1vt/xWVjcUq10gNPN4xstFIKoME/YHBz93nMlSA1ms=
+github.com/minitape/api/go v0.0.0-20260416221704-c1ee4d0eb992/go.mod h1:g09nd/95pyUgLAPKZKd9/IwvnNpZQn8sVQVnyMKev6k=
 github.com/mitchellh/go-homedir v1.1.0 h1:lukF9ziXFxDFPkA1vsr5zpc1XuPDn/wFntq5mG+4E0Y=
 github.com/mitchellh/go-homedir v1.1.0/go.mod h1:SfyaCUpYCn1Vlf4IUYiD9fPX4A5wJrkLzIz1N1q0pr0=
 github.com/mtibben/percent v0.2.1 h1:5gssi8Nqo8QU/r2pynCm+hBQHpkB/uNK7BJCFogWdzs=

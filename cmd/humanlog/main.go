@@ -425,9 +425,8 @@ func newApp() *cli.App {
 			tokenSource := getTokenSource(c)
 			clOpts := getConnectOpts(c)
 			var channelName *string
-			expcfg := cfg.GetRuntime().GetExperimentalFeatures()
-			if expcfg != nil && expcfg.ReleaseChannel != nil {
-				channelName = expcfg.ReleaseChannel
+			if cfg.GetRuntime().ReleaseChannel != nil {
+				channelName = cfg.GetRuntime().ReleaseChannel
 			}
 			updateRes = asyncCheckForUpdate(ctx, ll, cfg, statefile, apiURL, httpClient, tokenSource, channelName, clOpts)
 		}
