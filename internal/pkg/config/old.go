@@ -86,17 +86,13 @@ func migrateV1toV2(old *deprecatedV1Config, v int) *typesv1.LocalhostConfig {
 		parseCfg.Level.FieldNames = *old.LevelFields
 	}
 	runtimeCfg := &typesv1.RuntimeConfig{
-		Interrupt:            old.Interrupt,
-		SkipCheckForUpdates:  old.SkipCheckForUpdates,
-		Features:             &typesv1.RuntimeConfig_Features{},
-		ExperimentalFeatures: &typesv1.RuntimeConfig_ExperimentalFeatures{},
+		Interrupt:           old.Interrupt,
+		SkipCheckForUpdates: old.SkipCheckForUpdates,
+		Features:            &typesv1.RuntimeConfig_Features{},
 	}
 	if old.ExperimentalFeatures != nil {
 		if old.ExperimentalFeatures.ReleaseChannel != nil {
-			runtimeCfg.ExperimentalFeatures.ReleaseChannel = old.ExperimentalFeatures.ReleaseChannel
-		}
-		if old.ExperimentalFeatures.SendLogsToCloud != nil {
-			runtimeCfg.ExperimentalFeatures.SendLogsToCloud = old.ExperimentalFeatures.SendLogsToCloud
+			runtimeCfg.ReleaseChannel = old.ExperimentalFeatures.ReleaseChannel
 		}
 	}
 

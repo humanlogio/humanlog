@@ -96,7 +96,7 @@ func versionCmd(
 		Usage: "Interact with humanlog versions",
 		Action: func(cctx *cli.Context) error {
 			cfg := getCfg(cctx)
-			releaseChannel := cfg.CurrentConfig.GetRuntime().GetExperimentalFeatures().GetReleaseChannel()
+			releaseChannel := cfg.CurrentConfig.GetRuntime().GetReleaseChannel()
 			if releaseChannel == "" {
 				releaseChannel = defaultReleaseChannel
 			}
@@ -117,9 +117,8 @@ func versionCmd(
 					httpClient := getHTTPClient(cctx, apiURL)
 					clOpts := getConnectOpts(cctx)
 					var channelName *string
-					expcfg := cfg.GetRuntime().GetExperimentalFeatures()
-					if expcfg != nil && expcfg.ReleaseChannel != nil {
-						channelName = expcfg.ReleaseChannel
+					if cfg.GetRuntime().ReleaseChannel != nil {
+						channelName = cfg.GetRuntime().ReleaseChannel
 					}
 					nextVersion, nextArtifact, hasUpdate, err := checkForUpdate(ctx, ll, cfg, state, apiURL, httpClient, tokenSource, channelName, clOpts)
 					if err != nil {
@@ -154,9 +153,8 @@ func versionCmd(
 					httpClient := getHTTPClient(cctx, apiURL)
 					clOpts := getConnectOpts(cctx)
 					var channelName *string
-					expcfg := cfg.GetRuntime().GetExperimentalFeatures()
-					if expcfg != nil && expcfg.ReleaseChannel != nil {
-						channelName = expcfg.ReleaseChannel
+					if cfg.GetRuntime().ReleaseChannel != nil {
+						channelName = cfg.GetRuntime().ReleaseChannel
 					}
 					_, _, hasUpdate, err := checkForUpdate(ctx, ll, cfg, state, apiURL, httpClient, tokenSource, channelName, clOpts)
 					if err != nil {
