@@ -61,7 +61,7 @@ github.com/danieljoos/wincred
 # github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 ## explicit
 github.com/davecgh/go-spew/spew
-# github.com/dvsekhvalnov/jose2go v1.6.0
+# github.com/dvsekhvalnov/jose2go v1.7.0
 ## explicit; go 1.15
 github.com/dvsekhvalnov/jose2go
 github.com/dvsekhvalnov/jose2go/aes
