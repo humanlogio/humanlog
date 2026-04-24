@@ -24,7 +24,7 @@ require (
 	github.com/ryanuber/go-glob v1.0.0
 	github.com/stretchr/testify v1.11.1
 	github.com/urfave/cli v1.22.14
-	go.opentelemetry.io/otel v1.38.0
+	go.opentelemetry.io/otel v1.41.0
 	go.opentelemetry.io/proto/otlp v1.8.0
 	golang.org/x/net v0.43.0
 	google.golang.org/grpc v1.75.0
@@ -36,6 +36,7 @@ require (
 	github.com/99designs/go-keychain v0.0.0-20191008050251-8e49817e8af4 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/cespare/xxhash v1.1.0 // indirect
+	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/charmbracelet/colorprofile v0.3.2 // indirect
 	github.com/charmbracelet/x/ansi v0.10.2 // indirect
 	github.com/charmbracelet/x/cellbuf v0.0.13 // indirect

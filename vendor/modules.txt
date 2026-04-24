@@ -26,6 +26,9 @@ github.com/blang/semver
 # github.com/cespare/xxhash v1.1.0
 ## explicit
 github.com/cespare/xxhash
+# github.com/cespare/xxhash/v2 v2.3.0
+## explicit; go 1.11
+github.com/cespare/xxhash/v2
 # github.com/charmbracelet/colorprofile v0.3.2
 ## explicit; go 1.23.0
 github.com/charmbracelet/colorprofile
@@ -153,10 +156,11 @@ github.com/urfave/cli
 # github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e
 ## explicit; go 1.19
 github.com/xo/terminfo
-# go.opentelemetry.io/otel v1.38.0
-## explicit; go 1.23.0
+# go.opentelemetry.io/otel v1.41.0
+## explicit; go 1.24.0
 go.opentelemetry.io/otel/attribute
 go.opentelemetry.io/otel/attribute/internal
+go.opentelemetry.io/otel/attribute/internal/xxhash
 go.opentelemetry.io/otel/semconv/v1.34.0
 # go.opentelemetry.io/otel/sdk/metric v1.38.0
 ## explicit; go 1.23.0
